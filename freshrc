@@ -1,0 +1,73 @@
+# freshshell.com
+#
+# Examples:
+#
+#   fresh twe4ked/dotfiles shell/functions/\*
+#   fresh jasoncodes/dotfiles shell/aliases/rails.sh
+#   fresh jasoncodes/dotfiles config/tmux.conf --file
+#
+# See http://freshshell.com/readme for documentation.
+
+fresh freshshell/fresh bin/fresh --bin
+fresh freshshell/fresh contrib/source-build.sh --file=\~/.bashrc
+fresh freshshell/fresh contrib/source-build.sh --file=\~/.bash_profile
+
+fresh jasoncodes/dotfiles shell/config/chruby.sh
+fresh jasoncodes/dotfiles shell/config/direnv.sh
+fresh jasoncodes/dotfiles shell/config/history.sh
+fresh jasoncodes/dotfiles shell/config/prompt.sh
+fresh jasoncodes/dotfiles shell/config/input.sh
+fresh jasoncodes/dotfiles shell/config/keybindings.sh
+fresh jasoncodes/dotfiles shell/config/tmux.sh
+fresh nathanaelkane/dotfiles shell/editor.sh
+
+fresh jasoncodes/dotfiles shell/aliases/git.sh
+
+fresh jasoncodes/dotfiles config/inputrc --file
+fresh jasoncodes/dotfiles config/gitconfig --file
+fresh jasoncodes/dotfiles config/gitignore --file
+fresh jasoncodes/dotfiles config/psqlrc --file
+
+fresh-options --file=~/.tmux.conf --marker=\#
+  fresh jasoncodes/dotfiles config/tmux.conf
+  fresh nathanaelkane/dotfiles config/tmux/ctrlg.conf
+fresh-options
+
+fresh junegunn/vim-plug plug.vim --file=~/.config/nvim/autoload/plug.vim
+fresh-options --file=~/.config/nvim/init.vim --marker=\"
+  fresh nathanaelkane/dotfiles vim/leader.vim
+  fresh nathanaelkane/dotfiles nvim/plug_begin.vim
+  fresh nathanaelkane/dotfiles vim/vundle.vim
+  fresh nathanaelkane/dotfiles nvim/plugins/\*.vim
+  fresh nathanaelkane/dotfiles vim/plugins/\*.vim
+  fresh jasoncodes/dotfiles vim/plugins/ctrlp.vim
+  fresh jasoncodes/dotfiles vim/plugins/ruby.vim
+  fresh jasoncodes/dotfiles vim/plugins/tabular.vim
+  fresh jasoncodes/dotfiles vim/config/tags.vim
+  fresh jasoncodes/dotfiles vim/mappings/whitespace.vim
+  fresh jasoncodes/dotfiles vim/config/bubbling.vim
+  fresh nathanaelkane/dotfiles vim/autocmds.vim
+  fresh nathanaelkane/dotfiles vim/functions.vim
+  fresh nathanaelkane/dotfiles vim/mappings.vim
+  fresh nathanaelkane/dotfiles vim/config/\*.vim
+  fresh nathanaelkane/dotfiles nvim/config/\*.vim
+  fresh jasoncodes/dotfiles vim/config/backups.vim
+  fresh jasoncodes/dotfiles vim/config/undo.vim
+  fresh jasoncodes/dotfiles vim/config/format.vim
+  fresh jasoncodes/dotfiles vim/config/search.vim
+  fresh jasoncodes/dotfiles vim/config/diff.vim
+  fresh nathanaelkane/dotfiles nvim/plug_end.vim
+  fresh nathanaelkane/dotfiles vim/global.vim
+fresh-options
+fresh nathanaelkane/dotfiles vim/colors --file=~/.config/nvim/colors/
+
+fresh git/git contrib/diff-highlight/diff-highlight --bin --ref=8d1b103
+
+nvim_replace_bundle_with_plug() {
+  sed -i 's/Bundle/Plug/' ~/.fresh/build/config-nvim-init.vim
+}
+
+fresh_after_build() {
+  nvim_replace_bundle_with_plug
+}
+
