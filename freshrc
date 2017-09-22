@@ -16,9 +16,9 @@ fresh jasoncodes/dotfiles shell/config/chruby.sh
 fresh jasoncodes/dotfiles shell/config/direnv.sh
 fresh jasoncodes/dotfiles shell/config/history.sh
 fresh jasoncodes/dotfiles shell/config/prompt.sh
-fresh jasoncodes/dotfiles shell/config/input.sh
 fresh jasoncodes/dotfiles shell/config/keybindings.sh
 fresh jasoncodes/dotfiles shell/config/tmux.sh
+fresh nathanaelkane/dotfiles shell/config/input.sh
 fresh nathanaelkane/dotfiles shell/editor.sh
 
 fresh jasoncodes/dotfiles shell/aliases/git.sh
@@ -31,6 +31,7 @@ fresh jasoncodes/dotfiles config/psqlrc --file
 fresh-options --file=~/.tmux.conf --marker=\#
   fresh jasoncodes/dotfiles config/tmux.conf
   fresh nathanaelkane/dotfiles config/tmux/ctrlg.conf
+  fresh nathanaelkane/dotfiles config/tmux/true-color.conf
 fresh-options
 
 fresh junegunn/vim-plug plug.vim --file=~/.config/nvim/autoload/plug.vim
@@ -58,6 +59,7 @@ fresh-options --file=~/.config/nvim/init.vim --marker=\"
   fresh jasoncodes/dotfiles vim/config/diff.vim
   fresh nathanaelkane/dotfiles nvim/plug_end.vim
   fresh nathanaelkane/dotfiles vim/global.vim
+  fresh vim/global.vim
 fresh-options
 fresh nathanaelkane/dotfiles vim/colors --file=~/.config/nvim/colors/
 
