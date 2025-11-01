@@ -1,0 +1,20 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+# Install additional packages beyond base omarchy
+
+set -e
+
+echo "Installing additional packages..."
+
+# Install packages
+sudo pacman -S --needed --noconfirm keyd
+
+# Copy keyd config to /etc
+sudo mkdir -p /etc/keyd
+sudo cp "{{ .chezmoi.sourceDir }}/etc/keyd/default.conf" /etc/keyd/default.conf
+
+# Enable and start service
+sudo systemctl enable --now keyd
+
+echo "Package installation complete"
+{{ end -}}
