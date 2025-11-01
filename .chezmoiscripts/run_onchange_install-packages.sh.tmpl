@@ -6,8 +6,11 @@ set -e
 
 echo "Installing additional packages..."
 
-# Install packages
+# Install packages from official repos
 sudo pacman -S --needed --noconfirm keyd
+
+# Install AUR packages
+yay -S --needed --noconfirm claude-code
 
 # Copy keyd config to /etc
 sudo mkdir -p /etc/keyd
