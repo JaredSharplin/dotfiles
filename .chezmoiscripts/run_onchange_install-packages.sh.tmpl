@@ -7,7 +7,10 @@ set -e
 echo "Installing additional packages..."
 
 # Install packages from official repos
-sudo pacman -S --needed --noconfirm keyd
+sudo pacman -S --needed --noconfirm \
+  keyd \
+  git-delta \
+  git-town
 
 # Install AUR packages
 yay -S --needed --noconfirm claude-code

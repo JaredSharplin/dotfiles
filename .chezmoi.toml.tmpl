@@ -1,0 +1,8 @@
+[data]
+{{- if eq .chezmoi.os "linux" }}
+    name = "Jared Sharplin"
+    email = "jaredsharplin1@gmail.com"
+{{- else if eq .chezmoi.os "darwin" }}
+    name = "Jared Sharplin"
+    email = "jared@tanda.co"
+{{- end }}

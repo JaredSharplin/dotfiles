@@ -1,0 +1,74 @@
+# See https://git-scm.com/docs/git-config
+
+[user]
+	name = {{ .name }}
+	email = {{ .email }}
+
+[core]
+	pager = delta
+	excludesfile = ~/.global_gitignore
+
+[init]
+	defaultBranch = master
+
+[pull]
+	rebase = true 			 # Rebase (instead of merge) on pull
+
+[push]
+	autoSetupRemote = true   # Automatically set upstream branch on push
+
+[merge]
+	conflictstyle = zdiff3
+	tool = nvimdiff
+
+[diff]
+	algorithm = histogram    # Clearer diffs on moved/edited lines
+	colorMoved = plain       # Highlight moved blocks in diffs
+	mnemonicPrefix = true    # More intuitive refs in diff output
+	tool = nvimdiff
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true
+	dark = true
+
+[commit]
+	verbose = true           # Include diff comment in commit message template
+
+[column]
+	ui = auto 			     # Output in columns when possible
+
+[branch]
+	sort = -committerdate    # Sort branches by most recent commit first
+
+[tag]
+	sort = -version:refname  # Sort version numbers as you would expect
+
+[rerere]
+	enabled = true           # Record and reuse conflict resolutions
+	autoupdate = true        # Apply stored conflict resolutions automatically
+
+[alias]
+	# Basic aliases
+	co = checkout
+	br = branch
+	ci = commit
+	st = status
+
+	# git-town aliases
+	append = town append
+	compress = town compress
+	contribute = town contribute
+	diff-parent = town diff-parent
+	hack = town hack
+	delete = town delete
+	observe = town observe
+	park = town park
+	prepend = town prepend
+	propose = town propose
+	rename-branch = town rename-branch
+	repo = town repo
+	set-parent = town set-parent
+	sync = town sync
