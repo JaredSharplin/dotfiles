@@ -1,0 +1,9 @@
+{{- if ne .chezmoi.os "linux" }}
+.bashrc
+.config/hypr/
+etc/
+{{- end }}
+
+{{- if ne .chezmoi.os "darwin" }}
+.zshrc
+{{- end }}
