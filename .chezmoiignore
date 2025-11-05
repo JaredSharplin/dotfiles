@@ -6,4 +6,5 @@ etc/
 
 {{- if ne .chezmoi.os "darwin" }}
 .zshrc
+.config/ghostty/
 {{- end }}

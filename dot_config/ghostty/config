@@ -1,0 +1,16 @@
+# Ghostty Configuration
+
+# Theme
+theme = gruvbox-material-medium-dark
+
+# Font
+font-family = JetbrainsMono Nerd Font
+font-style = Medium
+font-size = 18
+
+# macOS
+macos-option-as-alt = true
+
+# Keybindings - unbind alt+arrows to allow passthrough to terminal apps (e.g., Zellij)
+keybind = alt+left=unbind
+keybind = alt+right=unbind
