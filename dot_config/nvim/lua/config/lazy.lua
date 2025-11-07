@@ -21,9 +21,10 @@ require("lazy").setup({
     -- import LazyVim extras
     { import = "lazyvim.plugins.extras.ai.copilot" },
     { import = "lazyvim.plugins.extras.ai.sidekick" },
-    { import = "lazyvim.plugins.extras.util.chezmoi" },
     { import = "lazyvim.plugins.extras.editor.mini-files" },
     { import = "lazyvim.plugins.extras.lang.ruby" },
+    { import = "lazyvim.plugins.extras.test.core" },
+    { import = "lazyvim.plugins.extras.util.chezmoi" },
     -- import/override with your plugins
     { import = "plugins" },
   },
