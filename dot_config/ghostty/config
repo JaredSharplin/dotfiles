@@ -4,9 +4,9 @@
 theme = gruvbox-material-medium-dark
 
 # Font
-font-family = JetbrainsMono Nerd Font
-font-style = Medium
-font-size = 18
+# Default is Jetbrains Mono Variable
+font-thicken = true
+font-size = 16
 
 # macOS
 macos-option-as-alt = true
