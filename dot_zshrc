@@ -4,28 +4,23 @@
 [[ $- != *i* ]] && return
 
 # =================
-# Shell configuration
+# Load plugins (before customizations)
 # =================
 
-# Use emacs keybindings (Ctrl+A, Ctrl+E, etc.)
-bindkey -e
+# Load antidote plugin manager
+source $(brew --prefix)/opt/antidote/share/antidote/antidote.zsh
+antidote load ${ZDOTDIR:-$HOME}/.zsh_plugins.txt
 
-# history setup
-export HISTFILE="$HOME/.zsh_history"
-export HISTSIZE=100000
-export SAVEHIST=100000
-setopt INC_APPEND_HISTORY
-setopt SHARE_HISTORY
-setopt HIST_EXPIRE_DUPS_FIRST
-setopt HIST_IGNORE_DUPS
-setopt HIST_IGNORE_ALL_DUPS
-setopt HIST_FIND_NO_DUPS
-setopt HIST_SAVE_NO_DUPS
-setopt HIST_REDUCE_BLANKS
-setopt HIST_VERIFY
+# =================
+# Customizations (override Zephyr defaults)
+# =================
 
-source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+# Override editor (Zephyr defaults to nano)
+export EDITOR='nvim'
+export VISUAL='nvim'
 
+# Add PostgreSQL to PATH
+export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
 
 # =================
 # Aliases
@@ -33,16 +28,6 @@ source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 alias vim='nvim'
 alias lg='lazygit'
-
-# =================
-# Exports
-# =================
-
-export PATH=/opt/homebrew/bin:$PATH
-export PATH=$HOME/.local/bin:$PATH
-export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
-export EDITOR='nvim'
-export XDG_CONFIG_HOME="$HOME/.config"
 
 # =================
 # Tool initialisation

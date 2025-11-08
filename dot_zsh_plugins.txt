@@ -1,0 +1,23 @@
+# zsh plugins managed by antidote
+
+# zephyr - modular zsh configuration
+mattmc3/zephyr path:plugins/color
+mattmc3/zephyr path:plugins/completion
+mattmc3/zephyr path:plugins/compstyle
+mattmc3/zephyr path:plugins/directory
+mattmc3/zephyr path:plugins/editor
+mattmc3/zephyr path:plugins/environment
+mattmc3/zephyr path:plugins/history
+mattmc3/zephyr path:plugins/homebrew
+mattmc3/zephyr path:plugins/macos
+mattmc3/zephyr path:plugins/utility
+mattmc3/zephyr path:plugins/zfunctions
+
+# completions
+zsh-users/zsh-completions
+
+# suggestions
+zsh-users/zsh-autosuggestions
+
+# syntax highlighting
+zsh-users/zsh-syntax-highlighting

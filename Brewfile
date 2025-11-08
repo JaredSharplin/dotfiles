@@ -12,7 +12,7 @@ brew "starship"             # Cross-shell prompt
 brew "zoxide"               # Smarter cd command
 brew "mise"                 # Development tool version manager
 brew "mcfly"                # Command line fuzzy history search
-brew "zsh-autosuggestions"  # Fish-like autosuggestions for zsh
+brew "antidote"  # Fish-like autosuggestions for zsh
 
 # Optional but recommended
 brew "fzf"          # Fuzzy finder
