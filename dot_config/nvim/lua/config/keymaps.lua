@@ -12,3 +12,7 @@ vim.keymap.set("n", "<leader>fy", ':let @+=expand("%")<CR>', { desc = "File Yank
 vim.keymap.set("n", "<leader>gm", function()
   require("snacks").picker.gh_pr({ author = "@me", state = "open" })
 end, { desc = "󱥰 My Open Pull Requests" })
+
+vim.keymap.set("n", "<leader>gv", function()
+  require("snacks").picker.gh_pr({ search = "involves:@me", state = "open" })
+end, { desc = "󱥰 PRs I'm Involved In" })
