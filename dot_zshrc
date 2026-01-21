@@ -3,6 +3,9 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
+# Load private secrets (not in version control)
+[[ -f ~/.secrets ]] && source ~/.secrets
+
 # =================
 # Load plugins (before customizations)
 # =================
