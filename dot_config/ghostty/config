@@ -11,6 +11,10 @@ font-size = 16
 # macOS
 macos-option-as-alt = true
 
+# SSH terminfo: install ghostty terminfo on remote, fallback to xterm-256color if it fails
+shell-integration-features = ssh-terminfo,ssh-env
+
 # Keybindings - unbind alt+arrows to allow passthrough to terminal apps (e.g., Zellij)
 keybind = alt+left=unbind
 keybind = alt+right=unbind
+keybind = shift+enter=text:\x1b\r
