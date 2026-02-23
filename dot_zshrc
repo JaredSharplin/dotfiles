@@ -25,6 +25,9 @@ export VISUAL='nvim'
 # Add PostgreSQL to PATH
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
 
+# Taskwarrior XDG-compliant config location
+export TASKRC=~/.config/task/taskrc
+
 # =================
 # Aliases
 # =================
