@@ -49,6 +49,28 @@ layout {
         }
     }
 
+    tab name="Server" {
+        pane split_direction="vertical" {
+            pane split_direction="horizontal" size="50%" {
+                pane command="bin/tunnel" name="Tunnel"
+                pane command="bin/dev" {
+                    args "server"
+                    name "Server"
+                }
+            }
+            pane split_direction="horizontal" size="50%" {
+                pane command="bin/dev" {
+                    args "webpack"
+                    name "Webpack"
+                }
+                pane command="bin/dev" {
+                    args "worker"
+                    name "Worker"
+                }
+            }
+        }
+    }
+
     tab name="Dotfiles" cwd="~/.local/share/chezmoi" {
         pane command="claude"
     }

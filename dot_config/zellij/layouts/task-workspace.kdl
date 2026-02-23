@@ -41,9 +41,9 @@ layout {
 
     tab {
         pane split_direction="vertical" {
-            pane command="nvim" size="50%"
-            pane stacked=true size="50%" {
-                pane command="claude" start_suspended=true
+            pane command="claude" size="30%"
+            pane stacked=true size="70%" {
+                pane command="nvim"
                 pane command="lazygit" start_suspended=true
             }
         }

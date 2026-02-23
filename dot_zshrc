@@ -35,8 +35,15 @@ export TASKRC=~/.config/task/taskrc
 alias vim='nvim'
 alias lg='lazygit'
 alias t='task'
-alias workspace='zellij --layout ~/.config/zellij/layouts/workspace.kdl'
 alias dev-server='zellij action new-tab --name "Server" --layout ~/.config/zellij/layouts/server.kdl --cwd ~/programming/payaus'
+
+workspace() {
+  local layout=~/.config/zellij/layouts/workspace.kdl
+  if [[ "$PWD" == */payaus* ]]; then
+    layout=~/.config/zellij/layouts/workspace-payaus.kdl
+  fi
+  zellij --layout "$layout"
+}
 
 # =================
 # Tool initialisation
@@ -54,9 +61,6 @@ if command -v mise &> /dev/null; then
   eval "$(mise activate zsh)"
 fi
 
-if command -v zellij &> /dev/null; then
-  eval "$(zellij setup --generate-auto-start zsh)"
-fi
 
 if command -v mcfly &> /dev/null; then
   eval "$(mcfly init zsh)"
