@@ -9,3 +9,7 @@ etc/
 .config/ghostty/
 .config/karabiner/
 {{- end }}
+
+CLAUDE.md
+README.md
+AGENTS.md
