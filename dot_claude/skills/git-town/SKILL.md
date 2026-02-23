@@ -185,10 +185,15 @@ git checkout feature/implementation
 gh pr create --title "..." --body "Depends on #<parent-pr>"
 ```
 
+## Automatic Stashing
+
+**Git Town automatically stashes and restores uncommitted changes.** Commands like `hack`, `sync`, `append`, and `prepend` will stash any dirty working directory before switching branches and pop the stash afterward. You do NOT need to manually `git stash` before running git town commands — just run them directly with uncommitted changes present.
+
 ## Tips for Claude Code
 
 - Always run `git town sync` before major operations to keep stack current
 - **Separate commits by concern BEFORE using git town commands** - this is essential for automation
+- **Never manually stash** - git town handles uncommitted changes automatically
 - Use `prepend` when you discover missing prerequisites
 - Use `append` to add dependent work on top
 - Use `hack` + `set-parent` when planning stack structure upfront

@@ -223,3 +223,10 @@ Before editing a PR body:
 - When I reference a documentation file, you MUST read the ENTIRE file immediately, not in chunks
 - Token minimization does NOT apply to reading referenced documentation
 - Thoroughness trumps token efficiency for technical documentation
+
+# Task Management
+
+Use Taskwarrior for personal task tracking. Invoke /task skill for commands and workflow.
+- `task active` to see current work
+- `task <id> annotate "message"` to log progress
+- Tasks are the coordination point — check for active tasks before starting
