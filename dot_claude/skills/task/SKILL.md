@@ -47,7 +47,7 @@ Annotations are cheap. Annotate often. They create a trail that survives session
 | `task <id> stop` | Deactivate without completing (closes Zellij tab) |
 | `task <id> done` | Mark complete (closes Zellij tab) |
 | `task <id> delete` | Delete a task |
-| `task <id> modify key:value` | Change attributes |
+| `task <id> modify "new desc" +tag` | Change attributes |
 | `task <id> annotate "msg"` | Add a timestamped note |
 | `task <id> denotate "msg"` | Remove an annotation |
 | `task <id> info` | Full detail view with annotations |
@@ -86,11 +86,23 @@ task project:payaus list              # shows all sub-projects
 
 ### Tags
 
+Tags go **outside** the quoted description, as separate arguments:
 ```bash
 task add "Fix the leak" +backend +review
 task +backend list                    # filter by tag
 task -frontend list                   # exclude tag
 task +TAGGED list                     # any task with at least one tag
+```
+
+**Tag names MUST use underscores, NEVER hyphens.** Hyphens are arithmetic operators in Taskwarrior filters — `+no-linear` is parsed as `+no` minus `linear` and will error.
+```bash
+# WRONG — hyphen breaks filter
+task add "Fix bug" +no-linear         # creates broken tag
+task +no-linear list                  # ERROR: Cannot subtract from Boolean
+
+# RIGHT — underscore works
+task add "Fix bug" +no_linear
+task +no_linear list                  # filters correctly
 ```
 
 Special tag: `+next` — boosts urgency by 15.0 (highest single factor). Use sparingly for true top priorities.
@@ -114,6 +126,33 @@ task add "Review Q2 report" wait:eom
 ```
 
 Named dates: `today`, `tomorrow`, `monday`..`sunday`, `eow`, `eom`, `som`, `sow`, `later`/`someday`
+
+## Shell Quoting Gotchas
+
+When calling `task` from a shell (including Claude Code's Bash tool), quoting matters:
+
+### Description is a bare quoted string — NOT `description:` attribute
+```bash
+# WRONG — description: attribute gets mangled by bash quoting
+task 5 modify description:"Fix the bug" +urgent    # description becomes empty or wrong
+
+# RIGHT — bare quoted string sets description
+task 5 modify "Fix the bug" +urgent                 # description = "Fix the bug", tag = urgent
+```
+
+### Tags, projects, priority go OUTSIDE the quotes
+```bash
+# WRONG — tags in quotes become part of description text
+task add "Fix the leak +backend +review"            # description = "Fix the leak +backend +review"
+
+# RIGHT — tags as separate arguments
+task add "Fix the leak" +backend +review project:payaus priority:M
+```
+
+### Multiple annotations need separate commands or `&&` chains
+```bash
+task 1 annotate "Linear: https://..." && task 1 annotate "PR: https://..." && task 1 annotate "Branch: feature/..."
+```
 
 ## Best Practices
 
