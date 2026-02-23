@@ -41,11 +41,20 @@ dev-server() {
 }
 
 workspace() {
+  if [[ -n "$ZELLIJ" ]]; then
+    echo "Already inside a Zellij session."
+    return 1
+  fi
+  local session="${PWD##*/}"
   local layout=~/.config/zellij/layouts/workspace.kdl
   if [[ "$PWD" == */payaus* ]]; then
     layout=~/.config/zellij/layouts/workspace-payaus.kdl
   fi
-  zellij --layout "$layout"
+  if zellij list-sessions 2>/dev/null | grep -q "^${session} "; then
+    zellij attach "$session"
+  else
+    zellij -s "$session" -n "$layout"
+  fi
 }
 
 # =================
