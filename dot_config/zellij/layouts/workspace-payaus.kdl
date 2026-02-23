@@ -39,16 +39,6 @@ layout {
         }
     }
 
-    tab name="Main" focus=true {
-        pane split_direction="vertical" {
-            pane command="claude" size="30%"
-            pane stacked=true size="70%" {
-                pane command="nvim"
-                pane command="lazygit" start_suspended=true
-            }
-        }
-    }
-
     tab name="Server" {
         pane split_direction="vertical" {
             pane split_direction="horizontal" size="50%" {
@@ -67,6 +57,16 @@ layout {
                     args "worker"
                     name "Worker"
                 }
+            }
+        }
+    }
+
+    tab name="Main" focus=true {
+        pane split_direction="vertical" {
+            pane command="claude" size="30%"
+            pane stacked=true size="70%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
             }
         }
     }
