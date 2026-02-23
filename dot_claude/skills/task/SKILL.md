@@ -34,7 +34,7 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 2. `task <id> done` — mark complete
 
 ### Key Principle
-Annotations are cheap. Annotate often. They create a trail that survives session boundaries and helps the next session (or the next Claude) pick up where things left off.
+Annotations are cheap. Annotate often. They create a trail that survives session boundaries and helps the next session pick up where things left off.
 
 ## Command Reference
 
@@ -60,10 +60,7 @@ Annotations are cheap. Annotate often. They create a trail that survives session
 |---|---|
 | `task next` | Primary view — sorted by urgency |
 | `task active` | Currently started tasks |
-| `task ready` | Pending, not blocked, not waiting, not future-scheduled |
-| `task blocked` | Tasks waiting on dependencies |
-| `task blocking` | Tasks that block others |
-| `task waiting` | Tasks hidden until their wait date |
+| `task ready` | Pending, not blocked, not waiting |
 | `task project:<name> list` | Filter by project |
 | `task +TAG list` | Filter by tag |
 | `task /pattern/ list` | Regex search descriptions and annotations |
@@ -78,35 +75,25 @@ task <id> start +urgent             # start and add tag
 
 ## Task Structure
 
-### Attributes
+### Projects
 
-| Attribute | Usage |
-|---|---|
-| `project` | Hierarchical grouping: `project:payaus`, `project:Home.Kitchen` |
-| `priority` | `H` (high), `M` (medium), `L` (low), or empty |
-| `tags` | `+tag` to add, `-tag` to remove: `task add Fix bug +urgent +backend` |
-| `due` | Hard deadline ONLY — do not use for "when I want to start" |
-| `scheduled` | Earliest date to begin work — task becomes `+READY` when this passes |
-| `wait` | Hides task from views until this date: `wait:monday` |
-| `until` | Auto-deletes task on this date (for time-sensitive items) |
-| `depends` | Blocking relationship: `depends:<id>` or `depends:<id>,<id>` |
-
-### Date Handling
-
-Named dates: `today`, `tomorrow`, `yesterday`, `monday`..`sunday`, `eow` (end of week), `eom` (end of month), `eoy` (end of year), `som` (start of month), `sow` (start of week), `later`/`someday`
-
-Relative: `due:today+3d`, `wait:due-2days`, `scheduled:monday`
-
-Verify a named date: `task calc eow`
+Hierarchical grouping with dot notation:
+```bash
+task add "Fix auth" project:payaus
+task add "Update docs" project:payaus.docs
+task project:payaus list              # shows all sub-projects
+```
 
 ### Tags
 
-Regular tags: `+urgent`, `+backend`, `+review`
+```bash
+task add "Fix the leak" +backend +review
+task +backend list                    # filter by tag
+task -frontend list                   # exclude tag
+task +TAGGED list                     # any task with at least one tag
+```
 
-Special behaviour tags:
-- `+next` — urgency boost of 15.0 (highest single factor). Use sparingly for true top priorities
-- `+nocolor` — disables color rules
-- `+nonag` — suppresses overdue nagging
+Special tag: `+next` — boosts urgency by 15.0 (highest single factor). Use sparingly for true top priorities.
 
 ### Virtual Tags (for filtering)
 
@@ -115,78 +102,36 @@ Special behaviour tags:
 | `+ACTIVE` | Task has been started |
 | `+BLOCKED` | Depends on incomplete task |
 | `+BLOCKING` | Other tasks depend on this |
-| `+READY` | Pending, not blocked/waiting/future-scheduled |
-| `+OVERDUE` | Past due date |
-| `+DUETODAY` | Due today |
-| `+TAGGED` | Has at least one tag |
+| `+READY` | Pending, not blocked, not waiting |
 | `+ANNOTATED` | Has annotations |
-| `+WAITING` | Hidden until wait date |
 
-### Dependencies
+### Dates
 
+Use `scheduled` for "start after" and `wait` to hide tasks until relevant:
 ```bash
-task add "Write migration" project:payaus
-task add "Update model" project:payaus depends:1
+task add "Deploy feature" scheduled:monday
+task add "Review Q2 report" wait:eom
 ```
 
-- Blocked tasks get urgency penalty (-5.0)
-- Blocking tasks get urgency boost (+8.0)
-
-### Projects
-
-Dot-notation hierarchy:
-```bash
-task add project:Home.Kitchen "Fix tap"
-task project:Home list          # shows all sub-projects
-```
-
-## Urgency System
-
-Tasks are sorted by urgency in the `next` report. Key factors:
-
-| Factor | Coefficient |
-|---|---|
-| `+next` tag | 15.0 |
-| Due date (proximity) | 12.0 |
-| Blocking other tasks | 8.0 |
-| Priority H | 6.0 |
-| Scheduled (past) | 5.0 |
-| Active (started) | 4.0 |
-| Priority M | 3.9 |
-| Age | 2.0 |
-| Priority L | 1.8 |
-| Waiting | -3.0 |
-| Blocked | -5.0 |
-
-The `+next` tag is the strongest lever — use it to surface your true top priority.
+Named dates: `today`, `tomorrow`, `monday`..`sunday`, `eow`, `eom`, `som`, `sow`, `later`/`someday`
 
 ## Best Practices
 
-### Do
 - **Capture immediately** — `task add` with whatever you know, enrich later with `modify`
-- **Decompose vague tasks** — "Renovate kitchen" becomes "Select floor tiles", "Get contractor quotes"
-- **Use `due` only for real deadlines** — fake deadlines create noise
-- **Use `scheduled` for "start after"** — not `due`
+- **Decompose vague tasks** — "Renovate kitchen" is not a task, "Select floor tiles" is
 - **Use `wait` to reduce clutter** — hide tasks not relevant this week
 - **Review regularly** — delete stale tasks, correct metadata
 - **Start tasks** — `task start` tracks what you're actively doing
-
-### Don't
-- Set `due` on everything (creates constant reorganisation burden)
-- Create vague tasks that can never be "done"
-- Ignore the list (if you don't look at it, it has no value)
-- Over-engineer urgency coefficients
-- Use too many tags (keep them consistent and sparse)
+- **Keep descriptions short** — they become Zellij tab names
 
 ## Zellij Integration
 
 When inside Zellij, Taskwarrior hooks automatically:
-- **`task start`** — Creates a new tab using `task-workspace.kdl` layout with nvim + claude + lazygit
+- **`task start`** — Creates a new tab with nvim + claude + lazygit
 - **`task done`/`task stop`** — Closes the current tab after a brief delay
 
-The hook only fires when the `ZELLIJ` env var is set. Outside Zellij, commands work normally.
+The hook only fires when the `ZELLIJ` env var is set.
 
 ## Integration with Other Skills
 
 - Use `/git-town` for branch creation aligned to the task
-- Use `/handoff` for session context transfer — annotate the task first
