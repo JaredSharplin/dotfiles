@@ -6,6 +6,7 @@ brew "git-delta"      # Syntax-highlighting pager for git
 brew "git-town"       # Git workflow automation
 brew "neovim"         # Text editor
 brew "lazygit"        # Git TUI
+brew "task"           # Command-line task management (Taskwarrior)
 
 # Shell enhancements
 brew "starship"             # Cross-shell prompt

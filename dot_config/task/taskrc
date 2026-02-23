@@ -1,0 +1,11 @@
+data.location=~/.local/share/task
+hooks.location=~/.config/task/hooks
+
+uda.project_dir.type=string
+uda.project_dir.label=Project Dir
+
+dateformat=Y-M-D
+weekstart=monday
+default.command=next limit:10
+search.case.sensitive=no
+urgency.active.coefficient=10.0
