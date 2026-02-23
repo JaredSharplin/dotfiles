@@ -31,6 +31,9 @@ export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
 
 alias vim='nvim'
 alias lg='lazygit'
+alias t='task'
+alias workspace='zellij --layout ~/.config/zellij/layouts/workspace.kdl'
+alias dev-server='zellij action new-tab --name "Server" --layout ~/.config/zellij/layouts/server.kdl --cwd ~/programming/payaus'
 
 # =================
 # Tool initialisation
