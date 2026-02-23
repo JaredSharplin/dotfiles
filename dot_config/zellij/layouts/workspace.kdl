@@ -11,8 +11,8 @@ layout {
                 color_orange  "#fe8019"
 
                 format_left   "{tabs}"
-                format_center ""
-                format_right  "{command_task} {pipe_status} {notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
+                format_center "{command_task}"
+                format_right  "{pipe_status} {notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
                 format_space  "#[bg=$bg]"
 
                 border_enabled  "false"
