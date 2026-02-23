@@ -224,25 +224,11 @@ Before editing a PR body:
 - Token minimization does NOT apply to reading referenced documentation
 - Thoroughness trumps token efficiency for technical documentation
 
-# Task Management (AUTOMATIC — do not wait to be prompted)
+# Task Management (PROACTIVE — do not wait to be prompted)
 
-Taskwarrior is the personal task management system. Use it proactively like git — it's part of the workflow, not optional. Invoke /task skill for full command reference.
+Taskwarrior is the personal task management system. **Always invoke /task skill at session start and when beginning any work.** Do not wait for the user to mention tasks — this is automatic, like using git.
 
-## Session Start
-1. Run `task active` to check for in-progress tasks
-2. If a task exists: read its annotations to understand context, then continue working
-3. If no task exists and the user asks you to work on something: `task add "description"` then `task <id> start`
-
-## During Work
-Annotate progress at milestones — don't wait to be asked:
-- `task <id> annotate "Created branch feature/..."` — after creating a branch
-- `task <id> annotate "Key decision: ..."` — when making significant choices
-- `task <id> annotate "Tests passing"` — after tests go green
-- `task <id> annotate "Blocked: ..."` — if you hit a blocker
-
-## PR Creation
-- `task <id> annotate "PR: <url>"` — after creating a pull request
-
-## Finishing Work
-- `task <id> annotate "Done: summary of what was completed"` — before marking done
-- `task <id> done` — mark the task complete
+- `task active` — first thing every session
+- `task add` + `task start` — when starting work with no active task
+- `task annotate` — at every milestone (branches, decisions, blockers, PRs)
+- `task done` — when work is complete
