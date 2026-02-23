@@ -12,7 +12,7 @@ layout {
 
                 format_left   "{tabs}"
                 format_center ""
-                format_right  "{pipe_status} {notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
+                format_right  "{command_task} {pipe_status} {notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
                 format_space  "#[bg=$bg]"
 
                 border_enabled  "false"
@@ -23,6 +23,11 @@ layout {
                 datetime          "#[fg=$fg] {format} "
                 datetime_format   "%a %d %b %H:%M"
                 datetime_timezone "Australia/Brisbane"
+
+                command_task_command    "bash -c '$HOME/.config/task/scripts/zjstatus-task-check.sh'"
+                command_task_format     "{stdout}"
+                command_task_interval   "300"
+                command_task_rendermode "dynamic"
 
                 // claude-code-zellij-status (Layer 2)
                 pipe_status_format    "{output}"
@@ -41,8 +46,8 @@ layout {
 
     tab {
         pane split_direction="vertical" {
-            pane command="claude" size="30%"
-            pane stacked=true size="70%" {
+            pane command="claude" size="40%"
+            pane stacked=true size="60%" {
                 pane command="nvim"
                 pane command="lazygit" start_suspended=true
             }

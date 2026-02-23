@@ -13,8 +13,9 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 
 ### Session Start
 1. Run `task active` to check for in-progress work
-2. If a task exists: run `task <id> info` to read annotations and understand context
-3. If no active task: run `task next` to see what's queued
+2. If a task exists: run `task <id> info` to read annotations — understand where things left off and suggest the next concrete step
+3. If no active task: run `task next` to see what's queued — look for `+next` tagged task first
+4. Check for Monday review (see below)
 
 ### When Starting Work
 1. Check if a relevant task already exists: `task project:<name> list` or `task /keyword/ list`
@@ -105,7 +106,7 @@ task add "Fix bug" +no_linear
 task +no_linear list                  # filters correctly
 ```
 
-Special tag: `+next` — boosts urgency by 15.0 (highest single factor). Use sparingly for true top priorities.
+Special tag: `+next` — exactly 1 task should carry this tag at any time. Marks the top priority when deciding what to work on next. Boosts urgency by 15.0 (highest single factor). This is not a constraint on parallelism — multiple tasks can be active simultaneously via parallel worktrees.
 
 ### Virtual Tags (for filtering)
 
@@ -154,6 +155,13 @@ task add "Fix the leak" +backend +review project:payaus priority:M
 task 1 annotate "Linear: https://..." && task 1 annotate "PR: https://..." && task 1 annotate "Branch: feature/..."
 ```
 
+### Bulk modifications require piped confirmation
+When modifying multiple tasks at once, Taskwarrior prompts for confirmation interactively. In Claude Code's Bash tool, pipe `all` to confirm:
+```bash
+echo "all" | task +on_hold modify wait:monday
+```
+Do NOT use `rc.confirmation=off` — it doesn't suppress the prompt in non-interactive shells.
+
 ## Best Practices
 
 - **Capture immediately** — `task add` with whatever you know, enrich later with `modify`
@@ -170,6 +178,50 @@ When inside Zellij, Taskwarrior hooks automatically:
 - **`task done`/`task stop`** — Closes the current tab after a brief delay
 
 The hook only fires when the `ZELLIJ` env var is set.
+
+## Monday Review (Automated)
+
+On session start, if today is Monday (or if `task +WAITING` shows resurfaced tasks), Claude automatically runs a review:
+
+1. **Check resurfaced tasks:** `task +WAITING list` — tasks with `wait:monday` reappear on Mondays
+2. **Cross-reference PRs:** Run `gh pr list --author @me --state open` and compare with task annotations:
+   - Mark tasks done if their PR was merged (check `gh pr view <url> --json state`)
+   - Annotate tasks if their PR has new review comments
+   - Flag tasks whose PRs have been idle (no activity in 7+ days)
+3. **Triage each resurfaced task:** Ask the user "Keep waiting or act on it?"
+4. **Defer skipped tasks:** `task <id> modify wait:monday` to push back another week
+
+### On-Hold Tasks
+
+Tasks tagged `+on_hold` should be hidden from daily views using `wait`:
+```bash
+task +on_hold modify wait:monday
+```
+They resurface every Monday for review. After Monday triage, any that remain on hold get deferred again.
+
+## Contexts
+
+Two contexts are configured for focused work:
+
+| Context | Purpose | Filter |
+|---|---|---|
+| `focus` | Only active and next-tagged work | `+ACTIVE or +next` |
+| `sprint` | Current payaus sprint work, excluding on-hold | `project:payaus -on_hold -WAITING` |
+
+Switch contexts:
+```bash
+task context focus      # narrow to active work only
+task context sprint     # see current sprint backlog
+task context none       # clear context, see everything
+```
+
+## Stale Task Detection
+
+A task is **stale** when it's active (`+ACTIVE`) but has had no annotation in 24 hours. This indicates work that's started but idle — possibly forgotten across sessions.
+
+The Zellij statusbar shows stale count in red when > 0. On seeing a stale warning:
+1. Run `task +ACTIVE info` to check annotations
+2. Either annotate with current status or stop the task if it's not being worked on
 
 ## Integration with Other Skills
 

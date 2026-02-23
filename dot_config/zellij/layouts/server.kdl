@@ -12,7 +12,7 @@ layout {
 
                 format_left   "{tabs}"
                 format_center ""
-                format_right  "#[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
+                format_right  "{command_task} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
                 format_space  "#[bg=$bg]"
 
                 border_enabled  "false"
@@ -23,6 +23,11 @@ layout {
                 datetime          "#[fg=$fg] {format} "
                 datetime_format   "%a %d %b %H:%M"
                 datetime_timezone "Australia/Brisbane"
+
+                command_task_command    "bash -c '$HOME/.config/task/scripts/zjstatus-task-check.sh'"
+                command_task_format     "{stdout}"
+                command_task_interval   "300"
+                command_task_rendermode "dynamic"
             }
         }
         children

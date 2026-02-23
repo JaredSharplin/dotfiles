@@ -9,3 +9,8 @@ weekstart=monday
 default.command=next limit:10
 search.case.sensitive=no
 urgency.active.coefficient=10.0
+
+context.focus.read=+ACTIVE or +next
+context.focus.write=+ACTIVE or +next
+context.sprint.read=(project:payaus or project:payaus.internal) -on_hold -WAITING
+context.sprint.write=project:payaus

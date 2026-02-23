@@ -50,11 +50,12 @@ workspace() {
   if [[ "$PWD" == */payaus* ]]; then
     layout=~/.config/zellij/layouts/workspace-payaus.kdl
   fi
-  if zellij list-sessions 2>/dev/null | grep -q "^${session} "; then
+  if zellij list-sessions --no-formatting 2>/dev/null | grep "^${session} " | grep -qv EXITED; then
     zellij attach "$session"
-  else
-    zellij -s "$session" -n "$layout"
+    return
   fi
+  zellij delete-session "$session" 2>/dev/null
+  zellij -s "$session" -n "$layout"
 }
 
 # =================
