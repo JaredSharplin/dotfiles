@@ -35,7 +35,10 @@ export TASKRC=~/.config/task/taskrc
 alias vim='nvim'
 alias lg='lazygit'
 alias t='task'
-alias dev-server='zellij action new-tab --name "Server" --layout ~/.config/zellij/layouts/server.kdl --cwd ~/programming/payaus'
+dev-server() {
+  zellij action go-to-tab-name "Server" 2>/dev/null && zellij action close-tab
+  zellij action new-tab --name "Server" --layout ~/.config/zellij/layouts/server.kdl --cwd ~/programming/payaus
+}
 
 workspace() {
   local layout=~/.config/zellij/layouts/workspace.kdl
