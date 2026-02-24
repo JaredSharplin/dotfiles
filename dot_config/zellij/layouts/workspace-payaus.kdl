@@ -48,18 +48,18 @@ layout {
         pane split_direction="vertical" {
             pane split_direction="horizontal" size="50%" {
                 pane command="bin/tunnel" name="Tunnel"
-                pane command="bin/dev" {
-                    args "server"
+                pane command="bash" {
+                    args "-c" "sleep 60 && bin/dev server"
                     name "Server"
                 }
             }
             pane split_direction="horizontal" size="50%" {
-                pane command="bin/dev" {
-                    args "webpack"
+                pane command="bash" {
+                    args "-c" "sleep 60 && bin/dev webpack"
                     name "Webpack"
                 }
-                pane command="bin/dev" {
-                    args "worker"
+                pane command="bash" {
+                    args "-c" "sleep 60 && bin/dev worker"
                     name "Worker"
                 }
             }
@@ -68,7 +68,46 @@ layout {
 
     tab name="Main" focus=true {
         pane split_direction="vertical" {
-            pane command="claude" size="40%"
+            pane size="40%" command="claude" {
+                args "--dangerously-skip-permissions"
+            }
+            pane stacked=true size="60%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
+                pane command="taskwarrior-tui" start_suspended=true
+            }
+        }
+    }
+
+    tab name="Slot 1" cwd="~/programming/worktrees/slot-1" {
+        pane split_direction="vertical" {
+            pane size="40%" command="bash" start_suspended=true {
+                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            }
+            pane stacked=true size="60%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
+            }
+        }
+    }
+
+    tab name="Slot 2" cwd="~/programming/worktrees/slot-2" {
+        pane split_direction="vertical" {
+            pane size="40%" command="bash" start_suspended=true {
+                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            }
+            pane stacked=true size="60%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
+            }
+        }
+    }
+
+    tab name="Slot 3" cwd="~/programming/worktrees/slot-3" {
+        pane split_direction="vertical" {
+            pane size="40%" command="bash" start_suspended=true {
+                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            }
             pane stacked=true size="60%" {
                 pane command="nvim"
                 pane command="lazygit" start_suspended=true
@@ -77,6 +116,8 @@ layout {
     }
 
     tab name="Dotfiles" cwd="~/.local/share/chezmoi" {
-        pane command="claude"
+        pane command="claude" {
+            args "--dangerously-skip-permissions"
+        }
     }
 }

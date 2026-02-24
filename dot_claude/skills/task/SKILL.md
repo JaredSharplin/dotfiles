@@ -173,11 +173,30 @@ Do NOT use `rc.confirmation=off` — it doesn't suppress the prompt in non-inter
 
 ## Zellij Integration
 
-When inside Zellij, Taskwarrior hooks automatically:
-- **`task start`** — Creates a new tab with nvim + claude + lazygit
-- **`task done`/`task stop`** — Closes the current tab after a brief delay
+The `workspace-payaus` layout pre-builds 3 slot tabs (Slot 1–3), each with a suspended Claude pane, nvim, and lazygit. Slots map to worktree directories `~/programming/worktrees/slot-{1,2,3}`.
 
-The hook only fires when the `ZELLIJ` env var is set.
+### Tab Lifecycle
+
+| Event | Action |
+|---|---|
+| `task start` | Assigns first free slot, sets `project_dir` UDA, writes context file, renames "Slot N" → task description, switches focus |
+| `task done`/`task stop` | Renames tab back to "Slot N", switches to Main, deletes context file |
+
+Slots are freed implicitly — a slot is "free" when no `+ACTIVE` task has its `project_dir` pointing to it. Stopping then restarting a task reuses the same slot.
+
+If all 3 slots are occupied, `task start` prints a warning and no tab switch occurs.
+
+### Claude Pane
+
+Each slot's Claude pane starts suspended. When activated:
+- If a context file exists (`~/.local/share/task/context/<uuid>.json`), Claude launches in plan mode with the task description
+- If no context file matches the working directory, Claude launches bare
+
+Context files are written by the on-modify hook and deleted on task completion/stop.
+
+### Outside Zellij
+
+The hook still assigns a slot and writes context, but skips all Zellij commands. The `ZELLIJ` env var controls this.
 
 ## Monday Review (Automated)
 

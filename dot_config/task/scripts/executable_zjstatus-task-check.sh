@@ -24,14 +24,12 @@ if [[ "$stale" -gt 0 ]]; then
   focus+=("#[fg=#fb4934]⚠ ${stale} stale")
 fi
 
-if [[ "$active" -eq 1 ]]; then
-  active_desc=$(task +ACTIVE export 2>/dev/null | jq -r '.[0].description // empty')
-  focus+=("#[fg=#b8bb26]${active_desc}")
-elif [[ "$active" -gt 1 ]]; then
-  focus+=("#[fg=#b8bb26]${active} active")
+if [[ "$active" -gt 0 ]]; then
+  active_names=$(task +ACTIVE export 2>/dev/null | jq -r '[.[].description] | join(" · ")')
+  focus+=("#[fg=#b8bb26]${active_names}")
 fi
 
-if [[ -n "$next_desc" && "$next_desc" != "${active_desc:-}" ]]; then
+if [[ -n "$next_desc" ]]; then
   focus+=("#[fg=#fabd2f]Next: ${next_desc}")
 fi
 
@@ -41,8 +39,7 @@ if [[ "$pending" -gt 0 ]]; then
   counts+=("#[fg=#83a598]${pending} queued")
 fi
 
-day_of_week=$(date +%u)
-if [[ "$waiting" -gt 0 && "$day_of_week" -eq 1 ]]; then
+if [[ "$waiting" -gt 0 ]]; then
   counts+=("#[fg=#fe8019]${waiting} on hold")
 fi
 
