@@ -57,9 +57,10 @@ Call `EnterPlanMode` immediately after fetching the ticket.
    - Agent 2: Investigate code area B mentioned in ticket
    - Agent 3: Investigate existing test coverage for affected areas
    - If narrowly scoped to one area, investigate sequentially — no subagents
-4. Corroborate every ticket claim against actual code
-5. Check `git log` for recent changes to affected areas
-6. **Do NOT hypothesize a root cause yet**
+4. Check `doc/features/` for documentation on the affected feature — understand intended behavior before assuming what's broken
+5. Corroborate every ticket claim against actual code and feature docs
+6. Check `git log` for recent changes to affected areas
+7. **Do NOT hypothesize a root cause yet**
 
 ### Step 2: Console Verification (MANDATORY when customer data exists)
 
