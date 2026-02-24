@@ -25,8 +25,8 @@ If no ticket number is provided, show usage and stop.
 ```
 PHASE 1: PLAN MODE (read-only investigation)
   Step 1: Fetch ticket, explore codebase, corroborate claims
-  Step 2: Verify customer data via dev console (conditional)
-  Step 3: Design failing test cases
+  Step 2: Verify customer data via dev console (MANDATORY if customer data exists)
+  Step 3: Design failing test cases (informed by Step 2 findings)
   Step 4: Design puts debug statements
   → ExitPlanMode → user reviews
 
@@ -61,22 +61,28 @@ Call `EnterPlanMode` immediately after fetching the ticket.
 5. Check `git log` for recent changes to affected areas
 6. **Do NOT hypothesize a root cause yet**
 
-### Step 2: Console Verification (conditional)
+### Step 2: Console Verification (MANDATORY when customer data exists)
 
-Only if ticket contains customer data examples (org IDs, user IDs, record examples):
+**Gate check:** Does the ticket reference ANY specific customer data — org IDs, user IDs, employee names, record examples, date ranges, screenshots of specific records? If YES, this step is MANDATORY. Do NOT skip to Step 3.
 
 1. Load `dev-console` skill
-2. Query dev DB to verify the data conditions exist
-3. Record exact values found — these become test fixture data
+2. Design and run queries to understand the full data shape around the bug:
+   - The affected records and their associations (e.g., user → wage_comparisons → timesheets → shifts → caches)
+   - Compare affected records vs unaffected records — what differs?
+   - Record exact values: IDs, counts, dates, states, foreign keys
+3. These findings become test fixture data — without them, test designs are speculative guesses
+
+**If no customer data exists in the ticket**, skip to Step 3 and note "Step 2 skipped — no customer data in ticket."
 
 ### Step 3: Design Failing Tests
 
 1. Load `write-ruby-tests` skill
-2. Design test cases that:
+2. **If Step 2 was performed:** Base test fixture data on the exact data conditions discovered in console verification. The test setup must mirror the real data shape that produces the bug.
+3. Design test cases that:
    - Reproduce the exact bug scenario described in the ticket
    - Assert EXPECTED (correct) behavior — so they fail against current buggy code
    - Use exact calculated values, not vague assertions
-3. List each test with its setup, action, and expected outcome
+4. List each test with its setup, action, and expected outcome
 
 ### Step 4: Design Debug Puts
 
@@ -113,7 +119,8 @@ Do NOT hypothesize a root cause. Do NOT write any fix code.
 
 **Phase 1 plan MUST contain ONLY:**
 - Investigation findings (code paths traced, corroborated claims)
-- Test case designs (setup, action, expected outcome)
+- Console verification findings (if Step 2 was performed — exact data conditions, record counts, key differences between affected and unaffected records)
+- Test case designs (setup, action, expected outcome — based on console data when available)
 - Debug puts designs (file, line, what it reveals)
 - Execution Instructions section (copy the template above, filling in the ticket number)
 
@@ -218,7 +225,7 @@ These rules override normal behavior at all times:
 
 1. **No fixing without failing tests** — Step 7 cannot begin until Step 5 produces verified failing tests
 2. **No root cause hypothesis without evidence** — Step 6 cannot hypothesize until Steps 1-5 provide concrete debug output. The Phase 1 plan file must NEVER contain root cause analysis or fix proposals — these belong exclusively in the Phase 2 plan after test failures and debug output are observed
-3. **No assumptions about data** — If the ticket references specific data, verify via console in Step 2
+3. **No assumptions about data** — If the ticket references specific customer data, Step 2 console verification is MANDATORY before Step 3. Test designs without console verification are speculative and will miss the actual bug conditions
 4. **Stop on surprise** — If test results contradict expectations, the current understanding is wrong. Do not push forward. Re-investigate.
 5. **One hypothesis at a time** — Gather enough evidence to be confident before proposing a fix
 6. **Tests that change after Step 5 must be re-verified** — If tests are modified to make them pass, they no longer prove the bug was fixed. They must fail against the original buggy code first.
