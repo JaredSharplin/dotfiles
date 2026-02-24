@@ -10,9 +10,9 @@ layout {
                 color_blue    "#83a598"
                 color_orange  "#fe8019"
 
-                format_left   "{tabs}"
+                format_left   "{tabs} {pipe_status}"
                 format_center "{command_task}"
-                format_right  "{pipe_status} {notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
+                format_right  "{notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
                 format_space  "#[bg=$bg]"
 
                 border_enabled  "false"

@@ -25,8 +25,7 @@ if [[ "$stale" -gt 0 ]]; then
 fi
 
 if [[ "$active" -gt 0 ]]; then
-  active_names=$(task +ACTIVE export 2>/dev/null | jq -r '[.[].description] | join(" · ")')
-  focus+=("#[fg=#b8bb26]${active_names}")
+  focus+=("#[fg=#b8bb26]${active} active")
 fi
 
 if [[ -n "$next_desc" ]]; then
