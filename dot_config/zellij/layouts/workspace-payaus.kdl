@@ -10,15 +10,19 @@ layout {
                 color_blue    "#83a598"
                 color_orange  "#fe8019"
 
-                format_left   "{tabs} {pipe_status}"
-                format_center "{command_task}"
-                format_right  "{notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
+                format_left   "{pipe_status} {tabs}"
+                format_center ""
+                format_right  "{command_task} {notifications} #[fg=$blue,bold]{session} #[fg=$fg]{datetime}"
                 format_space  "#[bg=$bg]"
 
                 border_enabled  "false"
 
-                tab_normal   "#[fg=$fg,bg=$bg] {name} "
-                tab_active   "#[fg=$bg,bg=$green,bold] {name} "
+                tab_normal              "#[fg=$fg,bg=$bg] {name} #[fg=#665c54]│"
+                tab_active              "#[fg=$bg,bg=$green,bold] {name} #[fg=#665c54,bg=$bg]│"
+                tab_normal_fullscreen   "#[fg=$fg,bg=$bg] {name} #[fg=#665c54]│"
+                tab_active_fullscreen   "#[fg=$bg,bg=$green,bold] {name} #[fg=#665c54,bg=$bg]│"
+                tab_normal_sync         "#[fg=$fg,bg=$bg] {name} #[fg=#665c54]│"
+                tab_active_sync         "#[fg=$bg,bg=$green,bold] {name} #[fg=#665c54,bg=$bg]│"
 
                 datetime          "#[fg=$fg] {format} "
                 datetime_format   "%a %d %b %H:%M"
@@ -75,6 +79,9 @@ layout {
                 pane command="nvim"
                 pane command="lazygit" start_suspended=true
                 pane command="taskwarrior-tui" start_suspended=true
+                pane command="gh" start_suspended=true {
+                    args "dash"
+                }
             }
         }
     }
@@ -104,6 +111,42 @@ layout {
     }
 
     tab name="Slot 3" cwd="~/programming/worktrees/slot-3" {
+        pane split_direction="vertical" {
+            pane size="40%" command="bash" start_suspended=true {
+                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            }
+            pane stacked=true size="60%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
+            }
+        }
+    }
+
+    tab name="Slot 4" cwd="~/programming/worktrees/slot-4" {
+        pane split_direction="vertical" {
+            pane size="40%" command="bash" start_suspended=true {
+                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            }
+            pane stacked=true size="60%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
+            }
+        }
+    }
+
+    tab name="Slot 5" cwd="~/programming/worktrees/slot-5" {
+        pane split_direction="vertical" {
+            pane size="40%" command="bash" start_suspended=true {
+                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            }
+            pane stacked=true size="60%" {
+                pane command="nvim"
+                pane command="lazygit" start_suspended=true
+            }
+        }
+    }
+
+    tab name="Slot 6" cwd="~/programming/worktrees/slot-6" {
         pane split_direction="vertical" {
             pane size="40%" command="bash" start_suspended=true {
                 args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
