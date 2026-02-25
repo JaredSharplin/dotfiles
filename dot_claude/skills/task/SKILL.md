@@ -20,8 +20,9 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 ### When Starting Work
 1. Check if a relevant task already exists: `task project:<name> list` or `task /keyword/ list`
 2. If no task exists, create one: `task add "description" project:<name>`
-3. Start it: `task <id> start`
-4. Annotate the approach: `task <id> annotate "Starting: <brief plan>"`
+3. If running inside a slot (detect from `$PWD` matching `slot-N`): `task <id> modify project_dir:$PWD` — this pins the task to the current slot instead of the hook picking the first free one
+4. Start it: `task <id> start`
+5. Annotate the approach: `task <id> annotate "Starting: <brief plan>"`
 
 ### During Work — Annotate at Milestones
 - `task <id> annotate "Branch: feature/..."` — after creating a branch
@@ -173,7 +174,7 @@ Do NOT use `rc.confirmation=off` — it doesn't suppress the prompt in non-inter
 
 ## Zellij Integration
 
-The `workspace-payaus` layout pre-builds 3 slot tabs (Slot 1–3), each with a suspended Claude pane, nvim, and lazygit. Slots map to worktree directories `~/programming/worktrees/slot-{1,2,3}`.
+The `workspace-payaus` layout pre-builds 6 slot tabs (Slot 1–6), each with a suspended Claude pane, nvim, and lazygit. Slots map to worktree directories `~/programming/worktrees/slot-{1,2,3,4,5,6}`.
 
 ### Tab Lifecycle
 
@@ -184,7 +185,7 @@ The `workspace-payaus` layout pre-builds 3 slot tabs (Slot 1–3), each with a s
 
 Slots are freed implicitly — a slot is "free" when no `+ACTIVE` task has its `project_dir` pointing to it. Stopping then restarting a task reuses the same slot.
 
-If all 3 slots are occupied, `task start` prints a warning and no tab switch occurs.
+If all 6 slots are occupied, `task start` prints a warning and no tab switch occurs.
 
 ### Claude Pane
 
@@ -241,6 +242,31 @@ A task is **stale** when it's active (`+ACTIVE`) but has had no annotation in 24
 The Zellij statusbar shows stale count in red when > 0. On seeing a stale warning:
 1. Run `task +ACTIVE info` to check annotations
 2. Either annotate with current status or stop the task if it's not being worked on
+
+## PR Review Workflow
+
+Slots are shared between tasks and PR reviews. Two scripts manage the review lifecycle:
+
+### `pr-review <number|url>`
+
+Run from any terminal inside Zellij. Finds a free slot, checks out the PR branch in the slot worktree, writes a `.pr-review` marker and review context file, renames the tab to "PR #N", and switches to it.
+
+In the slot:
+- **nvim**: `<leader>gr` opens snacks.nvim diff picker for the PR — browse changed files, comment on lines, approve/request changes
+- **Claude pane**: activates with review context, fetches the diff, reviews with code reviewer skill
+- **lazygit**: commit-by-commit view for understanding PR progression
+
+### `pr-done`
+
+Run from within a review slot. Removes the `.pr-review` marker and review context file, renames the tab back to "Slot N", and switches to Main.
+
+### How Free Slots Are Detected
+
+A slot is occupied if either:
+- An `+ACTIVE` task has `project_dir` pointing to it
+- A `.pr-review` marker file exists in the slot directory
+
+The first slot that satisfies neither condition is assigned.
 
 ## Integration with Other Skills
 
