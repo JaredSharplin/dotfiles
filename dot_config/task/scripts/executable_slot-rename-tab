@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Renames a Zellij slot tab based on its current context.
+#
+# Usage: slot-rename-tab [slot_number]
+#
+# If slot_number is omitted, detects from $PWD.
+# Checks for review context, then task context, then falls back to "Slot N".
+
+set -euo pipefail
+
+CONTEXT_DIR="$HOME/.local/share/task/context"
+SLOT_BASE="$HOME/programming/worktrees"
+
+[[ -n "${ZELLIJ:-}" ]] || exit 0
+
+slot_n="${1:-$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')}"
+[[ -n "$slot_n" ]] || exit 0
+
+slot_dir="$SLOT_BASE/slot-$slot_n"
+review_context="$CONTEXT_DIR/review-slot-$slot_n.json"
+
+if [[ -f "$review_context" ]]; then
+  pr_number=$(jq -r '.pr_number // empty' "$review_context")
+  zellij action rename-tab "Slot $slot_n: Reviewing $pr_number"
+else
+  # Find task context matching this slot
+  task_id=""
+  task_desc=""
+  if [[ -d "$CONTEXT_DIR" ]]; then
+    for f in "$CONTEXT_DIR"/*.json; do
+      [[ -f "$f" ]] || continue
+      [[ "$(basename "$f")" == review-* ]] && continue
+      project_dir=$(jq -r '.project_dir // empty' "$f" 2>/dev/null)
+      if [[ "$project_dir" == "$slot_dir" ]]; then
+        task_id=$(jq -r '.id // empty' "$f")
+        task_desc=$(jq -r '.description // empty' "$f")
+        break
+      fi
+    done
+  fi
+
+  if [[ -n "$task_id" ]]; then
+    if [[ ${#task_desc} -gt 20 ]]; then
+      task_desc="${task_desc:0:20}…"
+    fi
+    zellij action rename-tab "Slot $slot_n: #$task_id $task_desc"
+  else
+    zellij action rename-tab "Slot $slot_n"
+  fi
+fi

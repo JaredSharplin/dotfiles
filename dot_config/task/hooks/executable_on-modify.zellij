@@ -9,12 +9,13 @@
 require "json"
 require "fileutils"
 
-SLOT_COUNT = 3
+SLOT_COUNT = 6
 SLOT_BASE = File.expand_path("~/programming/worktrees")
 CONTEXT_DIR = File.expand_path("~/.local/share/task/context")
 
 def slot_path(n) = "#{SLOT_BASE}/slot-#{n}"
 def slot_tab_name(n) = "Slot #{n}"
+def slot_tab_index(n) = n + 2
 
 def slot_number_from_path(path)
   path&.match(/slot-(\d+)/)&.then { it[1].to_i }
@@ -37,6 +38,7 @@ end
 def write_context(task)
   FileUtils.mkdir_p(CONTEXT_DIR)
   context = {
+    id: task["id"],
     uuid: task["uuid"],
     description: task["description"],
     project: task["project"],
@@ -54,6 +56,10 @@ end
 
 def zellij(*args)
   system("zellij", "action", *args, out: File::NULL, err: File::NULL)
+end
+
+def rename_slot_tab(n)
+  system(File.expand_path("~/.config/task/scripts/slot-rename-tab"), n.to_s, out: File::NULL, err: File::NULL)
 end
 
 def in_zellij? = ENV.key?("ZELLIJ")
@@ -76,7 +82,7 @@ if was_started
 
     if in_zellij?
       zellij("go-to-tab-name", slot_tab_name(slot_n))
-      zellij("rename-tab", new_task["description"])
+      rename_slot_tab(slot_n)
     end
 
     warn "Slot #{slot_n}: #{new_task['description']}"
@@ -88,8 +94,8 @@ elsif was_stopped
   delete_context(old_task["uuid"])
 
   if in_zellij? && slot_n
-    zellij("go-to-tab-name", old_task["description"])
-    zellij("rename-tab", slot_tab_name(slot_n))
+    zellij("go-to-tab", slot_tab_index(slot_n).to_s)
+    rename_slot_tab(slot_n)
     zellij("go-to-tab-name", "Main")
     warn "Slot #{slot_n} released"
   end

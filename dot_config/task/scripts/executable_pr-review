@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Opens a PR for review in a free Zellij slot tab.
+#
+# Usage: pr-review <number|url>
+#
+# - Finds the first free slot (not occupied by an active task or existing review)
+# - Checks out the PR branch in the slot worktree
+# - Writes a .pr-review marker and review context file
+# - Renames the slot tab to "PR #<number>" and switches to it
+
+set -euo pipefail
+
+SLOT_COUNT=6
+SLOT_BASE="$HOME/programming/worktrees"
+CONTEXT_DIR="$HOME/.local/share/task/context"
+
+usage() {
+  echo "Usage: pr-review <number|url>" >&2
+  exit 1
+}
+
+[[ $# -eq 1 ]] || usage
+
+# Extract PR number from argument (handles both "1234" and full GitHub URLs)
+input="$1"
+pr_number="${input##*/}"
+pr_number="${pr_number//[^0-9]/}"
+
+[[ -n "$pr_number" ]] || { echo "Could not extract PR number from: $input" >&2; exit 1; }
+
+# Must be inside Zellij
+[[ -n "${ZELLIJ:-}" ]] || { echo "Not inside a Zellij session" >&2; exit 1; }
+
+# Find occupied slots: active tasks with project_dir set
+occupied_slots() {
+  task +ACTIVE export 2>/dev/null \
+    | jq -r '.[] | .project_dir // empty' \
+    | sed -n 's/.*slot-\([0-9]*\).*/\1/p' || true
+}
+
+# Find slots with existing .pr-review markers
+review_slots() {
+  for n in $(seq 1 "$SLOT_COUNT"); do
+    [[ -f "$SLOT_BASE/slot-$n/.pr-review" ]] && echo "$n" || true
+  done
+}
+
+# Combine occupied slots into a set, find first free
+find_free_slot() {
+  local used
+  used=$({ occupied_slots; review_slots; } | sort -u)
+  for n in $(seq 1 "$SLOT_COUNT"); do
+    if ! echo "$used" | grep -qx "$n"; then
+      echo "$n"
+      return 0
+    fi
+  done
+  return 1
+}
+
+slot_n=$(find_free_slot) || { echo "No free slots available" >&2; exit 1; }
+slot_dir="$SLOT_BASE/slot-$slot_n"
+
+echo "Using Slot $slot_n for PR #$pr_number"
+
+# Check out the PR branch in the slot worktree
+(cd "$slot_dir" && gh pr checkout "$pr_number")
+
+# Write .pr-review marker
+echo "$pr_number" > "$slot_dir/.pr-review"
+
+# Fetch PR metadata and write review context
+pr_json=$(gh pr view "$pr_number" --json number,title,author,url)
+mkdir -p "$CONTEXT_DIR"
+jq --arg slot "$slot_dir" '{
+  type: "review",
+  pr_number: .number,
+  title: .title,
+  author: .author.login,
+  url: .url,
+  project_dir: $slot
+}' <<< "$pr_json" > "$CONTEXT_DIR/review-slot-$slot_n.json"
+
+# Switch to slot tab and rename it
+zellij action go-to-tab-name "Slot $slot_n"
+slot-rename-tab "$slot_n"
+
+echo "Ready to review PR #$pr_number in Slot $slot_n"
+echo "  nvim: <leader>gr to open diff picker"
+echo "  Claude: activate pane for AI review"
+echo "  Run 'pr-done' when finished"

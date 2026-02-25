@@ -28,6 +28,9 @@ export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
 # Taskwarrior XDG-compliant config location
 export TASKRC=~/.config/task/taskrc
 
+# Task scripts (pr-review, pr-done, etc.)
+export PATH="$HOME/.config/task/scripts:$PATH"
+
 # =================
 # Aliases
 # =================
