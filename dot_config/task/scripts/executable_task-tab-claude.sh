@@ -108,15 +108,19 @@ build_walkthrough_prompt() {
   prompt="Walkthrough: PR #${pr_number} — ${title}"
   prompt="${prompt}\nURL: ${url}"
   prompt="${prompt}\n\n1. Run \`gh pr diff ${pr_number}\` to fetch the diff."
-  prompt="${prompt}\n2. Give a 2-3 sentence summary: what this PR does and why."
-  prompt="${prompt}\n3. Walk through each changed file one at a time:"
-  prompt="${prompt}\n   - What changed and why (not just what, but the reasoning behind the approach)"
-  prompt="${prompt}\n   - Any non-obvious logic, edge cases, or future maintenance implications"
-  prompt="${prompt}\n   - Stop after each file and ask if I have questions before continuing"
-  prompt="${prompt}\n4. After all files, ask if anything is still unclear."
+  prompt="${prompt}\n2. Generate a Mermaid diagram of the PR's structure (flowchart for features/bug fixes, sequence for API/job flows, class for model changes). Render it: printf '%%s' '<diagram>' | mermaid-ascii — then explain what it shows in 2-3 sentences."
+  prompt="${prompt}\n3. Sort the changed files into this reading order before starting: tests first, then models/data layer, then service/domain logic, then controllers/jobs/views, then config and migrations last. State the order you'll follow before beginning."
+  prompt="${prompt}\n4. For each changed file, in that order:"
+  prompt="${prompt}\n   a. Tests as spec: find the corresponding test file(s), extract the test/describe/it descriptions as a bulleted spec outline — present this BEFORE looking at the implementation."
+  prompt="${prompt}\n   b. Before/After: two plain-English sentences — what this file did before this PR, and what it does now."
+  prompt="${prompt}\n   c. Walk through the implementation: what changed, why, non-obvious logic and edge cases."
+  prompt="${prompt}\n      Analogy bridge: if you encounter an unfamiliar design pattern or architectural concept, explain it with a structurally precise real-world analogy before the technical explanation."
+  prompt="${prompt}\n   d. Stop and ask if I have questions before continuing to the next file."
+  prompt="${prompt}\n5. After all files, ask if anything is still unclear."
+  prompt="${prompt}\n6. Print a vocabulary glossary: a table of new terms, abstractions, or domain concepts introduced in this PR — one plain-English definition sentence each, and which file they first appeared in."
 
   if [[ "$is_self_review" == "true" ]]; then
-    prompt="${prompt}\n5. When I confirm I understand, find the active task for this PR:"
+    prompt="${prompt}\n7. When I confirm I understand, find the active task for this PR:"
     prompt="${prompt}\n   \`task +ACTIVE export | jq '.[] | select(.annotations[]?.description | test(\"PR:.*${pr_number}\"))'\`"
     prompt="${prompt}\n   Then annotate it: \`task <id> annotate \"Self-reviewed: <one-line summary>\"\`"
   fi
@@ -138,8 +142,8 @@ build_review_prompt() {
   prompt="${prompt}\nURL: ${url}"
   prompt="${prompt}\n\nYou are an independent reviewer who has not seen this code before."
   prompt="${prompt}\n1. Run \`gh pr diff ${pr_number}\` to fetch the diff."
-  prompt="${prompt}\n2. Review with 37signals and ActiveRecord personalities (use the code reviewer skill)."
-  prompt="${prompt}\n3. Post inline review comments and a summary."
+  prompt="${prompt}\n2. Review the diff with a critical eye: correctness, edge cases, naming, design."
+  prompt="${prompt}\n3. Write your full review here in the terminal — do NOT post comments to GitHub."
 
   printf '%b' "$prompt"
 }

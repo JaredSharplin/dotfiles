@@ -113,3 +113,5 @@ chezmoi diff          # Preview what would change
 chezmoi apply -v      # Apply with verbose output
 chezmoi apply -n      # Dry run (no changes)
 ```
+
+**After editing any source file, always run `chezmoi apply` to deploy the changes to `$HOME`.**
