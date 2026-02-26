@@ -54,7 +54,7 @@ layout {
                 args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
-                pane command="nvim"
+                pane command="nvim" start_suspended=true
                 pane command="lazygit" start_suspended=true
                 pane command="taskwarrior-tui" start_suspended=true
                 pane command="gh" start_suspended=true {
