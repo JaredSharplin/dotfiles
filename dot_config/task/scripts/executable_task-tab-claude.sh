@@ -181,7 +181,15 @@ while true; do
 
   elif [[ -n "$context_file" ]]; then
     prompt=$(build_prompt "$context_file")
-    claude --continue --dangerously-skip-permissions "$prompt"
+    context_basename=$(basename "$context_file" .json)
+    slot_n_cur=$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')
+    slot_task_file="$CONTEXT_DIR/.slot-task-${slot_n_cur}"
+    if [[ -f "$slot_task_file" ]] && [[ "$(cat "$slot_task_file")" == "$context_basename" ]]; then
+      claude --continue --dangerously-skip-permissions "$prompt"
+    else
+      echo "$context_basename" > "$slot_task_file"
+      claude --dangerously-skip-permissions "$prompt"
+    fi
 
     # Auto-detect unreviewed PR annotation and trigger review if found
     review_file=$(find_review_context) || true
