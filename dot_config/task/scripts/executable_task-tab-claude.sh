@@ -108,7 +108,7 @@ build_walkthrough_prompt() {
   prompt="Walkthrough: PR #${pr_number} — ${title}"
   prompt="${prompt}\nURL: ${url}"
   prompt="${prompt}\n\n1. Run \`gh pr diff ${pr_number}\` to fetch the diff."
-  prompt="${prompt}\n2. Generate a Mermaid diagram of the PR's structure (flowchart for features/bug fixes, sequence for API/job flows, class for model changes). Render it: printf '%%s' '<diagram>' | mermaid-ascii — then explain what it shows in 2-3 sentences."
+  prompt="${prompt}\n2. Generate a Mermaid diagram of the PR's structure (flowchart for features/bug fixes, sequence for API/job flows, class for model changes). Render it using a bash heredoc — ALWAYS use this exact form so special characters are handled correctly:\n   cat <<'MERMAID_EOF' | mermaid-ascii\n   <your diagram here>\n   MERMAID_EOF\n   Then explain what the diagram shows in 2-3 sentences."
   prompt="${prompt}\n3. Sort the changed files into this reading order before starting: tests first, then models/data layer, then service/domain logic, then controllers/jobs/views, then config and migrations last. State the order you'll follow before beginning."
   prompt="${prompt}\n4. For each changed file, in that order:"
   prompt="${prompt}\n   a. Tests as spec: find the corresponding test file(s), extract the test/describe/it descriptions as a bulleted spec outline — present this BEFORE looking at the implementation."
