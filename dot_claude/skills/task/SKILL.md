@@ -24,6 +24,15 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 4. Start it: `task <id> start`
 5. Annotate the approach: `task <id> annotate "Starting: <brief plan>"`
 
+### Adding Tasks from User Requests
+
+⛔ **The description is just a short title — it is NOT the place for requirements.**
+
+When the user provides requirements, context, or detail while requesting a task:
+1. Keep `task add "..."` short — it becomes the tab name and task title
+2. **Immediately** follow with `task <id> annotate "Requirements: ..."` capturing the full detail the user gave
+3. Do NOT wait to be asked — if the user gave you detail, annotate it straight away
+
 ### During Work — Annotate at Milestones
 - `task <id> annotate "Branch: feature/..."` — after creating a branch
 - `task <id> annotate "Decision: ..."` — significant design choices
