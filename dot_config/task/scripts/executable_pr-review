@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Opens a PR for review in a free Zellij slot tab.
+# Opens a PR for review in a Zellij slot tab.
 #
 # Usage: pr-review <number|url>
 #
-# - Finds the first free slot (not occupied by an active task or existing review)
-# - Checks out the PR branch in the slot worktree
-# - Writes a .pr-review marker and review context file
-# - Renames the slot tab to "PR #<number>" and switches to it
+# - Fetches PR metadata and compares author to the current GitHub user
+# - Self-review mode (author == me): uses the current slot (branch already checked out),
+#   writes review-slot-N.json with is_self_review: true, renames the tab
+# - External review mode (author != me): finds a free slot, checks out the branch,
+#   writes review-slot-N.json with is_self_review: false, switches to the slot
 
 set -euo pipefail
 
@@ -31,61 +32,91 @@ pr_number="${pr_number//[^0-9]/}"
 # Must be inside Zellij
 [[ -n "${ZELLIJ:-}" ]] || { echo "Not inside a Zellij session" >&2; exit 1; }
 
-# Find occupied slots: active tasks with project_dir set
-occupied_slots() {
-  task +ACTIVE export 2>/dev/null \
-    | jq -r '.[] | .project_dir // empty' \
-    | sed -n 's/.*slot-\([0-9]*\).*/\1/p' || true
-}
-
-# Find slots with existing .pr-review markers
-review_slots() {
-  for n in $(seq 1 "$SLOT_COUNT"); do
-    [[ -f "$SLOT_BASE/slot-$n/.pr-review" ]] && echo "$n" || true
-  done
-}
-
-# Combine occupied slots into a set, find first free
-find_free_slot() {
-  local used
-  used=$({ occupied_slots; review_slots; } | sort -u)
-  for n in $(seq 1 "$SLOT_COUNT"); do
-    if ! echo "$used" | grep -qx "$n"; then
-      echo "$n"
-      return 0
-    fi
-  done
-  return 1
-}
-
-slot_n=$(find_free_slot) || { echo "No free slots available" >&2; exit 1; }
-slot_dir="$SLOT_BASE/slot-$slot_n"
-
-echo "Using Slot $slot_n for PR #$pr_number"
-
-# Check out the PR branch in the slot worktree
-(cd "$slot_dir" && gh pr checkout "$pr_number")
-
-# Write .pr-review marker
-echo "$pr_number" > "$slot_dir/.pr-review"
-
-# Fetch PR metadata and write review context
+# Fetch PR metadata
 pr_json=$(gh pr view "$pr_number" --json number,title,author,url)
+pr_author=$(jq -r '.author.login' <<< "$pr_json")
+
+# Get current GitHub user
+me=$(gh api user -q '.login')
+
 mkdir -p "$CONTEXT_DIR"
-jq --arg slot "$slot_dir" '{
-  type: "review",
-  pr_number: .number,
-  title: .title,
-  author: .author.login,
-  url: .url,
-  project_dir: $slot
-}' <<< "$pr_json" > "$CONTEXT_DIR/review-slot-$slot_n.json"
 
-# Switch to slot tab and rename it
-zellij action go-to-tab-name "Slot $slot_n"
-slot-rename-tab "$slot_n"
+write_context() {
+  local slot_dir="$1"
+  local self_review="$2"
+  local slot_n="$3"
+  jq --arg slot "$slot_dir" --argjson self "$self_review" '{
+    pr_number: .number,
+    title: .title,
+    author: .author.login,
+    url: .url,
+    is_self_review: $self,
+    project_dir: $slot
+  }' <<< "$pr_json" > "$CONTEXT_DIR/review-slot-$slot_n.json"
+}
 
-echo "Ready to review PR #$pr_number in Slot $slot_n"
-echo "  nvim: <leader>gr to open diff picker"
-echo "  Claude: activate pane for AI review"
-echo "  Run 'pr-done' when finished"
+if [[ "$pr_author" == "$me" ]]; then
+  # Self-review mode: use current slot (branch already checked out)
+  slot_n=$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')
+  [[ -n "$slot_n" ]] || {
+    echo "Not inside a slot worktree. Run from ~/programming/worktrees/slot-N" >&2
+    exit 1
+  }
+  slot_dir="$SLOT_BASE/slot-$slot_n"
+
+  write_context "$slot_dir" "true" "$slot_n"
+  slot-rename-tab "$slot_n"
+
+  echo "Self-review mode active for Slot $slot_n, PR #$pr_number"
+  echo "  Exit this session — the loop will start the walkthrough automatically"
+else
+  # External review mode: find a free slot and check out the branch
+
+  # Find occupied slots: active tasks with project_dir set
+  occupied_slots() {
+    task +ACTIVE export 2>/dev/null \
+      | jq -r '.[] | .project_dir // empty' \
+      | sed -n 's/.*slot-\([0-9]*\).*/\1/p' || true
+  }
+
+  # Find slots with existing .pr-review markers
+  review_slots() {
+    for n in $(seq 1 "$SLOT_COUNT"); do
+      [[ -f "$SLOT_BASE/slot-$n/.pr-review" ]] && echo "$n" || true
+    done
+  }
+
+  # Combine occupied slots into a set, find first free
+  find_free_slot() {
+    local used
+    used=$({ occupied_slots; review_slots; } | sort -u)
+    for n in $(seq 1 "$SLOT_COUNT"); do
+      if ! echo "$used" | grep -qx "$n"; then
+        echo "$n"
+        return 0
+      fi
+    done
+    return 1
+  }
+
+  slot_n=$(find_free_slot) || { echo "No free slots available" >&2; exit 1; }
+  slot_dir="$SLOT_BASE/slot-$slot_n"
+
+  echo "Using Slot $slot_n for PR #$pr_number"
+
+  # Check out the PR branch in the slot worktree
+  (cd "$slot_dir" && gh pr checkout "$pr_number")
+
+  # Write .pr-review marker
+  echo "$pr_number" > "$slot_dir/.pr-review"
+
+  write_context "$slot_dir" "false" "$slot_n"
+
+  # Switch to slot tab and rename it
+  zellij action go-to-tab-name "Slot $slot_n"
+  slot-rename-tab "$slot_n"
+
+  echo "Ready to review PR #$pr_number in Slot $slot_n"
+  echo "  Activate the Claude pane to start the walkthrough and review"
+  echo "  Run 'pr-done' when finished"
+fi

@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 # Wrapper script for Claude in task workspace tabs.
-# Reads task context from ~/.local/share/task/context/ and launches Claude
-# in plan mode with the task description as the initial prompt.
+# Session loop: re-checks context after each Claude session completes.
+# - Review context: runs walkthrough then code review (two fresh sessions), then cleans up
+# - Task context: runs implementation Claude; after exit, auto-detects PR annotation and
+#   triggers pr-review automatically — no explicit call from Claude required
+# - No context: runs bare Claude and exits
 
 set -euo pipefail
 
 CONTEXT_DIR="$HOME/.local/share/task/context"
 
-# Find context file matching current working directory
+# Find task context file matching current working directory (excludes review files)
 find_context() {
   local dir="$PWD"
-  if [[ ! -d "$CONTEXT_DIR" ]]; then
-    return 1
-  fi
+  [[ -d "$CONTEXT_DIR" ]] || return 1
 
   for f in "$CONTEXT_DIR"/*.json; do
     [[ -f "$f" ]] || continue
+    [[ "$(basename "$f")" == review-slot-* ]] && continue
     local project_dir
     project_dir=$(jq -r '.project_dir // empty' "$f" 2>/dev/null)
     if [[ "$project_dir" == "$dir" ]]; then
@@ -30,9 +32,7 @@ find_context() {
 # Find review context file matching current working directory
 find_review_context() {
   local dir="$PWD"
-  if [[ ! -d "$CONTEXT_DIR" ]]; then
-    return 1
-  fi
+  [[ -d "$CONTEXT_DIR" ]] || return 1
 
   for f in "$CONTEXT_DIR"/review-slot-*.json; do
     [[ -f "$f" ]] || continue
@@ -75,6 +75,34 @@ build_prompt() {
   printf '%b' "$prompt"
 }
 
+build_walkthrough_prompt() {
+  local context_file="$1"
+  local pr_number title url is_self_review prompt
+
+  pr_number=$(jq -r '.pr_number // empty' "$context_file")
+  title=$(jq -r '.title // empty' "$context_file")
+  url=$(jq -r '.url // empty' "$context_file")
+  is_self_review=$(jq -r '.is_self_review // false' "$context_file")
+
+  prompt="Walkthrough: PR #${pr_number} — ${title}"
+  prompt="${prompt}\nURL: ${url}"
+  prompt="${prompt}\n\n1. Run \`gh pr diff ${pr_number}\` to fetch the diff."
+  prompt="${prompt}\n2. Give a 2-3 sentence summary: what this PR does and why."
+  prompt="${prompt}\n3. Walk through each changed file one at a time:"
+  prompt="${prompt}\n   - What changed and why (not just what, but the reasoning behind the approach)"
+  prompt="${prompt}\n   - Any non-obvious logic, edge cases, or future maintenance implications"
+  prompt="${prompt}\n   - Stop after each file and ask if I have questions before continuing"
+  prompt="${prompt}\n4. After all files, ask if anything is still unclear."
+
+  if [[ "$is_self_review" == "true" ]]; then
+    prompt="${prompt}\n5. When I confirm I understand, find the active task for this PR:"
+    prompt="${prompt}\n   \`task +ACTIVE export | jq '.[] | select(.annotations[]?.description | test(\"PR:.*${pr_number}\"))'\`"
+    prompt="${prompt}\n   Then annotate it: \`task <id> annotate \"Self-reviewed: <one-line summary>\"\`"
+  fi
+
+  printf '%b' "$prompt"
+}
+
 build_review_prompt() {
   local context_file="$1"
   local pr_number title author url prompt
@@ -84,28 +112,87 @@ build_review_prompt() {
   author=$(jq -r '.author // empty' "$context_file")
   url=$(jq -r '.url // empty' "$context_file")
 
-  prompt="Review PR #${pr_number}: ${title}"
+  prompt="Code review: PR #${pr_number} — ${title}"
   prompt="${prompt}\nAuthor: ${author}"
   prompt="${prompt}\nURL: ${url}"
-  prompt="${prompt}\n\nUse the code reviewer skill with 37 signals and active record personalities."
-  prompt="${prompt}\nFetch the diff with \`gh pr diff ${pr_number}\` and review the changes."
+  prompt="${prompt}\n\nYou are an independent reviewer who has not seen this code before."
+  prompt="${prompt}\n1. Run \`gh pr diff ${pr_number}\` to fetch the diff."
+  prompt="${prompt}\n2. Review with 37signals and ActiveRecord personalities (use the code reviewer skill)."
+  prompt="${prompt}\n3. Post inline review comments and a summary."
 
   printf '%b' "$prompt"
+}
+
+# Check task for an unreviewed PR annotation and call pr-review if found.
+# Returns 0 if pr-review was triggered, 1 otherwise.
+auto_trigger_review() {
+  local context_file="$1"
+  local task_id pr_annotation pr_url pr_number already
+
+  task_id=$(jq -r '.id // empty' "$context_file" 2>/dev/null)
+  [[ -n "$task_id" ]] || return 1
+
+  pr_annotation=$(task "$task_id" export 2>/dev/null \
+    | jq -r '.[0].annotations // [] | map(select(.description | test("^PR: "))) | last | .description // empty')
+  [[ -n "$pr_annotation" ]] || return 1
+
+  # Skip if already self-reviewed
+  already=$(task "$task_id" export 2>/dev/null \
+    | jq -r '[.[0].annotations // [] | .[] | select(.description | test("^Self-reviewed:"))] | length')
+  [[ "$already" == "0" ]] || return 1
+
+  pr_url="${pr_annotation#PR: }"
+  pr_number="${pr_url##*/}"
+  pr_number="${pr_number//[^0-9]/}"
+  [[ -n "$pr_number" ]] || return 1
+
+  pr-review "$pr_number"
 }
 
 # Rename tab via shared script
 slot-rename-tab 2>/dev/null || true
 
-# Check for review context first, then task context
-review_file=$(find_review_context) || true
-context_file=$(find_context) || true
+# Session loop
+while true; do
+  review_file=$(find_review_context) || true
+  context_file=$(find_context) || true
 
-if [[ -n "$review_file" ]]; then
-  prompt=$(build_review_prompt "$review_file")
-  exec claude --dangerously-skip-permissions "$prompt"
-elif [[ -n "$context_file" ]]; then
-  prompt=$(build_prompt "$context_file")
-  exec claude --dangerously-skip-permissions "$prompt"
-else
-  exec claude --dangerously-skip-permissions
-fi
+  if [[ -n "$review_file" ]]; then
+    # Two-session review: walkthrough then code review
+    walkthrough_prompt=$(build_walkthrough_prompt "$review_file")
+    claude --dangerously-skip-permissions "$walkthrough_prompt"
+
+    # Run code review session if context file still exists (walkthrough doesn't delete it)
+    if [[ -f "$review_file" ]]; then
+      review_prompt=$(build_review_prompt "$review_file")
+      claude --dangerously-skip-permissions "$review_prompt"
+    fi
+
+    # Cleanup after both sessions complete
+    trash "$review_file" 2>/dev/null || rm -f "$review_file"
+    # Remove .pr-review marker if this was an external review
+    slot_n_from_file=$(basename "$review_file" | sed -n 's/review-slot-\([0-9]*\)\.json/\1/p')
+    if [[ -n "$slot_n_from_file" ]]; then
+      pr_marker="$HOME/programming/worktrees/slot-$slot_n_from_file/.pr-review"
+      trash "$pr_marker" 2>/dev/null || rm -f "$pr_marker"
+    fi
+    slot-rename-tab 2>/dev/null || true
+    break
+
+  elif [[ -n "$context_file" ]]; then
+    prompt=$(build_prompt "$context_file")
+    claude --dangerously-skip-permissions "$prompt"
+
+    # Auto-detect unreviewed PR annotation and trigger review if found
+    review_file=$(find_review_context) || true
+    if [[ -z "$review_file" ]]; then
+      auto_trigger_review "$context_file" 2>/dev/null || true
+      review_file=$(find_review_context) || true
+    fi
+    [[ -n "$review_file" ]] || break
+
+  else
+    claude --dangerously-skip-permissions
+    break
+  fi
+done

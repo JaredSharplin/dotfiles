@@ -44,11 +44,11 @@ When the user provides requirements, context, or detail while requesting a task:
 
 ⛔ **NEVER mark a task done until the PR is both reviewed AND merged.**
 
-1. After creating a PR: `task <id> annotate "PR: <url>"` — then leave the task active
-2. Wait for the PR to be approved and merged
-3. Verify merge: `gh pr view <url> --json state,mergedAt` — `state` must be `MERGED`
-4. `task <id> annotate "Done: <summary>"` — what was accomplished
-5. `task <id> done` — only now mark complete
+1. After creating PR: `task <id> annotate "PR: <url>"`
+2. Exit the session — the loop auto-detects the PR annotation and chains walkthrough → review
+3. Wait for the PR to be reviewed and merged
+4. Verify `Self-reviewed:` annotation exists: `task <id> info`
+5. `task <id> done`
 
 ### Key Principle
 Annotations are cheap. Annotate often. They create a trail that survives session boundaries and helps the next session pick up where things left off.
@@ -260,20 +260,33 @@ The Zellij statusbar shows stale count in red when > 0. On seeing a stale warnin
 
 ## PR Review Workflow
 
-Slots are shared between tasks and PR reviews. Two scripts manage the review lifecycle:
+Slots are shared between tasks and PR reviews. Scripts manage the review lifecycle.
 
 ### `pr-review <number|url>`
 
-Run from any terminal inside Zellij. Finds a free slot, checks out the PR branch in the slot worktree, writes a `.pr-review` marker and review context file, renames the tab to "PR #N", and switches to it.
+Run from any terminal inside Zellij. Auto-detects whether you are the PR author:
 
-In the slot:
-- **nvim**: `<leader>gr` opens snacks.nvim diff picker for the PR — browse changed files, comment on lines, approve/request changes
-- **Claude pane**: activates with review context, fetches the diff, reviews with code reviewer skill
-- **lazygit**: commit-by-commit view for understanding PR progression
+- **Self-review** (you are the author): uses the current slot (branch already checked out),
+  writes `review-slot-N.json` with `is_self_review: true`, renames tab `"Slot N: Self-review #N"`.
+  Usually triggered automatically — after any implementation session exits, the loop checks
+  for an unreviewed `PR:` annotation and calls `pr-review` itself. No manual step needed.
+
+- **External review** (someone else's PR): finds a free slot, checks out the branch, writes
+  `review-slot-N.json` with `is_self_review: false`, renames tab `"Slot N: Reviewing #N"`,
+  then switches to that slot.
+
+In both modes, `task-tab-claude.sh` runs two sessions in sequence:
+1. **Walkthrough** — explains the diff file-by-file, pauses for questions at each file.
+   If self-review, annotates the task with `Self-reviewed: <summary>` when you confirm understanding.
+2. **Code review** — fetches the diff fresh as an independent reviewer, uses 37signals +
+   ActiveRecord personalities, posts inline comments and a summary.
+
+After both sessions complete, the review context file is deleted and the tab is renamed back.
 
 ### `pr-done`
 
-Run from within a review slot. Removes the `.pr-review` marker and review context file, renames the tab back to "Slot N", and switches to Main.
+Run from within an external review slot to abort a review early. Removes the `.pr-review`
+marker and review context file, renames the tab back to "Slot N", and switches to Main.
 
 ### How Free Slots Are Detected
 

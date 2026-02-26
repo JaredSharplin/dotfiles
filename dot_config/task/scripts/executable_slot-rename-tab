@@ -21,7 +21,12 @@ review_context="$CONTEXT_DIR/review-slot-$slot_n.json"
 
 if [[ -f "$review_context" ]]; then
   pr_number=$(jq -r '.pr_number // empty' "$review_context")
-  zellij action rename-tab "Slot $slot_n: Reviewing $pr_number"
+  is_self_review=$(jq -r '.is_self_review // false' "$review_context")
+  if [[ "$is_self_review" == "true" ]]; then
+    zellij action rename-tab "Slot $slot_n: Self-review #$pr_number"
+  else
+    zellij action rename-tab "Slot $slot_n: Reviewing #$pr_number"
+  fi
 else
   # Find task context matching this slot
   task_id=""
