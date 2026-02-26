@@ -32,8 +32,14 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 - `task <id> annotate "PR: <url>"` — after creating a pull request
 
 ### Finishing Work
-1. `task <id> annotate "Done: <summary>"` — what was accomplished
-2. `task <id> done` — mark complete
+
+⛔ **NEVER mark a task done until the PR is both reviewed AND merged.**
+
+1. After creating a PR: `task <id> annotate "PR: <url>"` — then leave the task active
+2. Wait for the PR to be approved and merged
+3. Verify merge: `gh pr view <url> --json state,mergedAt` — `state` must be `MERGED`
+4. `task <id> annotate "Done: <summary>"` — what was accomplished
+5. `task <id> done` — only now mark complete
 
 ### Key Principle
 Annotations are cheap. Annotate often. They create a trail that survives session boundaries and helps the next session pick up where things left off.
@@ -205,7 +211,7 @@ On session start, if today is Monday (or if `task +WAITING` shows resurfaced tas
 
 1. **Check resurfaced tasks:** `task +WAITING list` — tasks with `wait:monday` reappear on Mondays
 2. **Cross-reference PRs:** Run `gh pr list --author @me --state open` and compare with task annotations:
-   - Mark tasks done if their PR was merged (check `gh pr view <url> --json state`)
+   - Mark tasks done only if their PR was reviewed AND merged (check `gh pr view <url> --json state,mergedAt,reviews` — `state` must be `MERGED`)
    - Annotate tasks if their PR has new review comments
    - Flag tasks whose PRs have been idle (no activity in 7+ days)
 3. **Triage each resurfaced task:** Ask the user "Keep waiting or act on it?"
