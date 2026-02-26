@@ -210,6 +210,14 @@ Why: `git diff` against master includes merge commit artifacts and shows incorre
 3. If large: `gh pr diff <number> --name-only` first, then read specific files
 - Do NOT use `--patch` - it shows individual commit patches, not the net PR diff
 
+## MANDATORY PR Flags
+
+Every `gh pr create` MUST include:
+- `--assignee @me` — always assign yourself
+- `--label <label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+
+Choose the label based on the nature of the change. If unsure, ask the user before creating the PR.
+
 ## ⚠️ Editing PR Bodies
 **NEVER replace a PR body wholesale.** The user may have made manual edits (checked boxes, added notes, etc.) that will be lost.
 
