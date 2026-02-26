@@ -34,6 +34,13 @@ chezmoi init --apply https://github.com/jaredsharplin/dotfiles.git
 - **`task-workspace.kdl`** — Spawned by Taskwarrior hooks per task (`task start`)
 - **`server.kdl`** — Payaus dev server (tunnel/server/webpack/worker)
 
+## Post-Install Steps
+
+```bash
+# Install npm dependencies for task scripts (mermaid-ascii etc.)
+cd ~/.config/task && npm install
+```
+
 ## Repo Structure
 
 Chezmoi naming conventions:
