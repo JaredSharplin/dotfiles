@@ -1,0 +1,19 @@
+{
+  "model": "sonnet",
+  "enabledPlugins": {
+    "cc-zjstatus@claude-code-zellij-status": true
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/user-skills-reminder.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
