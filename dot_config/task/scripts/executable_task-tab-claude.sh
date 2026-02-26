@@ -181,7 +181,7 @@ while true; do
 
   elif [[ -n "$context_file" ]]; then
     prompt=$(build_prompt "$context_file")
-    claude --dangerously-skip-permissions "$prompt"
+    claude --continue --dangerously-skip-permissions "$prompt"
 
     # Auto-detect unreviewed PR annotation and trigger review if found
     review_file=$(find_review_context) || true
