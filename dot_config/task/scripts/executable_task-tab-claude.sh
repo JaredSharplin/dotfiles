@@ -2,8 +2,8 @@
 # Wrapper script for Claude in task workspace tabs.
 # Session loop: re-checks context after each Claude session completes.
 # - Review context: runs walkthrough then code review (two fresh sessions), then cleans up
-# - Task context: runs implementation Claude; after exit, auto-detects PR annotation and
-#   triggers pr-review automatically — no explicit call from Claude required
+# - Task context: runs implementation Claude fresh each time; after exit, auto-detects PR
+#   annotation and triggers pr-review automatically
 # - No context: runs bare Claude and exits
 
 set -euo pipefail
@@ -49,14 +49,18 @@ find_review_context() {
 
 build_prompt() {
   local context_file="$1"
-  local description project tags annotations prompt
+  local task_id description project tags annotations prompt
+  local pr_annotation linear_annotation prereqs
 
+  task_id=$(jq -r '.id // empty' "$context_file")
   description=$(jq -r '.description // empty' "$context_file")
   project=$(jq -r '.project // empty' "$context_file")
   tags=$(jq -r '(.tags // []) | join(", ")' "$context_file")
   annotations=$(jq -r '(.annotations // []) | map("- " + .) | join("\n")' "$context_file")
+  pr_annotation=$(jq -r '(.annotations // []) | map(select(test("^PR: "))) | last // empty' "$context_file")
+  linear_annotation=$(jq -r '(.annotations // []) | map(select(test("^Linear: "))) | last // empty' "$context_file")
 
-  prompt="Task: ${description}"
+  prompt="Task #${task_id}: ${description}"
 
   if [[ -n "$project" ]]; then
     prompt="${prompt}\nProject: ${project}"
@@ -67,10 +71,27 @@ build_prompt() {
   fi
 
   if [[ -n "$annotations" ]]; then
-    prompt="${prompt}\n\nContext:\n${annotations}"
+    prompt="${prompt}\n\nAnnotations:\n${annotations}"
   fi
 
-  prompt="${prompt}\n\nInvestigate and plan the approach for this task."
+  prereqs=""
+  if [[ -n "$linear_annotation" ]]; then
+    linear_url="${linear_annotation#Linear: }"
+    prereqs="${prereqs}\n- Read the Linear ticket: ${linear_url}"
+  fi
+  if [[ -n "$pr_annotation" ]]; then
+    pr_url="${pr_annotation#PR: }"
+    pr_number="${pr_url##*/}"
+    pr_number="${pr_number//[^0-9]/}"
+    prereqs="${prereqs}\n- Check PR status and open review comments: \`gh pr view ${pr_number}\`"
+  fi
+
+  if [[ -n "$prereqs" ]]; then
+    prompt="${prompt}\n\nBefore starting:${prereqs}"
+  fi
+
+  prompt="${prompt}\n\nInvestigate and plan the approach."
+  prompt="${prompt}\nAnnotate key milestones as you work: \`task ${task_id} annotate \"...\"\`"
 
   printf '%b' "$prompt"
 }
@@ -158,24 +179,14 @@ while true; do
   context_file=$(find_context) || true
 
   if [[ -n "$review_file" ]]; then
-    # Walkthrough session — resumable if interrupted
-    walkthrough_session_id=$(jq -r '.walkthrough_session_id // empty' "$review_file")
+    # Walkthrough session
     walkthrough_prompt=$(build_walkthrough_prompt "$review_file")
-    if [[ -n "$walkthrough_session_id" ]]; then
-      claude --session-id "$walkthrough_session_id" --dangerously-skip-permissions "$walkthrough_prompt"
-    else
-      claude --dangerously-skip-permissions "$walkthrough_prompt"
-    fi
+    claude --dangerously-skip-permissions "$walkthrough_prompt"
 
-    # Code review session — resumable if interrupted
+    # Code review session (fresh context — walkthrough has ended)
     if [[ -f "$review_file" ]]; then
-      review_session_id=$(jq -r '.review_session_id // empty' "$review_file")
       review_prompt=$(build_review_prompt "$review_file")
-      if [[ -n "$review_session_id" ]]; then
-        claude --session-id "$review_session_id" --dangerously-skip-permissions "$review_prompt"
-      else
-        claude --dangerously-skip-permissions "$review_prompt"
-      fi
+      claude --dangerously-skip-permissions "$review_prompt"
     fi
 
     # Cleanup after both sessions complete
@@ -190,11 +201,8 @@ while true; do
     break
 
   elif [[ -n "$context_file" ]]; then
-    # Use the task UUID as session ID — creates on first run, resumes on re-activation,
-    # naturally isolated per task (different task = different UUID = fresh session)
     prompt=$(build_prompt "$context_file")
-    context_basename=$(basename "$context_file" .json)
-    claude --session-id "$context_basename" --dangerously-skip-permissions "$prompt"
+    claude --dangerously-skip-permissions "$prompt"
 
     # Auto-detect unreviewed PR annotation and trigger review if found
     review_file=$(find_review_context) || true
