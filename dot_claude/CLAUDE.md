@@ -212,9 +212,11 @@ Why: `git diff` against master includes merge commit artifacts and shows incorre
 
 ## MANDATORY PR Flags
 
-Every `gh pr create` MUST include:
-- `--assignee @me` — always assign yourself
-- `--label <label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+Every `gh pr create` MUST include these flags (`gh pr edit` uses different flags — see below):
+- `--assignee @me` (or `-a @me`) — always assign yourself
+- `--label <label>` (or `-l <label>`) — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+
+When editing an existing PR use `--add-assignee @me` and `--add-label <label>` instead.
 
 Choose the label based on the nature of the change. If unsure, ask the user before creating the PR.
 
