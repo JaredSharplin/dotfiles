@@ -110,12 +110,13 @@ This is a Phase 1 plan. After approval, execute ONLY Step 5:
 2. Add debug puts to source files using `[DEBUG tdd-bug-fix]` prefix
 3. Run tests with `bin/rails test <file>:<line>` — verify they FAIL
 4. Verify debug output shows the buggy behavior described in the ticket
-5. `git add` test files ONLY (not source files with debug puts), commit:
+5. Show the user test failure output and ask: "Commit these tests? (yes/no)" — do NOT commit without explicit confirmation
+6. Once confirmed: `git add` test files ONLY (not source files with debug puts), commit:
    `test | Add failing tests for <TICKET>`
 
-**STOP HERE. Do NOT proceed to fix the bug.**
-After committing tests, call `EnterPlanMode` for Phase 2 (evidence-based fix design).
-Do NOT hypothesize a root cause. Do NOT write any fix code.
+**STOP HERE. Call `EnterPlanMode`, write a minimal stub (test name + failure details only),
+then call `ExitPlanMode` immediately. Do NOT explore or read files until the user approves.
+Do NOT hypothesize a root cause. Do NOT write any fix code.**
 ```
 
 **Phase 1 plan MUST contain ONLY:**
@@ -145,13 +146,33 @@ If you catch yourself writing a "Root Cause" or "Fix Design" section, STOP — y
 5. **Stop conditions:**
    - Tests PASS unexpectedly → STOP. Bug understanding is wrong. Re-investigate.
    - Tests fail but debug output contradicts expected buggy behavior → STOP. Re-investigate.
-6. Once verified: `git add` test files ONLY (not source files with debug puts), commit:
+6. Once verified: show the user the test failure output and ask for explicit confirmation before committing:
+   ```
+   Tests are failing as expected:
+   Test: <test name>
+   Failure: <Expected X, Actual Y>
+   Debug output: <key line(s) from puts output>
+
+   Commit these tests? (yes/no)
+   ```
+   Only commit after the user confirms. When confirmed: `git add` test files ONLY (not source files with debug puts), commit:
    ```
    test | Add failing tests for <TICKET>
    ```
-7. **MANDATORY STOP: Call `EnterPlanMode` immediately after committing.**
-   Do NOT proceed to fix the bug. Do NOT hypothesize a root cause.
-   Phase 1 is complete. Phase 2 requires a separate plan-mode approval gate.
+7. **Call `EnterPlanMode`**, then write a minimal Phase 2 stub in the plan file:
+   ```
+   Phase 1 complete. Awaiting approval to begin Phase 2.
+
+   ## Test Results
+   Test: <test name>
+   Failure: <Expected X, Actual Y>
+   Debug output: <key line(s) from puts output>
+
+   ## Phase 2
+   Not yet designed — will explore fix options after approval.
+   ```
+   Then call `ExitPlanMode` **immediately** — do NOT explore, read files, or launch agents first.
+   The user must approve the stub before Phase 2 exploration begins.
 
 ## Phase 2: Plan Mode (Step 6)
 
@@ -224,7 +245,8 @@ Create PR using `gh pr create`. PR body must reference the Linear ticket and sum
 
 These rules override normal behavior at all times:
 
-1. **No fixing without failing tests** — Step 7 cannot begin until Step 5 produces verified failing tests
+1. **No committing or pushing without explicit confirmation** — Never run `git add`, `git commit`, `git town sync`, or any git write operation without the user saying "yes", "commit", "go ahead", or equivalent. Show test output and ask first.
+2. **No fixing without failing tests** — Step 7 cannot begin until Step 5 produces verified failing tests
 2. **No root cause hypothesis without evidence** — Step 6 cannot hypothesize until Steps 1-5 provide concrete debug output. The Phase 1 plan file must NEVER contain root cause analysis or fix proposals — these belong exclusively in the Phase 2 plan after test failures and debug output are observed
 3. **No assumptions about data** — If the ticket references specific customer data, Step 2 console verification is MANDATORY before Step 3. Test designs without console verification are speculative and will miss the actual bug conditions
 4. **Stop on surprise** — If test results contradict expectations, the current understanding is wrong. Do not push forward. Re-investigate.

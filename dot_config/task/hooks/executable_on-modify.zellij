@@ -30,9 +30,18 @@ rescue JSON::ParserError
   []
 end
 
-def first_free_slot(exclude_uuid:)
+def slot_free?(n, exclude_uuid:)
   used = active_slot_dirs(exclude_uuid:)
-  (1..SLOT_COUNT).find { |n| !used.include?(slot_path(n)) }
+  review_marker = "#{SLOT_BASE}/slot-#{n}/.pr-review"
+  !used.include?(slot_path(n)) && !File.exist?(review_marker)
+end
+
+def first_free_slot(exclude_uuid:)
+  (1..SLOT_COUNT).find { |n| slot_free?(n, exclude_uuid:) }
+end
+
+def current_slot_from_pwd
+  slot_number_from_path(ENV["PWD"])
 end
 
 def write_context(task)
@@ -73,7 +82,9 @@ was_stopped = (!old_task["start"].nil? && new_task["start"].nil?) ||
               (old_task["status"] != "deleted" && new_task["status"] == "deleted")
 
 if was_started
+  pwd_slot = current_slot_from_pwd
   slot_n = slot_number_from_path(new_task["project_dir"]) ||
+           (pwd_slot if pwd_slot && slot_free?(pwd_slot, exclude_uuid: new_task["uuid"])) ||
            first_free_slot(exclude_uuid: new_task["uuid"])
 
   if slot_n
