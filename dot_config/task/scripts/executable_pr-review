@@ -45,13 +45,19 @@ write_context() {
   local slot_dir="$1"
   local self_review="$2"
   local slot_n="$3"
-  jq --arg slot "$slot_dir" --argjson self "$self_review" '{
+  local walkthrough_id review_id
+  walkthrough_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  review_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  jq --arg slot "$slot_dir" --argjson self "$self_review" \
+     --arg wid "$walkthrough_id" --arg rid "$review_id" '{
     pr_number: .number,
     title: .title,
     author: .author.login,
     url: .url,
     is_self_review: $self,
-    project_dir: $slot
+    project_dir: $slot,
+    walkthrough_session_id: $wid,
+    review_session_id: $rid
   }' <<< "$pr_json" > "$CONTEXT_DIR/review-slot-$slot_n.json"
 }
 

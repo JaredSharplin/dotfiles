@@ -158,14 +158,24 @@ while true; do
   context_file=$(find_context) || true
 
   if [[ -n "$review_file" ]]; then
-    # Two-session review: walkthrough then code review
+    # Walkthrough session — resumable if interrupted
+    walkthrough_session_id=$(jq -r '.walkthrough_session_id // empty' "$review_file")
     walkthrough_prompt=$(build_walkthrough_prompt "$review_file")
-    claude --dangerously-skip-permissions "$walkthrough_prompt"
+    if [[ -n "$walkthrough_session_id" ]]; then
+      claude --session-id "$walkthrough_session_id" --dangerously-skip-permissions "$walkthrough_prompt"
+    else
+      claude --dangerously-skip-permissions "$walkthrough_prompt"
+    fi
 
-    # Run code review session if context file still exists (walkthrough doesn't delete it)
+    # Code review session — resumable if interrupted
     if [[ -f "$review_file" ]]; then
+      review_session_id=$(jq -r '.review_session_id // empty' "$review_file")
       review_prompt=$(build_review_prompt "$review_file")
-      claude --dangerously-skip-permissions "$review_prompt"
+      if [[ -n "$review_session_id" ]]; then
+        claude --session-id "$review_session_id" --dangerously-skip-permissions "$review_prompt"
+      else
+        claude --dangerously-skip-permissions "$review_prompt"
+      fi
     fi
 
     # Cleanup after both sessions complete
@@ -180,16 +190,11 @@ while true; do
     break
 
   elif [[ -n "$context_file" ]]; then
+    # Use the task UUID as session ID — creates on first run, resumes on re-activation,
+    # naturally isolated per task (different task = different UUID = fresh session)
     prompt=$(build_prompt "$context_file")
     context_basename=$(basename "$context_file" .json)
-    slot_n_cur=$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')
-    slot_task_file="$CONTEXT_DIR/.slot-task-${slot_n_cur}"
-    if [[ -f "$slot_task_file" ]] && [[ "$(cat "$slot_task_file")" == "$context_basename" ]]; then
-      claude --continue --dangerously-skip-permissions "$prompt"
-    else
-      echo "$context_basename" > "$slot_task_file"
-      claude --dangerously-skip-permissions "$prompt"
-    fi
+    claude --session-id "$context_basename" --dangerously-skip-permissions "$prompt"
 
     # Auto-detect unreviewed PR annotation and trigger review if found
     review_file=$(find_review_context) || true
