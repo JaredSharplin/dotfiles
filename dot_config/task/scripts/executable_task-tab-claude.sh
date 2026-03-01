@@ -111,7 +111,6 @@ build_walkthrough_prompt() {
   prompt="${prompt}\n   a. Read the PR description: \`gh pr view ${pr_number}\`"
   prompt="${prompt}\n   b. Follow any linked Linear tickets, referenced PRs, or documentation URLs in the description and read them too."
   prompt="${prompt}\n   c. Summarise the PROBLEM in 2-3 sentences — what is broken or missing, and why does it matter. Do not describe the solution yet."
-  prompt="${prompt}\n   d. Ask me if I have any context to add before continuing."
   prompt="${prompt}\n2. Run \`gh pr diff ${pr_number}\` to fetch the diff."
   prompt="${prompt}\n3. Generate a Mermaid sequence diagram focused tightly on the part of the system this PR actually changes — not the full flow."
   prompt="${prompt}\n   Rules: max 4 participants, max ~15 messages. Skip setup and happy-path context that isn't relevant to the change."

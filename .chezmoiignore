@@ -8,6 +8,7 @@ etc/
 .zshrc
 .config/ghostty/
 .config/karabiner/
+Library/
 {{- end }}
 
 CLAUDE.md

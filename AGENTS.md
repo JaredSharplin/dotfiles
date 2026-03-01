@@ -29,6 +29,7 @@ The payaus layout also has a **Server tab** for tunnel/server/webpack/worker. Th
 | Work in slot | Claude pane reads context file on activation, launches with task prompt. Annotate milestones with `task <id> annotate "..."` |
 | `task done <id>` | Hook deletes context file, renames tab back to `"Slot N"`, switches to Main |
 | `task stop <id>` | Same cleanup as done, but task stays pending |
+| `task <id> annotate "Ready for peer review: <summary>"` | After addressing self-review findings and completing QA; clears pipeline nag; signals PR is ready to assign to a reviewer |
 
 ### PR Review Lifecycle
 
@@ -115,3 +116,10 @@ chezmoi apply -n      # Dry run (no changes)
 ```
 
 **After editing any source file, always run `chezmoi apply` to deploy the changes to `$HOME`.**
+
+### One-time setup (after first `chezmoi apply` on macOS)
+
+```bash
+# Load the PR pipeline nag launchd agent:
+launchctl load ~/Library/LaunchAgents/com.jaredsharplin.pr-pipeline-nag.plist
+```

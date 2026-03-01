@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Work hours gate: 8:30am–6pm only
+# Use 10# prefix to force base-10 (08/09 are invalid octal in bash arithmetic)
+hour=$(( 10#$(date +%H) ))
+minute=$(( 10#$(date +%M) ))
+current=$(( hour * 60 + minute ))
+if [[ $current -lt 510 || $current -gt 1080 ]]; then exit 0; fi
+
+# launchd does not inherit shell PATH
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+tasks_json=$(task +ACTIVE export 2>/dev/null || echo "[]")
+
+lines=()
+
+# Stage 1: has PR:, missing Self-reviewed: AND Ready for peer review:
+while IFS= read -r t; do
+  [[ -z "$t" ]] && continue
+  id=$(jq -r '.id' <<< "$t")
+  desc=$(jq -r '.desc' <<< "$t")
+  pr_url=$(jq -r '.pr_url' <<< "$t" | awk '{print $1}')
+  lines+=("⚠️  #${id} needs self-review: ${desc:0:50}")
+  lines+=("   ${pr_url}")
+done < <(jq -c '.[] |
+  select(.annotations != null) |
+  select(.annotations | map(.description) | any(test("^PR: "))) |
+  select(.annotations | map(.description) | any(test("^Self-reviewed:")) | not) |
+  select(.annotations | map(.description) | any(test("^Ready for peer review:")) | not) |
+  {id: .id, desc: .description,
+   pr_url: (.annotations | map(select(.description | test("^PR: "))) | last | .description | ltrimstr("PR: "))}
+  ' <<< "$tasks_json")
+
+# Stage 2: has PR: + Self-reviewed:, missing Ready for peer review:
+while IFS= read -r t; do
+  [[ -z "$t" ]] && continue
+  id=$(jq -r '.id' <<< "$t")
+  desc=$(jq -r '.desc' <<< "$t")
+  pr_url=$(jq -r '.pr_url' <<< "$t" | awk '{print $1}')
+  lines+=("🔍 #${id} needs QA: ${desc:0:50}")
+  lines+=("   ${pr_url}")
+done < <(jq -c '.[] |
+  select(.annotations != null) |
+  select(.annotations | map(.description) | any(test("^PR: "))) |
+  select(.annotations | map(.description) | any(test("^Self-reviewed:"))) |
+  select(.annotations | map(.description) | any(test("^Ready for peer review:")) | not) |
+  {id: .id, desc: .description,
+   pr_url: (.annotations | map(select(.description | test("^PR: "))) | last | .description | ltrimstr("PR: "))}
+  ' <<< "$tasks_json")
+
+[[ ${#lines[@]} -eq 0 ]] && exit 0
+
+message=$(printf '%s\n' "${lines[@]}")
+
+osascript -e "display dialog \"${message}\" buttons {\"OK\"} default button \"OK\" with icon caution with title \"PR Pipeline\""
