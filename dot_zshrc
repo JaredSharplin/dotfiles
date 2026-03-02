@@ -32,7 +32,6 @@ export TASKRC=~/.config/task/taskrc
 
 alias vim='nvim'
 alias lg='lazygit'
-alias t='task'
 
 # =================
 # Functions
