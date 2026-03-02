@@ -3,33 +3,28 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
+# =================
+# Secrets & plugins
+# =================
+
 # Load private secrets (not in version control)
 [[ -f ~/.secrets ]] && source ~/.secrets
-
-# =================
-# Load plugins (before customizations)
-# =================
 
 # Load antidote plugin manager
 source $(brew --prefix)/opt/antidote/share/antidote/antidote.zsh
 antidote load ${ZDOTDIR:-$HOME}/.zsh_plugins.txt
 
 # =================
-# Customizations (override Zephyr defaults)
+# Environment
 # =================
 
-# Override editor (Zephyr defaults to nano)
 export EDITOR='nvim'
 export VISUAL='nvim'
 
-# Add PostgreSQL to PATH
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
-
-# Taskwarrior XDG-compliant config location
-export TASKRC=~/.config/task/taskrc
-
-# Task scripts (pr-review, pr-done, etc.)
 export PATH="$HOME/.config/task/scripts:$PATH"
+
+export TASKRC=~/.config/task/taskrc
 
 # =================
 # Aliases
@@ -38,6 +33,11 @@ export PATH="$HOME/.config/task/scripts:$PATH"
 alias vim='nvim'
 alias lg='lazygit'
 alias t='task'
+
+# =================
+# Functions
+# =================
+
 dev-server() {
   zellij action go-to-tab-name "Server" 2>/dev/null && zellij action close-tab
   zellij action new-tab --name "Server" --layout ~/.config/zellij/layouts/server.kdl --cwd ~/programming/payaus
@@ -62,6 +62,13 @@ workspace() {
 }
 
 # =================
+# Project-specific
+# =================
+
+# Suppress macOS alert dialogs when bin/dev processes fail (payaus)
+export DISABLE_DEV_NOTIFICATIONS=true
+
+# =================
 # Tool initialisation
 # =================
 
@@ -76,7 +83,6 @@ fi
 if command -v mise &> /dev/null; then
   eval "$(mise activate zsh)"
 fi
-
 
 if command -v mcfly &> /dev/null; then
   eval "$(mcfly init zsh)"
