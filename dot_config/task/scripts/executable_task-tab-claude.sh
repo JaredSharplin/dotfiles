@@ -113,12 +113,9 @@ build_walkthrough_prompt() {
   prompt="${prompt}\n   c. Summarise the PROBLEM in 2-3 sentences — what is broken or missing, and why does it matter. Do not describe the solution yet."
   prompt="${prompt}\n2. Run \`gh pr diff ${pr_number}\` to fetch the diff."
   prompt="${prompt}\n3. Sort the changed files into this reading order before starting: tests first, then models/data layer, then service/domain logic, then controllers/jobs/views, then config and migrations last. State the order you'll follow before beginning."
-  prompt="${prompt}\n4. For each changed file, in that order:"
-  prompt="${prompt}\n   a. Tests as spec: find the corresponding test file(s), extract the test/describe/it descriptions as a bulleted spec outline — present this BEFORE looking at the implementation."
-  prompt="${prompt}\n   b. Before/After: two plain-English sentences — what this file did before this PR, and what it does now."
-  prompt="${prompt}\n   c. Walk through the implementation: what changed, why, non-obvious logic and edge cases."
+  prompt="${prompt}\n4. For each changed file, in that order: one plain-English sentence on what this file's role is in the change. No code snippets."
   prompt="${prompt}\n5. After all files, ask if anything is still unclear."
-  prompt="${prompt}\n6. Print a vocabulary glossary: a table of new terms, abstractions, or domain concepts introduced in this PR — one plain-English definition sentence each, and which file they first appeared in."
+  prompt="${prompt}\n6. Print a glossary of business and domain terms a new developer would need to understand this PR — things like 'Leave Award', 'Employment Condition Set', 'TOIL'. Explicitly exclude method names, class names, and Ruby API. One plain-English definition sentence each."
 
   if [[ "$is_self_review" == "true" ]]; then
     prompt="${prompt}\n7. When I confirm I understand, find the active task for this PR:"
