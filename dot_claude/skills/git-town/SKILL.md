@@ -18,7 +18,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Update stacked branches with latest changes | `git town sync -s` | Syncs entire stack safely |
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
-| Create PR for current branch | `git town propose` | Opens browser to create PR |
+| Create PR for current branch | `git town propose --title "..." --body "..."` | Then `gh pr edit --add-assignee @me --add-label <label>` |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 
 ## When to Use Git Town vs Standard Git
@@ -70,10 +70,14 @@ git town prepend feature/auth-models
 # Creates: main -> auth-models -> user-auth
 ```
 
-### `git town propose`
+### `git town propose --title "..." --body "..."`
 **Purpose:** Create pull request for current branch
-**When to use:** When branch is ready for review
-**Key benefit:** Automatically pushes branch and opens PR creation page
+**Requires:** Both `--title` and `--body` flags — skips interactive TUI entirely
+**Always follow with:**
+```bash
+gh pr edit --add-assignee @me --add-label <label>
+```
+**Why not `gh pr create`:** `git town propose` handles branch sync and stack breadcrumbs automatically.
 
 ### `git town set-parent <parent-branch>`
 **Purpose:** Change which branch is the parent of current branch
@@ -179,10 +183,12 @@ git town append feature/follow-up
 ```bash
 # Create PR for each branch in stack
 git checkout migration/foundation
-gh pr create --title "..." --body "..."
+git town propose --title "..." --body "..."
+gh pr edit --add-assignee @me --add-label <label>
 
 git checkout feature/implementation
-gh pr create --title "..." --body "Depends on #<parent-pr>"
+git town propose --title "..." --body "Depends on #<parent-pr>"
+gh pr edit --add-assignee @me --add-label <label>
 ```
 
 ## Automatic Stashing

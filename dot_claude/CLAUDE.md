@@ -212,13 +212,20 @@ Why: `git diff` against master includes merge commit artifacts and shows incorre
 3. If large: `gh pr diff <number> --name-only` first, then read specific files
 - Do NOT use `--patch` - it shows individual commit patches, not the net PR diff
 
-## MANDATORY PR Flags
+## Creating PRs
 
-Every `gh pr create` MUST include these flags (`gh pr edit` uses different flags — see below):
-- `--assignee @me` (or `-a @me`) — always assign yourself
-- `--label <label>` (or `-l <label>`) — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+Use `git town propose` to create PRs — it handles branch sync and stack breadcrumbs:
 
-When editing an existing PR use `--add-assignee @me` and `--add-label <label>` instead.
+```bash
+git town propose --title "..." --body "..."
+gh pr edit --add-assignee @me --add-label <label>
+```
+
+**Both flags are mandatory** — `--title` and `--body` must always be provided (they skip the interactive TUI).
+
+Every PR MUST also have (set via `gh pr edit` after propose):
+- `--add-assignee @me` — always assign yourself
+- `--add-label <label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
 
 Choose the label based on the nature of the change. If unsure, ask the user before creating the PR.
 
