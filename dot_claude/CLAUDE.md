@@ -187,6 +187,12 @@ Use git town for branch management. Invoke /git-town skill for detailed stacking
 - `git town sync` instead of `git push`
 - Never push directly to master
 
+## Commit and Push Cadence
+
+- **Commit** when a logical unit of work is complete — not after every individual file edit
+- **`git town sync`** only when explicitly asked
+- A "commit and push" request in one message does not mean keep syncing after every subsequent change
+
 ## Git Town Behavior
 When running `git town sync`, it will sometimes edit **unrelated PRs** to update the branch stack metadata shown in PR bodies (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). This is normal behavior to keep stack navigation links correct across all PRs in the stack. Do not treat this as an error or attempt to "fix" it.
 

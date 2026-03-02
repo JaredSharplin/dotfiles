@@ -260,7 +260,6 @@ gh pr edit --add-assignee @me --add-label <label>
 
 ## Tips for Claude Code
 
-- Always run `git town sync` before major operations to keep stack current
 - **Separate commits by concern BEFORE using git town commands** - this is essential for automation
 - **Never manually stash** - git town handles uncommitted changes automatically
 - Use `prepend` when you discover missing prerequisites
@@ -276,5 +275,6 @@ gh pr edit --add-assignee @me --add-label <label>
 - Use git town for all branch management and stacked development
 - Branch naming: feature/task-description or feature/task-id-description
 - Standard workflow: 1) Check current branch, 2) Create feature branch, 3) Implement code, 4) Write tests, 5) Commit
-- **ALWAYS use `git town sync` instead of `git push` for pushing changes**
-- **NEVER use `git push` directly - always use `git town sync` to maintain stack integrity**
+- **`git town propose` syncs the branch automatically — no need to run `git town sync` before proposing**
+- **Only run `git town sync` when explicitly asked to push**
+- **NEVER use `git push` directly**
