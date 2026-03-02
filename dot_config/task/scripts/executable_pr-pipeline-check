@@ -53,4 +53,6 @@ done < <(jq -c '.[] |
 
 message=$(printf '%s\n' "${lines[@]}")
 
-osascript -e "display dialog \"${message}\" buttons {\"OK\"} default button \"OK\" with icon caution with title \"PR Pipeline\""
+osascript <<EOF
+display dialog "${message}" buttons {"OK"} default button "OK" with icon caution with title "PR Pipeline"
+EOF
