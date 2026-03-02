@@ -50,7 +50,7 @@ layout {
 
     tab name="Server" {
         pane split_direction="vertical" {
-            pane split_direction="horizontal" size="40%" {
+            pane split_direction="horizontal" size="30%" {
                 pane split_direction="vertical" {
                     pane command="bin/tunnel" name="Tunnel"
                     pane command="bash" {
@@ -69,7 +69,7 @@ layout {
                     }
                 }
             }
-            pane size="60%" command="gh" {
+            pane size="70%" command="gh" {
                 args "dash"
             }
         }
