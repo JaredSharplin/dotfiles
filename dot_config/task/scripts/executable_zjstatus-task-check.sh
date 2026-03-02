@@ -16,7 +16,12 @@ if [[ "$active" -gt 0 ]]; then
   ')
 fi
 
-next_desc=$(task +next +PENDING -ACTIVE export 2>/dev/null | jq -r '.[0].description // empty')
+# Only fetch next task description on wide screens (≥160 cols)
+cols="${COLUMNS:-$(tput cols 2>/dev/null || echo 0)}"
+next_desc=""
+if [[ "$cols" -ge 160 ]]; then
+  next_desc=$(task +next +PENDING -ACTIVE export 2>/dev/null | jq -r '.[0].description // empty')
+fi
 
 focus=()
 

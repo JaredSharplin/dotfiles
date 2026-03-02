@@ -196,6 +196,8 @@ When running `git town sync`, it will sometimes edit **unrelated PRs** to update
 2. Use `git diff master -- <file>` to see what YOU changed
 3. NEVER run `git checkout master` or `git stash` to "verify" - it wastes time and leaves the repo in a bad state
 4. If a test fails, the bug is in YOUR code changes, not master
+5. **NEVER label a test failure "pre-existing"** — this label does not exist. If you ran `git stash` or `git checkout` to check, you violated rule 3 and your "proof" is invalid. Fix the failure.
+6. **Re-run a failing test once before debugging** — transient fixture population issues can cause false failures. If it passes on re-run, move on. If it fails again, your code broke it.
 
 # GitHub PRs
 
