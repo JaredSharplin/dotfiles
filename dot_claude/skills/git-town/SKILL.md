@@ -100,26 +100,20 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 Always use this exact section order with `## Level-2 headers` and `<br/>` between every section:
 
 ```markdown
-## Links
-
-**Linear** (link or "see comment")
-**Sentry** (if applicable)
-**Related PR:** (if applicable)
-
-<br/>
-
 ## Background
 
-Prose explaining why this change is needed. Cause → investigation → decision.
-Write "See ticket for background." when the Linear ticket tells the full story.
-Use `NOTE:` callouts inline for important constraints.
+Plain-English summary of the problem being solved. Cause → investigation → decision.
+Write for someone who hasn't read the ticket — summarise the issue clearly, don't say
+"see ticket for background." Use `NOTE:` callouts inline for important constraints.
 
 <br/>
 
 ## Features / Changes
 
-- Bullet list of what changed
-- Use backticks for all code references: `ClassName`, `method_name`, `column_name`
+- What functionality changed, framed for the reviewer (not code-level detail)
+- The reviewer can read GitHub's diff for code specifics — this section explains
+  *what the product/system now does differently* and why that matters
+- Use backticks for code references when unavoidable: `ClassName`, `method_name`
 
 <br/>
 
@@ -151,7 +145,7 @@ Use `NOTE:` callouts inline for important constraints.
 - ❌ Omit `<br/>` between sections
 - ❌ Bold for prose emphasis — bold is only for link labels (`**Linear**`, `**Related PR:**`)
 - ❌ Level-1 (`#`) headers anywhere
-- ❌ Restating the full ticket content — link it and write "See ticket for background."
+- ❌ "See ticket for background." — always summarise the issue clearly in Background
 - ❌ Elaborate Setup/Configure/Expected Result sub-sections in Testing
 - ❌ Corporate/formal passive voice — write how you'd explain it to a colleague
 
