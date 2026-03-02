@@ -133,21 +133,12 @@ Write for someone who hasn't read the ticket — summarise the issue clearly, do
 ### Tone
 
 - Conversational, first person: "I think", "I've found", "I'm happy with"
-- Direct — state opinions without hedging: "I think we should just get rid of it for now"
+- Direct — state opinions plainly: "I think we should just get rid of it for now"
 - Address the reviewer directly when uncertain: "FOR REVIEWERS: things I'm unsure on"
-- Use `EDIT:` inline to note post-draft changes rather than rewriting
-
-### Anti-Patterns — NEVER do these
-
-- ❌ `## Summary` section — use `## Background` + `## Features / Changes`
-- ❌ Bullet-point narrative in Background — Background is **prose paragraphs**
-- ❌ Omit `## Screenshots` — always present, even if "None."
-- ❌ Omit `<br/>` between sections
-- ❌ Bold for prose emphasis — bold is only for link labels (`**Linear**`, `**Related PR:**`)
-- ❌ Level-1 (`#`) headers anywhere
-- ❌ "See ticket for background." — always summarise the issue clearly in Background
-- ❌ Elaborate Setup/Configure/Expected Result sub-sections in Testing
-- ❌ Corporate/formal passive voice — write how you'd explain it to a colleague
+- Write how you'd explain it to a colleague, not a corporate document
+- Background is prose paragraphs, not bullet points
+- Section headers are always `##` or `###`, never `#`
+- Bold only for link labels (`**Linear**`, `**Related PR:**`), not for emphasis in body text
 
 ---
 
