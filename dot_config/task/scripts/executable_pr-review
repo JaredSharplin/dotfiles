@@ -61,6 +61,16 @@ write_context() {
   }' <<< "$pr_json" > "$CONTEXT_DIR/review-slot-$slot_n.json"
 }
 
+setup_slot() {
+  local slot_n="$1"
+  local slot_dir="$2"
+  local self_review="$3"
+  (cd "$slot_dir" && gh pr checkout "$pr_number")
+  echo "$pr_number" > "$slot_dir/.pr-review"
+  write_context "$slot_dir" "$self_review" "$slot_n"
+  slot-rename-tab "$slot_n"
+}
+
 if [[ "$pr_author" == "$me" ]]; then
   # Self-review mode: use current slot (branch already checked out)
   slot_n=$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')
@@ -70,8 +80,7 @@ if [[ "$pr_author" == "$me" ]]; then
   }
   slot_dir="$SLOT_BASE/slot-$slot_n"
 
-  write_context "$slot_dir" "true" "$slot_n"
-  slot-rename-tab "$slot_n"
+  setup_slot "$slot_n" "$slot_dir" "true"
 
   echo "Self-review mode active for Slot $slot_n, PR #$pr_number"
   echo "  Exit this session — the loop will start the walkthrough automatically"
@@ -110,17 +119,10 @@ else
 
   echo "Using Slot $slot_n for PR #$pr_number"
 
-  # Check out the PR branch in the slot worktree
-  (cd "$slot_dir" && gh pr checkout "$pr_number")
+  setup_slot "$slot_n" "$slot_dir" "false"
 
-  # Write .pr-review marker
-  echo "$pr_number" > "$slot_dir/.pr-review"
-
-  write_context "$slot_dir" "false" "$slot_n"
-
-  # Switch to slot tab and rename it
+  # Switch to slot tab
   zellij action go-to-tab-name "Slot $slot_n"
-  slot-rename-tab "$slot_n"
 
   echo "Ready to review PR #$pr_number in Slot $slot_n"
   echo "  Activate the Claude pane to start the walkthrough and review"
