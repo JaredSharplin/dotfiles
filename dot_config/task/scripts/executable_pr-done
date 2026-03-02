@@ -29,6 +29,11 @@ pr_number=""
 [[ -f "$marker" ]] && rm "$marker"
 [[ -f "$context" ]] && rm "$context"
 
+# Park worktree on idle slot branch
+git -C "$slot_dir" checkout "slot-$slot_n" 2>/dev/null \
+  || git -C "$slot_dir" checkout -b "slot-$slot_n" 2>/dev/null \
+  || true
+
 # Restore tab name and switch to Main
 if [[ -n "${ZELLIJ:-}" ]]; then
   zellij action rename-tab "Slot $slot_n"

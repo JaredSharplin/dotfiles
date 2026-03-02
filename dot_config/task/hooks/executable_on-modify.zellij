@@ -104,6 +104,13 @@ elsif was_stopped
   slot_n = slot_number_from_path(old_task["project_dir"])
   delete_context(old_task["uuid"])
 
+  if slot_n
+    slot_dir_path = slot_path(slot_n)
+    unless system("git", "-C", slot_dir_path, "checkout", "slot-#{slot_n}", out: File::NULL, err: File::NULL)
+      system("git", "-C", slot_dir_path, "checkout", "-b", "slot-#{slot_n}", out: File::NULL, err: File::NULL)
+    end
+  end
+
   if in_zellij? && slot_n
     zellij("go-to-tab", slot_tab_index(slot_n).to_s)
     rename_slot_tab(slot_n)

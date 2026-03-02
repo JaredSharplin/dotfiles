@@ -117,12 +117,6 @@ build_walkthrough_prompt() {
   prompt="${prompt}\n5. After all files, ask if anything is still unclear."
   prompt="${prompt}\n6. Print a glossary of business and domain terms a new developer would need to understand this PR — things like 'Leave Award', 'Employment Condition Set', 'TOIL'. Explicitly exclude method names, class names, and Ruby API. One plain-English definition sentence each."
 
-  if [[ "$is_self_review" == "true" ]]; then
-    prompt="${prompt}\n7. When I confirm I understand, find the active task for this PR:"
-    prompt="${prompt}\n   \`task +ACTIVE export | jq '.[] | select(.annotations[]?.description | test(\"PR:.*${pr_number}\"))'\`"
-    prompt="${prompt}\n   Then annotate it: \`task <id> annotate \"Self-reviewed: <one-line summary>\"\`"
-  fi
-
   printf '%b' "$prompt"
 }
 
@@ -192,13 +186,27 @@ while true; do
       claude --dangerously-skip-permissions "$review_prompt"
     fi
 
+    # Auto-annotate task with Self-reviewed after code review (self-reviews only)
+    if [[ -f "$review_file" ]] && [[ "$(jq -r '.is_self_review // false' "$review_file")" == "true" ]]; then
+      _sr_pr=$(jq -r '.pr_number // empty' "$review_file")
+      if [[ -n "$_sr_pr" ]]; then
+        _sr_task=$(task +ACTIVE export 2>/dev/null \
+          | jq -r --arg pr "$_sr_pr" \
+            '[.[] | select(any(.annotations[]?; .description | test("PR:.*" + $pr)))] | first | .id // empty')
+        [[ -n "$_sr_task" ]] && task "$_sr_task" annotate "Self-reviewed: PR #${_sr_pr}" 2>/dev/null || true
+      fi
+    fi
+
     # Cleanup after both sessions complete
-    trash "$review_file" 2>/dev/null || rm -f "$review_file"
-    # Remove .pr-review marker if this was an external review
     slot_n_from_file=$(basename "$review_file" | sed -n 's/review-slot-\([0-9]*\)\.json/\1/p')
+    trash "$review_file" 2>/dev/null || rm -f "$review_file"
     if [[ -n "$slot_n_from_file" ]]; then
       pr_marker="$HOME/programming/worktrees/slot-$slot_n_from_file/.pr-review"
       trash "$pr_marker" 2>/dev/null || rm -f "$pr_marker"
+      _idle_dir="$HOME/programming/worktrees/slot-$slot_n_from_file"
+      git -C "$_idle_dir" checkout "slot-$slot_n_from_file" 2>/dev/null \
+        || git -C "$_idle_dir" checkout -b "slot-$slot_n_from_file" 2>/dev/null \
+        || true
     fi
     slot-rename-tab 2>/dev/null || true
     break
