@@ -123,8 +123,6 @@ build_walkthrough_prompt() {
   prompt="${prompt}\n   a. Tests as spec: find the corresponding test file(s), extract the test/describe/it descriptions as a bulleted spec outline — present this BEFORE looking at the implementation."
   prompt="${prompt}\n   b. Before/After: two plain-English sentences — what this file did before this PR, and what it does now."
   prompt="${prompt}\n   c. Walk through the implementation: what changed, why, non-obvious logic and edge cases."
-  prompt="${prompt}\n      Analogy bridge: if you encounter an unfamiliar design pattern or architectural concept, explain it with a structurally precise real-world analogy before the technical explanation."
-  prompt="${prompt}\n   d. Stop and ask if I have questions before continuing to the next file."
   prompt="${prompt}\n6. After all files, ask if anything is still unclear."
   prompt="${prompt}\n7. Print a vocabulary glossary: a table of new terms, abstractions, or domain concepts introduced in this PR — one plain-English definition sentence each, and which file they first appeared in."
 
@@ -150,9 +148,10 @@ build_review_prompt() {
   prompt="${prompt}\nAuthor: ${author}"
   prompt="${prompt}\nURL: ${url}"
   prompt="${prompt}\n\nYou are an independent reviewer who has not seen this code before."
-  prompt="${prompt}\n1. Run \`gh pr diff ${pr_number}\` to fetch the diff."
-  prompt="${prompt}\n2. Review the diff with a critical eye: correctness, edge cases, naming, design."
-  prompt="${prompt}\n3. Write your full review here in the terminal — do NOT post comments to GitHub."
+  prompt="${prompt}\n1. Load the code reviewer skill with 37 signals and ActiveRecord personalities."
+  prompt="${prompt}\n2. Run \`gh pr diff ${pr_number}\` to fetch the diff."
+  prompt="${prompt}\n3. Review the diff with a critical eye: correctness, edge cases, naming, design."
+  prompt="${prompt}\n4. Write your full review here in the terminal — do NOT post comments to GitHub."
 
   printf '%b' "$prompt"
 }
