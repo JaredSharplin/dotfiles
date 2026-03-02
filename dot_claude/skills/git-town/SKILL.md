@@ -79,6 +79,84 @@ gh pr edit --add-assignee @me --add-label <label>
 ```
 **Why not `gh pr create`:** `git town propose` handles branch sync and stack breadcrumbs automatically.
 
+---
+
+## PR Style Guide
+
+Derived from analysis of Jared's PRs written before May 2025 (pre-Claude). Always match this style exactly.
+
+### Title Format
+
+Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
+
+- Ticket ID is a Linear issue number (`ENG-NNN`). Omit entirely if no ticket: `(fix) | Fix validation on breaks`
+- Type tags (lowercase, parenthesised): `(fix)` `(hotfix)` `(feature)` `(migration)` `(internal)`
+- Verb phrase: sentence case, imperative. E.g. `Apply country specific settings synchronously`
+- Backtick-wrap code references in titles: `Fix N+1 in \`KeyAlert::SendAlertLogic\``
+- No emoji in titles
+
+### Body Structure
+
+Always use this exact section order with `## Level-2 headers` and `<br/>` between every section:
+
+```markdown
+## Links
+
+**Linear** (link or "see comment")
+**Sentry** (if applicable)
+**Related PR:** (if applicable)
+
+<br/>
+
+## Background
+
+Prose explaining why this change is needed. Cause → investigation → decision.
+Write "See ticket for background." when the Linear ticket tells the full story.
+Use `NOTE:` callouts inline for important constraints.
+
+<br/>
+
+## Features / Changes
+
+- Bullet list of what changed
+- Use backticks for all code references: `ClassName`, `method_name`, `column_name`
+
+<br/>
+
+## Testing Tasks
+
+- [x] Concrete manual QA steps with specific org/timesheet IDs where relevant
+- [x] If automated tests cover it: "I'm happy with the test coverage for this."
+- [x] If hard to test: "Small change which is hard to manually test."
+
+<br/>
+
+## Screenshots
+
+![image](...) or "None."
+```
+
+### Tone
+
+- Conversational, first person: "I think", "I've found", "I'm happy with"
+- Direct — state opinions without hedging: "I think we should just get rid of it for now"
+- Address the reviewer directly when uncertain: "FOR REVIEWERS: things I'm unsure on"
+- Use `EDIT:` inline to note post-draft changes rather than rewriting
+
+### Anti-Patterns — NEVER do these
+
+- ❌ `## Summary` section — use `## Background` + `## Features / Changes`
+- ❌ Bullet-point narrative in Background — Background is **prose paragraphs**
+- ❌ Omit `## Screenshots` — always present, even if "None."
+- ❌ Omit `<br/>` between sections
+- ❌ Bold for prose emphasis — bold is only for link labels (`**Linear**`, `**Related PR:**`)
+- ❌ Level-1 (`#`) headers anywhere
+- ❌ Restating the full ticket content — link it and write "See ticket for background."
+- ❌ Elaborate Setup/Configure/Expected Result sub-sections in Testing
+- ❌ Corporate/formal passive voice — write how you'd explain it to a colleague
+
+---
+
 ### `git town set-parent <parent-branch>`
 **Purpose:** Change which branch is the parent of current branch
 **When to use:** Reorganizing stack structure or fixing dependencies
