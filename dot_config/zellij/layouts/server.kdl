@@ -1,21 +1,26 @@
 layout {
     tab name="Server" {
         pane split_direction="vertical" {
-            pane split_direction="horizontal" size="50%" {
-                pane command="bin/tunnel" name="Tunnel"
-                pane command="bash" {
-                    args "-c" "sleep 5 && bin/dev server"
-                    name "Server"
-                }
+            pane size="60%" command="gh" {
+                args "dash"
             }
-            pane split_direction="horizontal" size="50%" {
-                pane command="bash" {
-                    args "-c" "sleep 5 && bin/dev webpack"
-                    name "Webpack"
+            pane split_direction="horizontal" size="40%" {
+                pane split_direction="vertical" {
+                    pane command="bin/tunnel" name="Tunnel"
+                    pane command="bash" {
+                        args "-c" "sleep 5 && bin/dev server"
+                        name "Server"
+                    }
                 }
-                pane command="bash" {
-                    args "-c" "sleep 5 && bin/dev worker"
-                    name "Worker"
+                pane split_direction="vertical" {
+                    pane command="bash" {
+                        args "-c" "sleep 5 && bin/dev webpack"
+                        name "Webpack"
+                    }
+                    pane command="bash" {
+                        args "-c" "sleep 5 && bin/dev worker"
+                        name "Worker"
+                    }
                 }
             }
         }
