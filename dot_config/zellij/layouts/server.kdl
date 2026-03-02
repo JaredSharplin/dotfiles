@@ -11,11 +11,11 @@ layout {
                 }
                 pane split_direction="vertical" {
                     pane command="bash" {
-                        args "-c" "sleep 5 && bin/dev webpack"
+                        args "-c" "sleep 10 && bin/dev webpack"
                         name "Webpack"
                     }
                     pane command="bash" {
-                        args "-c" "sleep 5 && bin/dev worker"
+                        args "-c" "sleep 10 && bin/dev worker"
                         name "Worker"
                     }
                 }
