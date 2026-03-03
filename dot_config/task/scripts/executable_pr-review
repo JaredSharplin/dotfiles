@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # Opens a PR for review in a Zellij slot tab, or advances pipeline status.
 #
 # Usage:
@@ -10,159 +12,162 @@
 # - Self-review (author == me): uses current slot, writes review context, renames tab
 # - External review (author != me): finds free slot, checks out branch, switches tab
 
-set -euo pipefail
+require 'json'
+require 'open3'
+require 'fileutils'
 
-SLOT_COUNT=6
-SLOT_BASE="$HOME/programming/worktrees"
-CONTEXT_DIR="$HOME/.local/share/task/context"
+SLOT_COUNT  = 6
+SLOT_BASE   = File.join(Dir.home, 'programming/worktrees')
+CONTEXT_DIR = File.join(Dir.home, '.local/share/task/context')
 
-usage() {
-  echo "Usage: pr-review <number|url|self|qa>" >&2
-  exit 1
-}
+def usage
+  abort 'Usage: pr-review <number|url|self|qa>'
+end
 
-[[ $# -eq 1 ]] || usage
+def run(*args)
+  stdout, stderr, status = Open3.capture3(*args)
+  abort "Command failed: #{args.join(' ')}\n#{stderr}" unless status.success?
+  stdout
+end
 
-# Pipeline status subcommands
-if [[ "$1" == "self" || "$1" == "qa" ]]; then
-  subcommand="$1"
+# ── Pipeline status subcommands ───────────────────────────────────────────────
 
-  # Find active task for current slot
-  slot_task=$(task +ACTIVE export 2>/dev/null \
-    | jq -r --arg d "$PWD" '.[] | select(.project_dir == $d) | .id // empty' \
-    | head -1)
-  [[ -n "$slot_task" ]] || { echo "No active task found for $PWD" >&2; exit 1; }
+def handle_pipeline_subcommand(subcommand)
+  active_json, = Open3.capture3('task', '+ACTIVE', 'export')
+  tasks = JSON.parse(active_json.empty? ? '[]' : active_json, symbolize_names: true)
 
-  # Get PR number from task's PR: annotation
-  pr_num=$(task "$slot_task" export 2>/dev/null \
-    | jq -r '.[0].annotations // [] | map(select(.description | test("^PR: "))) | last | .description // empty' \
-    | sed 's|.*[^0-9]\([0-9]*\)$|\1|')
-  [[ -n "$pr_num" ]] || { echo "Task #${slot_task} has no PR: annotation" >&2; exit 1; }
+  slot_task = tasks.find { it[:project_dir] == Dir.pwd }
+  abort "No active task found for #{Dir.pwd}" unless slot_task
 
-  case "$subcommand" in
-    self) task "$slot_task" annotate "Self-reviewed: PR #${pr_num}" ;;
-    qa)   task "$slot_task" annotate "Ready for peer review: PR #${pr_num}" ;;
-  esac
+  task_id = slot_task[:id].to_s
+
+  annotations = slot_task[:annotations] || []
+  pr_annotation = annotations.select { it[:description].match?(/\APR: /) }.last
+  abort "Task ##{task_id} has no PR: annotation" unless pr_annotation
+
+  pr_num = pr_annotation[:description].scan(/\d+/).last
+  abort "Task ##{task_id} has no PR: annotation" unless pr_num
+
+  case subcommand
+  in 'self' then run('task', task_id, 'annotate', "Self-reviewed: PR ##{pr_num}")
+  in 'qa'   then run('task', task_id, 'annotate', "Ready for peer review: PR ##{pr_num}")
+  end
+
   exit 0
-fi
+end
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def slot_number_from_path(path)
+  path.match(/slot-(\d+)/)&.captures&.first
+end
+
+def active_task_slot_numbers
+  stdout, = Open3.capture3('task', '+ACTIVE', 'export')
+  return [] if stdout.strip.empty?
+
+  JSON.parse(stdout, symbolize_names: true)
+    .filter_map { slot_number_from_path(it[:project_dir] || '') }
+end
+
+def review_marker_slot_numbers
+  (1..SLOT_COUNT).select { File.exist?(File.join(SLOT_BASE, "slot-#{it}", '.pr-review')) }
+                 .map(&:to_s)
+end
+
+def find_free_slot
+  occupied = (active_task_slot_numbers + review_marker_slot_numbers).uniq
+  (1..SLOT_COUNT).find { !occupied.include?(it.to_s) }
+end
+
+def write_context(pr_data, slot_dir, self_review, slot_n)
+  context = {
+    pr_number:     pr_data[:number],
+    title:         pr_data[:title],
+    author:        pr_data.dig(:author, :login),
+    url:           pr_data[:url],
+    is_self_review: self_review,
+    project_dir:   slot_dir
+  }
+  File.write(File.join(CONTEXT_DIR, "review-slot-#{slot_n}.json"), JSON.generate(context))
+end
+
+def setup_slot(slot_n, slot_dir, pr_number, pr_data, self_review)
+  Dir.chdir(slot_dir) { run('gh', 'pr', 'checkout', pr_number) }
+  File.write(File.join(slot_dir, '.pr-review'), pr_number)
+  write_context(pr_data, slot_dir, self_review, slot_n)
+  run('slot-rename-tab', slot_n.to_s)
+end
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+usage unless ARGV.length == 1
+
+input = ARGV.first
+
+if %w[self qa].include?(input)
+  handle_pipeline_subcommand(input)
+end
 
 # Extract PR number from argument (handles both "1234" and full GitHub URLs)
-input="$1"
-pr_number="${input##*/}"
-pr_number="${pr_number//[^0-9]/}"
-
-[[ -n "$pr_number" ]] || { echo "Could not extract PR number from: $input" >&2; exit 1; }
+pr_number = input.split('/').last.gsub(/\D/, '')
+abort "Could not extract PR number from: #{input}" if pr_number.empty?
 
 # Must be inside Zellij
-[[ -n "${ZELLIJ:-}" ]] || { echo "Not inside a Zellij session" >&2; exit 1; }
+abort 'Not inside a Zellij session' if ENV.fetch('ZELLIJ', '').empty?
 
 # Fetch PR metadata
-pr_json=$(gh pr view "$pr_number" --json number,title,author,url,state)
-pr_author=$(jq -r '.author.login' <<< "$pr_json")
-pr_state=$(jq -r '.state' <<< "$pr_json")
+pr_json  = run('gh', 'pr', 'view', pr_number, '--json', 'number,title,author,url,state')
+pr_data  = JSON.parse(pr_json, symbolize_names: true)
+pr_author = pr_data.dig(:author, :login)
+pr_state  = pr_data[:state]
 
-if [[ "$pr_state" != "OPEN" ]]; then
-  echo "PR #$pr_number is $pr_state — can only review open PRs" >&2
-  exit 1
-fi
+abort "PR ##{pr_number} is #{pr_state} — can only review open PRs" unless pr_state == 'OPEN'
 
 # Get current GitHub user
-me=$(gh api user -q '.login')
+me = `gh api user -q '.login'`.strip
 
-mkdir -p "$CONTEXT_DIR"
+FileUtils.mkdir_p(CONTEXT_DIR)
 
-write_context() {
-  local slot_dir="$1"
-  local self_review="$2"
-  local slot_n="$3"
-  jq --arg slot "$slot_dir" --argjson self "$self_review" '{
-    pr_number: .number,
-    title: .title,
-    author: .author.login,
-    url: .url,
-    is_self_review: $self,
-    project_dir: $slot
-  }' <<< "$pr_json" > "$CONTEXT_DIR/review-slot-$slot_n.json"
-}
-
-setup_slot() {
-  local slot_n="$1"
-  local slot_dir="$2"
-  local self_review="$3"
-  (cd "$slot_dir" && gh pr checkout "$pr_number")
-  echo "$pr_number" > "$slot_dir/.pr-review"
-  write_context "$slot_dir" "$self_review" "$slot_n"
-  slot-rename-tab "$slot_n"
-}
-
-if [[ "$pr_author" == "$me" ]]; then
+if pr_author == me
   # Self-review mode: use current slot (branch already checked out)
-  slot_n=$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')
-  [[ -n "$slot_n" ]] || {
-    echo "Not inside a slot worktree. Run from ~/programming/worktrees/slot-N" >&2
-    exit 1
-  }
-  slot_dir="$SLOT_BASE/slot-$slot_n"
+  slot_n = slot_number_from_path(Dir.pwd)
+  abort "Not inside a slot worktree. Run from ~/programming/worktrees/slot-N" unless slot_n
 
-  setup_slot "$slot_n" "$slot_dir" "true"
+  slot_dir = File.join(SLOT_BASE, "slot-#{slot_n}")
+
+  setup_slot(slot_n, slot_dir, pr_number, pr_data, true)
 
   # Auto-add PR: annotation to active task if missing
-  slot_task=$(task +ACTIVE export 2>/dev/null \
-    | jq -r --arg d "$slot_dir" '.[] | select(.project_dir == $d) | .id // empty' \
-    | head -1)
-  if [[ -n "$slot_task" ]]; then
-    has_pr=$(task "$slot_task" export 2>/dev/null \
-      | jq -r '[.[0].annotations // [] | .[] | select(.description | test("^PR: "))] | length')
-    if [[ "$has_pr" == "0" ]]; then
-      pr_url=$(jq -r '.url' <<< "$pr_json")
-      task "$slot_task" annotate "PR: ${pr_url}"
-      echo "  Annotated task #${slot_task}: PR: ${pr_url}"
-    fi
-  fi
+  active_json, = Open3.capture3('task', '+ACTIVE', 'export')
+  unless active_json.strip.empty?
+    tasks = JSON.parse(active_json, symbolize_names: true)
+    slot_task = tasks.find { it[:project_dir] == slot_dir }
 
-  echo "Self-review mode active for Slot $slot_n, PR #$pr_number"
-  echo "  Exit this session — the loop will start the walkthrough automatically"
+    if slot_task
+      annotations = slot_task[:annotations] || []
+      has_pr = annotations.any? { it[:description].match?(/\APR: /) }
+      unless has_pr
+        pr_url = pr_data[:url]
+        run('task', slot_task[:id].to_s, 'annotate', "PR: #{pr_url}")
+        puts "  Annotated task ##{slot_task[:id]}: PR: #{pr_url}"
+      end
+    end
+  end
+
+  puts "Self-review mode active for Slot #{slot_n}, PR ##{pr_number}"
+  puts '  Exit this session — the loop will start the walkthrough automatically'
 else
   # External review mode: find a free slot and check out the branch
+  slot_n = find_free_slot
+  abort 'No free slots available' unless slot_n
 
-  # Find occupied slots: active tasks with project_dir set
-  occupied_slots() {
-    task +ACTIVE export 2>/dev/null \
-      | jq -r '.[] | .project_dir // empty' \
-      | sed -n 's/.*slot-\([0-9]*\).*/\1/p' || true
-  }
+  slot_dir = File.join(SLOT_BASE, "slot-#{slot_n}")
 
-  # Find slots with existing .pr-review markers
-  review_slots() {
-    for n in $(seq 1 "$SLOT_COUNT"); do
-      [[ -f "$SLOT_BASE/slot-$n/.pr-review" ]] && echo "$n" || true
-    done
-  }
+  puts "Using Slot #{slot_n} for PR ##{pr_number}"
 
-  # Combine occupied slots into a set, find first free
-  find_free_slot() {
-    local used
-    used=$({ occupied_slots; review_slots; } | sort -u)
-    for n in $(seq 1 "$SLOT_COUNT"); do
-      if ! echo "$used" | grep -qx "$n"; then
-        echo "$n"
-        return 0
-      fi
-    done
-    return 1
-  }
-
-  slot_n=$(find_free_slot) || { echo "No free slots available" >&2; exit 1; }
-  slot_dir="$SLOT_BASE/slot-$slot_n"
-
-  echo "Using Slot $slot_n for PR #$pr_number"
-
-  setup_slot "$slot_n" "$slot_dir" "false"
+  setup_slot(slot_n, slot_dir, pr_number, pr_data, false)
 
   # Switch to slot tab
-  zellij action go-to-tab-name "Slot $slot_n"
-
-  echo "Ready to review PR #$pr_number in Slot $slot_n"
-  echo "  Activate the Claude pane to start the walkthrough and review"
-  echo "  Run 'pr-done' when finished"
-fi
+  exec('zellij', 'action', 'go-to-tab-name', "Slot #{slot_n}")
+end

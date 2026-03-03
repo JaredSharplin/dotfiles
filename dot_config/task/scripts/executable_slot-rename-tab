@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # Renames a Zellij slot tab based on its current context.
 #
 # Usage: slot-rename-tab [slot_number]
@@ -6,50 +8,45 @@
 # If slot_number is omitted, detects from $PWD.
 # Checks for review context, then task context, then falls back to "Slot N".
 
-set -euo pipefail
+require 'json'
 
-CONTEXT_DIR="$HOME/.local/share/task/context"
-SLOT_BASE="$HOME/programming/worktrees"
+CONTEXT_DIR = File.join(Dir.home, '.local/share/task/context')
+SLOT_BASE   = File.join(Dir.home, 'programming/worktrees')
 
-[[ -n "${ZELLIJ:-}" ]] || exit 0
+exit 0 unless ENV['ZELLIJ']
 
-slot_n="${1:-$(echo "$PWD" | sed -n 's/.*slot-\([0-9]*\).*/\1/p')}"
-[[ -n "$slot_n" ]] || exit 0
+slot_n = ARGV[0] || Dir.pwd[/slot-(\d+)/, 1]
+exit 0 unless slot_n
 
-slot_dir="$SLOT_BASE/slot-$slot_n"
-review_context="$CONTEXT_DIR/review-slot-$slot_n.json"
+slot_dir       = "#{SLOT_BASE}/slot-#{slot_n}"
+review_context = "#{CONTEXT_DIR}/review-slot-#{slot_n}.json"
 
-if [[ -f "$review_context" ]]; then
-  pr_number=$(jq -r '.pr_number // empty' "$review_context")
-  is_self_review=$(jq -r '.is_self_review // false' "$review_context")
-  if [[ "$is_self_review" == "true" ]]; then
-    zellij action rename-tab "Slot $slot_n: Self-review #$pr_number"
+tab_name =
+  if File.exist?(review_context)
+    data = JSON.parse(File.read(review_context), symbolize_names: true)
+    pr_number = data[:pr_number]
+    if data[:is_self_review]
+      "Slot #{slot_n}: Self-review ##{pr_number}"
+    else
+      "Slot #{slot_n}: Reviewing ##{pr_number}"
+    end
   else
-    zellij action rename-tab "Slot $slot_n: Reviewing #$pr_number"
-  fi
-else
-  # Find task context matching this slot
-  task_id=""
-  task_desc=""
-  if [[ -d "$CONTEXT_DIR" ]]; then
-    for f in "$CONTEXT_DIR"/*.json; do
-      [[ -f "$f" ]] || continue
-      [[ "$(basename "$f")" == review-* ]] && continue
-      project_dir=$(jq -r '.project_dir // empty' "$f" 2>/dev/null)
-      if [[ "$project_dir" == "$slot_dir" ]]; then
-        task_id=$(jq -r '.id // empty' "$f")
-        task_desc=$(jq -r '.description // empty' "$f")
-        break
-      fi
-    done
-  fi
+    task_file = Dir.glob("#{CONTEXT_DIR}/*.json").find do
+      next if File.basename(it).start_with?('review-')
 
-  if [[ -n "$task_id" ]]; then
-    if [[ ${#task_desc} -gt 20 ]]; then
-      task_desc="${task_desc:0:20}…"
-    fi
-    zellij action rename-tab "Slot $slot_n: #$task_id $task_desc"
-  else
-    zellij action rename-tab "Slot $slot_n"
-  fi
-fi
+      data = JSON.parse(File.read(it), symbolize_names: true) rescue next
+      data[:project_dir] == slot_dir
+    end
+
+    if task_file
+      data = JSON.parse(File.read(task_file), symbolize_names: true)
+      task_id   = data[:id]
+      task_desc = data[:description].to_s
+      task_desc = "#{task_desc[0, 20]}\u2026" if task_desc.length > 20
+      "Slot #{slot_n}: ##{task_id} #{task_desc}"
+    else
+      "Slot #{slot_n}"
+    end
+  end
+
+exec('zellij', 'action', 'rename-tab', tab_name)
