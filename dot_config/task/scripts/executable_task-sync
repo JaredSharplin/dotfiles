@@ -7,18 +7,72 @@
 #   1. Marks tasks done when their PR is merged
 #   2. Creates tasks for new Linear issues assigned to you
 #   3. Creates tasks for new GitHub PR review requests
+#   4. Sets priority:H/M/L on every active/pending task
 
 require 'json'
+require 'open3'
+require 'time'
 
 tasks = JSON.parse(`task export`, symbolize_names: true)
   .select { _1[:status].match?(/pending|active/) }
 
+# Phase 2: Parallel PR pre-fetch
+pr_data = {}
+mutex = Mutex.new
+
+threads = tasks.flat_map { |t|
+  (t[:annotations] || []).filter_map { |a|
+    match = a[:description].match(%r{PR:.*?/pull/(\d+)})
+    next unless match
+
+    pr_number = match[1]
+    Thread.new do
+      stdout, = Open3.capture2('gh', 'pr', 'view', pr_number, '--json', 'state,reviewDecision,createdAt,comments')
+      parsed = JSON.parse(stdout, symbolize_names: true) rescue nil
+      mutex.synchronize { pr_data[pr_number] = parsed }
+    end
+  }
+}
+threads.each { _1.join(10) }
+
+def age_days(timestamp_str)
+  return nil unless timestamp_str
+  normalized = timestamp_str.sub(
+    /\A(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z\z/,
+    '\1-\2-\3T\4:\5:\6Z'
+  )
+  ((Time.now - Time.parse(normalized)) / 86_400).round
+rescue ArgumentError, TypeError
+  nil
+end
+
+# Phase 3: Build enriched task list string
 active_tasks = tasks.map { |t|
-  line = "  ##{t[:id]} [#{t[:status]}]: #{t[:description]}"
+  task_age = age_days(t[:entry])
+  lines = ["  ##{t[:id]} [#{t[:status]}]: #{t[:description]}"]
+  lines << "    task-age: #{task_age}d" if task_age
+
+  (t[:annotations] || []).each { |a|
+    match = a[:description].match(%r{PR:.*?/pull/(\d+)})
+    next unless match
+
+    pr_number = match[1]
+    data = pr_data[pr_number]
+    next unless data
+
+    pr_age = age_days(data[:createdAt])
+    comment_count = data[:comments]&.length || 0
+    review = data[:reviewDecision] || 'NONE'
+    state = data[:state] || 'UNKNOWN'
+    lines << "    PR ##{pr_number}: state=#{state}, review=#{review}, pr-age=#{pr_age}d, comments=#{comment_count}"
+  }
+
   if t[:annotations]&.any?
-    line += "\n    annotations: #{t[:annotations].map { _1[:description] }.join(', ')}"
+    ann_text = t[:annotations].map { _1[:description] }.join(', ')
+    lines << "    annotations: #{ann_text}"
   end
-  line
+
+  lines.join("\n")
 }.join("\n")
 
 prompt = <<~PROMPT
@@ -27,16 +81,15 @@ prompt = <<~PROMPT
   Current tasks:
   #{active_tasks}
 
-  Do these three things in order. Run all task commands directly — do not ask for confirmation.
+  Do these four things in order. Run all task commands directly — do not ask for confirmation.
 
   ---
 
   ## 1. Mark merged PRs done
 
   For each task above that has a `PR: <url>` annotation:
-  - Extract the PR number from the URL
-  - Run: `gh pr view <number> --json state -q '.state'`
-  - If state is MERGED, run: `task <id> done`
+  - If the task listing above already shows `state=MERGED` for that PR, run: `task <id> done`
+  - Otherwise run: `gh pr view <number> --json state -q '.state'` and if MERGED, run: `task <id> done`
 
   ---
 
@@ -64,7 +117,49 @@ prompt = <<~PROMPT
 
   ---
 
-  After completing all three, print a brief summary of what changed.
+  ## 4. Set task priorities
+
+  Before setting priorities, use the Linear tool (action: "search" with no query) to fetch
+  your current Linear assignments. Note each issue's priority field and any recent notifications
+  or comments — these are key ordering signals.
+
+  For every task listed above, run exactly one of:
+    `task <id> modify priority:H`
+    `task <id> modify priority:M`
+    `task <id> modify priority:L`
+
+  Do not skip any task.
+
+  Within the same priority tier, prefer older tasks (higher task-age) — longer-sitting tasks
+  rank higher. This means two H-priority tasks are ordered: older task first.
+
+  Ordering signals (apply in this order):
+
+  1. **Age and recent activity (strongest signal)**
+     - task-age > 7 days with no PR annotation → H
+     - PR pr-age > 14 days still open → bump up one level
+     - Recent Linear notification or comment on this issue → bump to H
+
+  2. **PR review decision**
+     - review=CHANGES_REQUESTED → H
+
+  3. **Linear priority**
+     - urgent or high → H
+     - medium → M
+     - low → L
+     - No Linear ticket → use age signal only
+
+  4. **Blocking/waiting**
+     - Task has on_hold tag or is WAITING → L
+     - Draft PR → L
+
+  After setting all priorities, apply `task <id> modify +next` to the SINGLE most critical task —
+  the one to work on right now. Remove `+next` from any task that currently has it but shouldn't:
+  `task <id> modify -next`
+
+  ---
+
+  After completing all four, print a brief summary of what changed.
 PROMPT
 
-exec("claude", "--dangerously-skip-permissions", prompt)
+exec('claude', '--dangerously-skip-permissions', prompt)
