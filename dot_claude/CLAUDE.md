@@ -124,6 +124,20 @@ end
 config.dig(:database, :primary) => {host:, port:}
 ```
 
+# Scripting Language
+
+**For dotfiles scripts, tooling, and automation (anything in `~/.config/task/scripts/`, `~/bin/`, or similar):**
+
+- **Use Ruby** — not bash, not Python, not TypeScript
+- Bash is only acceptable for scripts under ~15 lines that are purely command glue with no real logic
+- Anything with JSON handling, conditional logic, string building, or multiple steps → Ruby
+
+**Shebang:** `#!/usr/bin/env ruby`
+
+**Subprocess calls:** Use backticks for simple captures, `IO.popen` or `Open3.capture3` for anything that needs stderr or exit status.
+
+**JSON:** Use `require 'json'` — `JSON.parse(...)` and `.to_json`.
+
 # Forbidden Commands
 
 The following commands are PERMANENTLY BANNED and must NEVER be used under ANY circumstances:

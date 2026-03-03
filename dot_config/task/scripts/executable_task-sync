@@ -1,0 +1,70 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# Syncs task list with Linear assignments and GitHub PR status.
+#
+# Launches a Claude session that:
+#   1. Marks tasks done when their PR is merged
+#   2. Creates tasks for new Linear issues assigned to you
+#   3. Creates tasks for new GitHub PR review requests
+
+require 'json'
+
+tasks = JSON.parse(`task export`, symbolize_names: true)
+  .select { _1[:status].match?(/pending|active/) }
+
+active_tasks = tasks.map { |t|
+  line = "  ##{t[:id]} [#{t[:status]}]: #{t[:description]}"
+  if t[:annotations]&.any?
+    line += "\n    annotations: #{t[:annotations].map { _1[:description] }.join(', ')}"
+  end
+  line
+}.join("\n")
+
+prompt = <<~PROMPT
+  Sync my task list with Linear and GitHub.
+
+  Current tasks:
+  #{active_tasks}
+
+  Do these three things in order. Run all task commands directly — do not ask for confirmation.
+
+  ---
+
+  ## 1. Mark merged PRs done
+
+  For each task above that has a `PR: <url>` annotation:
+  - Extract the PR number from the URL
+  - Run: `gh pr view <number> --json state -q '.state'`
+  - If state is MERGED, run: `task <id> done`
+
+  ---
+
+  ## 2. New Linear assignments
+
+  Use the Linear tool to search for issues currently assigned to me (use action: "search" with no query to get your assigned issues).
+
+  For each issue returned:
+  - Skip if any task above already has a `Linear: <url>` annotation matching this issue's URL
+  - Otherwise create the task:
+    `task add "<issue title>" project:<project if identifiable from Linear project name>`
+    `task <newid> annotate "Linear: <url>"`
+
+  ---
+
+  ## 3. New PR review requests
+
+  Run: `gh pr list --review-requested @me --state open --json number,title,url`
+
+  For each PR returned:
+  - Skip if any task above already has a `PR: <url>` annotation matching this PR's URL
+  - Otherwise create the task:
+    `task add "Review PR #<number>: <title>"`
+    `task <newid> annotate "PR: <url>"`
+
+  ---
+
+  After completing all three, print a brief summary of what changed.
+PROMPT
+
+exec("claude", "--dangerously-skip-permissions", prompt)

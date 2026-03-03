@@ -90,6 +90,12 @@ build_prompt() {
     prompt="${prompt}\n\nBefore starting:${prereqs}"
   fi
 
+  if [[ -n "$pr_annotation" ]]; then
+    prompt="${prompt}\n\nPipeline commands (use these to advance PR status, not task annotate):"
+    prompt="${prompt}\n  pr-review self   — mark self-review complete"
+    prompt="${prompt}\n  pr-review qa     — mark QA done / ready for peer review"
+  fi
+
   prompt="${prompt}\n\nInvestigate and plan the approach."
   prompt="${prompt}\nAnnotate key milestones as you work: \`task ${task_id} annotate \"...\"\`"
 

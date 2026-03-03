@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Opens a PR for review in a Zellij slot tab.
+# Opens a PR for review in a Zellij slot tab, or advances pipeline status.
 #
-# Usage: pr-review <number|url>
+# Usage:
+#   pr-review <number|url>   Start reviewing a PR (self-review or external)
+#   pr-review self           Mark active task as self-reviewed
+#   pr-review qa             Mark active task ready for peer review
 #
-# - Fetches PR metadata and compares author to the current GitHub user
-# - Self-review mode (author == me): uses the current slot (branch already checked out),
-#   writes review-slot-N.json with is_self_review: true, renames the tab
-# - External review mode (author != me): finds a free slot, checks out the branch,
-#   writes review-slot-N.json with is_self_review: false, switches to the slot
+# Review modes (pr-review <number>):
+# - Self-review (author == me): uses current slot, writes review context, renames tab
+# - External review (author != me): finds free slot, checks out branch, switches tab
 
 set -euo pipefail
 
@@ -16,11 +17,34 @@ SLOT_BASE="$HOME/programming/worktrees"
 CONTEXT_DIR="$HOME/.local/share/task/context"
 
 usage() {
-  echo "Usage: pr-review <number|url>" >&2
+  echo "Usage: pr-review <number|url|self|qa>" >&2
   exit 1
 }
 
 [[ $# -eq 1 ]] || usage
+
+# Pipeline status subcommands
+if [[ "$1" == "self" || "$1" == "qa" ]]; then
+  subcommand="$1"
+
+  # Find active task for current slot
+  slot_task=$(task +ACTIVE export 2>/dev/null \
+    | jq -r --arg d "$PWD" '.[] | select(.project_dir == $d) | .id // empty' \
+    | head -1)
+  [[ -n "$slot_task" ]] || { echo "No active task found for $PWD" >&2; exit 1; }
+
+  # Get PR number from task's PR: annotation
+  pr_num=$(task "$slot_task" export 2>/dev/null \
+    | jq -r '.[0].annotations // [] | map(select(.description | test("^PR: "))) | last | .description // empty' \
+    | sed 's|.*[^0-9]\([0-9]*\)$|\1|')
+  [[ -n "$pr_num" ]] || { echo "Task #${slot_task} has no PR: annotation" >&2; exit 1; }
+
+  case "$subcommand" in
+    self) task "$slot_task" annotate "Self-reviewed: PR #${pr_num}" ;;
+    qa)   task "$slot_task" annotate "Ready for peer review: PR #${pr_num}" ;;
+  esac
+  exit 0
+fi
 
 # Extract PR number from argument (handles both "1234" and full GitHub URLs)
 input="$1"
@@ -81,6 +105,20 @@ if [[ "$pr_author" == "$me" ]]; then
   slot_dir="$SLOT_BASE/slot-$slot_n"
 
   setup_slot "$slot_n" "$slot_dir" "true"
+
+  # Auto-add PR: annotation to active task if missing
+  slot_task=$(task +ACTIVE export 2>/dev/null \
+    | jq -r --arg d "$slot_dir" '.[] | select(.project_dir == $d) | .id // empty' \
+    | head -1)
+  if [[ -n "$slot_task" ]]; then
+    has_pr=$(task "$slot_task" export 2>/dev/null \
+      | jq -r '[.[0].annotations // [] | .[] | select(.description | test("^PR: "))] | length')
+    if [[ "$has_pr" == "0" ]]; then
+      pr_url=$(jq -r '.url' <<< "$pr_json")
+      task "$slot_task" annotate "PR: ${pr_url}"
+      echo "  Annotated task #${slot_task}: PR: ${pr_url}"
+    fi
+  fi
 
   echo "Self-review mode active for Slot $slot_n, PR #$pr_number"
   echo "  Exit this session — the loop will start the walkthrough automatically"
