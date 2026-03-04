@@ -115,6 +115,17 @@ chezmoi apply -v      # Apply with verbose output
 chezmoi apply -n      # Dry run (no changes)
 ```
 
+**Always edit chezmoi source files in `~/.local/share/chezmoi/`. Never edit deployed files directly.**
+
+If given a home-directory path (e.g. `~/.claude/skills/foo/SKILL.md`), resolve it to the source first:
+
+```bash
+chezmoi source-path ~/.claude/skills/foo/SKILL.md
+# → /Users/jaredsharplin/.local/share/chezmoi/dot_claude/skills/foo/SKILL.md
+```
+
+Edit the source path, then apply:
+
 **After editing any source file, always run `chezmoi apply` to deploy the changes to `$HOME`.**
 
 ### One-time setup (after first `chezmoi apply` on macOS)
