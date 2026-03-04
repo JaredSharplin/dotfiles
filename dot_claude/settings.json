@@ -1,5 +1,4 @@
 {
-  "model": "sonnet",
   "enabledPlugins": {
     "cc-zjstatus@claude-code-zellij-status": true
   },
