@@ -254,14 +254,16 @@ git town propose --title "..." --body "Depends on #<parent-pr>"
 gh pr edit --add-assignee @me --add-label <label>
 ```
 
-## Automatic Stashing
+## ⛔ NEVER Manually Stash
 
-**Git Town automatically stashes and restores uncommitted changes.** Commands like `hack`, `sync`, `append`, and `prepend` will stash any dirty working directory before switching branches and pop the stash afterward. You do NOT need to manually `git stash` before running git town commands — just run them directly with uncommitted changes present.
+**`git stash` is FORBIDDEN when using git town.** Git town automatically stashes and restores uncommitted changes for `hack`, `sync`, `append`, `prepend`, and all branch-switching commands. Running `git stash` manually before a git town command is redundant, creates extra stash entries, and complicates the workflow.
+
+- ❌ `git stash` then `git town hack` — WRONG
+- ✅ `git town hack feature/name` directly with dirty working directory — CORRECT
 
 ## Tips for Claude Code
 
 - **Separate commits by concern BEFORE using git town commands** - this is essential for automation
-- **Never manually stash** - git town handles uncommitted changes automatically
 - Use `prepend` when you discover missing prerequisites
 - Use `append` to add dependent work on top
 - Use `hack` + `set-parent` when planning stack structure upfront
