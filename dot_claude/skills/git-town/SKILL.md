@@ -110,7 +110,8 @@ Write for someone who hasn't read the ticket — summarise the issue clearly, do
 
 ## Features / Changes
 
-- What functionality changed, framed for the reviewer (not code-level detail)
+- Each bullet is one distinct change the reviewer needs to know about — not an implementation step or sub-detail of a previous bullet
+- If a change needs more explanation, add another sentence to the same bullet or use indented sub-bullets; don't split into separate top-level bullets
 - The reviewer can read GitHub's diff for code specifics — this section explains
   *what the product/system now does differently* and why that matters
 - Use backticks for code references when unavoidable: `ClassName`, `method_name`
@@ -119,9 +120,8 @@ Write for someone who hasn't read the ticket — summarise the issue clearly, do
 
 ## Testing Tasks
 
-- [x] Concrete manual QA steps with specific org/timesheet IDs where relevant
-- [x] If automated tests cover it: "I'm happy with the test coverage for this."
-- [x] If hard to test: "Small change which is hard to manually test."
+- [x] Concrete manual QA steps through the browser with specific org/timesheet IDs where relevant
+- [x] If hard to manually test: "Small change which is hard to manually test."
 
 <br/>
 
