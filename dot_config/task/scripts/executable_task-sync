@@ -11,14 +11,47 @@ MY_EMAIL = "jared@tanda.co"
 COMMENT_RECENCY_DAYS = 7
 LOG_PATH = File.expand_path("~/.local/share/task/task-sync.log")
 SECRETS_PATH = File.expand_path("~/.secrets")
+ISSUE_QUERY = <<~'GQL'
+  query($id: String!) {
+    issue(id: $id) {
+      identifier
+      url
+      state { name type }
+      assignee { email }
+    }
+  }
+GQL
+ASSIGNED_ISSUES_QUERY = <<~'GQL'
+  {
+    viewer {
+      assignedIssues(
+        filter: { state: { type: { nin: ["completed", "canceled"] } } }
+        first: 50
+        orderBy: updatedAt
+      ) {
+        nodes {
+          identifier
+          title
+          url
+          priority
+          state { name type }
+          comments(first: 5) {
+            nodes {
+              createdAt
+              user { email }
+            }
+          }
+        }
+      }
+    }
+  }
+GQL
 
-unless ENV["LINEAR_API_TOKEN"]
-  if File.exist?(SECRETS_PATH)
-    File.readlines(SECRETS_PATH).each do |line|
-      next unless (m = line.match(/\Aexport\s+(\w+)="(.*)"\s*\z/))
+LINEAR_PRIORITY_MAP = { 1 => "H", 2 => "H", 3 => "M" }.freeze
 
-      ENV[m[1]] = m[2]
-    end
+if !ENV["LINEAR_API_TOKEN"] && File.exist?(SECRETS_PATH)
+  File.readlines(SECRETS_PATH).each do |line|
+    line.match(/\Aexport\s+(\w+)="(.*)"\s*\z/) { ENV[it[1]] = it[2] }
   end
 end
 
@@ -29,12 +62,7 @@ def run(*args)
   stdout.strip
 end
 
-def task_cmd(*args)
-  stdout, stderr, status = Open3.capture3("task", "rc.confirmation:off", *args)
-  raise "task #{args.first} failed: #{stderr.strip}" unless status.success?
-
-  stdout.strip
-end
+def task_cmd(*args) = run("task", "rc.confirmation:off", *args)
 
 def log(msg)
   line = "[#{Time.now.strftime('%Y-%m-%d %H:%M:%S')}] #{msg}"
@@ -43,11 +71,10 @@ def log(msg)
 end
 
 def notify(title, message)
-  escaped = message.gsub('"', '\\"')
-  system("osascript", "-e", %(display dialog "#{escaped}" buttons {"OK"} default button "OK" with title "#{title}"))
+  system("osascript", "-e", "display dialog #{message.dump} buttons {\"OK\"} default button \"OK\" with title #{title.dump}")
 end
 
-def linear_graphql(query)
+def linear_graphql(query, variables: {})
   token = ENV.fetch("LINEAR_API_TOKEN") { abort "LINEAR_API_TOKEN not set" }
   uri = URI("https://api.linear.app/graphql")
   http = Net::HTTP.new(uri.host, uri.port)
@@ -56,13 +83,245 @@ def linear_graphql(query)
   req = Net::HTTP::Post.new(uri)
   req["Authorization"] = token
   req["Content-Type"] = "application/json"
-  req.body = { query: query }.to_json
+  req.body = { query: query, variables: variables }.to_json
 
   response = http.request(req)
   raise "Linear API error: #{response.code} #{response.body}" unless response.code == "200"
 
   JSON.parse(response.body, symbolize_names: true).dig(:data)
 end
+
+def find_annotation(task, pattern)
+  (task[:annotations] || []).each do |a|
+    match = a[:description].match(pattern)
+    return match if match
+  end
+  nil
+end
+
+def linear_priority(value)
+  LINEAR_PRIORITY_MAP.fetch(value, "L")
+end
+
+def parse_entry_time(task)
+  task[:entry] ? Time.parse(task[:entry]) : Time.now
+rescue ArgumentError
+  Time.now
+end
+
+def fetch_parallel(tasks, pr_annotations, linear_annotations)
+  pr_threads = pr_annotations.map { |pr|
+    Thread.new {
+      stdout = run("gh", "pr", "view", pr[:number], "--json", "state,mergedAt")
+      [pr[:number], JSON.parse(stdout, symbolize_names: true)]
+    }
+  }
+
+  assigned_thread = Thread.new {
+    data = linear_graphql(ASSIGNED_ISSUES_QUERY)
+    data.dig(:viewer, :assignedIssues, :nodes) || []
+  }
+
+  detail_threads = linear_annotations.filter_map { |la|
+    next unless la[:identifier]
+
+    Thread.new {
+      data = linear_graphql(ISSUE_QUERY, variables: { id: la[:identifier] })
+      [la[:identifier], data&.dig(:issue)]
+    }
+  }
+
+  review_thread = Thread.new {
+    stdout = run("gh", "pr", "list", "--search", "review-requested:@me", "--state", "open",
+      "--json", "number,title,url")
+    JSON.parse(stdout, symbolize_names: true)
+  }
+
+  all_threads = pr_threads + [assigned_thread] + detail_threads + [review_thread]
+  unjoined = all_threads.reject { it.join(15) }
+  unjoined.each { log("Thread did not join in time: #{it.inspect}") }
+
+  pr_data = pr_threads.filter_map { it.value rescue nil }.to_h
+  linear_details = detail_threads.filter_map { it.value rescue nil }
+    .select { it[1] }
+    .to_h
+
+  {
+    pr_data: pr_data,
+    linear_issues: (assigned_thread.value rescue []),
+    linear_details: linear_details,
+    review_prs: (review_thread.value rescue [])
+  }
+end
+
+def sync_pr_state(pr_annotations, pr_data, tasks)
+  details = []
+  merged = 0
+  closed = 0
+
+  already_closed = tasks.flat_map { |t|
+    (t[:annotations] || []).filter_map { |a|
+      a[:description].match(/PR #(\d+) closed/) { "#{t[:id]}-#{it[1]}" }
+    }
+  }.to_set
+
+  pr_annotations.each do |pr|
+    data = pr_data[pr[:number]]
+    next unless data
+
+    case data
+    in { state: "MERGED" }
+      task_cmd(pr[:task_id].to_s, "done")
+      log("Merged PR ##{pr[:number]} → task #{pr[:task_id]} done")
+      details << "Merged: PR ##{pr[:number]} → done"
+      merged += 1
+    in { state: "CLOSED" }
+      next if already_closed.include?("#{pr[:task_id]}-#{pr[:number]}")
+
+      task_cmd(pr[:task_id].to_s, "annotate", "PR ##{pr[:number]} closed (not merged)")
+      log("Closed PR ##{pr[:number]} → annotated task #{pr[:task_id]}")
+      details << "Closed: PR ##{pr[:number]}"
+      closed += 1
+    else
+      nil
+    end
+  end
+
+  merged_ids = pr_annotations
+    .select { pr_data.dig(it[:number], :state) == "MERGED" }
+    .map { it[:task_id] }
+    .to_set
+
+  { details: details, merged: merged, closed: closed, merged_ids: merged_ids }
+end
+
+def sync_linear_state(linear_annotations, linear_details, merged_ids)
+  details = []
+  deleted = 0
+  done = 0
+
+  linear_annotations.each do |la|
+    next if merged_ids.include?(la[:task_id])
+
+    issue = linear_details[la[:identifier]]
+    next unless issue
+
+    assignee_email = issue.dig(:assignee, :email)
+    state_type = issue.dig(:state, :type)
+
+    if assignee_email != MY_EMAIL
+      task_cmd(la[:task_id].to_s, "delete")
+      log("Linear #{la[:identifier]} unassigned → task #{la[:task_id]} deleted")
+      details << "Unassigned: #{la[:identifier]}"
+      deleted += 1
+    elsif %w[completed canceled].include?(state_type)
+      task_cmd(la[:task_id].to_s, "done")
+      log("Linear #{la[:identifier]} #{state_type} → task #{la[:task_id]} done")
+      details << "#{state_type.capitalize}: #{la[:identifier]}"
+      done += 1
+    end
+  end
+
+  { details: details, deleted: deleted, done: done }
+end
+
+def create_new_linear_tasks(linear_issues, existing_identifiers)
+  details = []
+
+  linear_issues.each do |issue|
+    next if existing_identifiers.include?(issue[:identifier])
+
+    stdout = task_cmd("add", issue[:title], "+linear")
+    match = stdout.match(/Created task (\d+)/)
+    next unless match
+
+    new_id = match[1]
+    task_cmd(new_id, "annotate", "Linear: #{issue[:url]}")
+    log("New Linear issue #{issue[:identifier]} → task #{new_id}")
+    details << "New: #{issue[:identifier]} — #{issue[:title][0, 40]}"
+  end
+
+  details
+end
+
+def create_new_review_tasks(review_prs, existing_pr_urls)
+  details = []
+
+  review_prs.each do |pr|
+    next if existing_pr_urls.include?(pr[:url])
+
+    stdout = task_cmd("add", "Review PR ##{pr[:number]}: #{pr[:title]}", "+review")
+    match = stdout.match(/Created task (\d+)/)
+    next unless match
+
+    new_id = match[1]
+    task_cmd(new_id, "annotate", "PR: #{pr[:url]}")
+    log("New review request PR ##{pr[:number]} → task #{new_id}")
+    details << "Review: PR ##{pr[:number]} — #{pr[:title][0, 40]}"
+  end
+
+  details
+end
+
+def sync_priorities(linear_issues)
+  linear_by_id = linear_issues.to_h { [it[:identifier], it] }
+
+  refreshed = JSON.parse(task_cmd("export"), symbolize_names: true)
+    .select { it[:status].match?(/pending|active/) }
+
+  current_next = refreshed.find { (it[:tags] || []).include?("next") }
+  details = []
+  updated = 0
+
+  assignments = refreshed.map { |t|
+    identifier = find_annotation(t, %r{Linear:\s*https://\S+/issue/([A-Z]+-\d+)})&.[](1)
+    issue = identifier ? linear_by_id[identifier] : nil
+
+    has_recent_comment = issue&.dig(:comments, :nodes)&.any? { |c|
+      c.dig(:user, :email) != MY_EMAIL &&
+        (Time.now - Time.parse(c[:createdAt])) < (COMMENT_RECENCY_DAYS * 86_400)
+    }
+
+    priority = if has_recent_comment
+      "H"
+    elsif issue
+      linear_priority(issue[:priority])
+    else
+      "L"
+    end
+
+    { task: t, priority: priority }
+  }
+
+  assignments.each do |pa|
+    current = pa[:task][:priority]
+    next if current == pa[:priority]
+
+    task_cmd(pa[:task][:id].to_s, "modify", "priority:#{pa[:priority]}")
+    log("Task #{pa[:task][:id]} priority #{current || 'none'} → #{pa[:priority]}")
+    details << "##{pa[:task][:id]} #{pa[:task][:description][0, 30]}: #{current || '-'} → #{pa[:priority]}"
+    updated += 1
+  end
+
+  best_next = assignments
+    .select { it[:priority] == "H" }
+    .map { it[:task] }
+    .min_by { parse_entry_time(it) }
+
+  if best_next && current_next&.dig(:id) != best_next[:id]
+    if current_next
+      task_cmd(current_next[:id].to_s, "modify", "-next")
+      log("Removed +next from task #{current_next[:id]}")
+    end
+    task_cmd(best_next[:id].to_s, "modify", "+next")
+    log("Applied +next to task #{best_next[:id]}")
+    details << "+next → ##{best_next[:id]} #{best_next[:description][0, 30]}"
+  end
+
+  { details: details, updated: updated }
+end
+
+# --- Main ---
 
 tasks = JSON.parse(task_cmd("export"), symbolize_names: true)
   .select { it[:status].match?(/pending|active/) }
@@ -77,265 +336,39 @@ pr_annotations = tasks.flat_map { |t|
 }
 
 linear_annotations = tasks.filter_map { |t|
-  annotation = (t[:annotations] || []).find { it[:description].match?(%r{Linear:\s*https://}) }
-  next unless annotation
+  match = find_annotation(t, %r{Linear:\s*(https://\S+/issue/([A-Z]+-\d+)\S*)})
+  next unless match
 
-  url = annotation[:description].match(%r{Linear:\s*(https://\S+)})&.[](1)
-  next unless url
-
-  identifier = url.match(%r{/issue/([A-Z]+-\d+)})&.[](1)
-  { task_id: t[:id], url: url, identifier: identifier }
+  { task_id: t[:id], url: match[1], identifier: match[2] }
 }
 
-# --- Parallel data fetch ---
+fetched = fetch_parallel(tasks, pr_annotations, linear_annotations)
 
-pr_data = {}
-linear_issues = []
-linear_issue_details = {}
-review_prs = []
-pr_mutex = Mutex.new
+pr_result = sync_pr_state(pr_annotations, fetched[:pr_data], tasks)
+linear_result = sync_linear_state(linear_annotations, fetched[:linear_details], pr_result[:merged_ids])
 
-threads = []
-
-pr_annotations.each do |pr|
-  threads << Thread.new {
-    stdout = run("gh", "pr", "view", pr[:number], "--json", "state,mergedAt")
-    parsed = JSON.parse(stdout, symbolize_names: true)
-    pr_mutex.synchronize { pr_data[pr[:number]] = parsed }
-  }
-end
-
-threads << Thread.new {
-  data = linear_graphql(<<~GQL)
-    {
-      viewer {
-        assignedIssues(
-          filter: { state: { type: { nin: ["completed", "canceled"] } } }
-          first: 50
-          orderBy: updatedAt
-        ) {
-          nodes {
-            identifier
-            title
-            url
-            priority
-            state { name type }
-            comments(first: 5) {
-              nodes {
-                createdAt
-                user { email }
-              }
-            }
-          }
-        }
-      }
-    }
-  GQL
-  issues = data.dig(:viewer, :assignedIssues, :nodes) || []
-  pr_mutex.synchronize { linear_issues.replace(issues) }
-}
-
-linear_annotations.each do |la|
-  next unless la[:identifier]
-
-  threads << Thread.new {
-    data = linear_graphql(<<~GQL)
-      {
-        issue(id: "#{la[:identifier]}") {
-          identifier
-          url
-          state { name type }
-          assignee { email }
-        }
-      }
-    GQL
-    issue = data&.dig(:issue)
-    pr_mutex.synchronize { linear_issue_details[la[:identifier]] = issue } if issue
-  }
-end
-
-threads << Thread.new {
-  stdout = run("gh", "pr", "list", "--search", "review-requested:@me", "--state", "open",
-    "--json", "number,title,url")
-  pr_mutex.synchronize { review_prs.replace(JSON.parse(stdout, symbolize_names: true)) }
-}
-
-threads.each { it.join(15) }
-
-stats = { merged: 0, closed_noted: 0, linear_deleted: 0, linear_done: 0, new_tasks: 0, new_reviews: 0,
-           priorities_updated: 0 }
-details = []
-
-# --- Step 1: Sync PR state ---
-
-closed_annotation_exists = tasks.each_with_object(Set.new) { |t, set|
-  (t[:annotations] || []).each do |a|
-    match = a[:description].match(/PR #(\d+) closed/)
-    set.add("#{t[:id]}-#{match[1]}") if match
-  end
-}
-
-pr_annotations.each do |pr|
-  data = pr_data[pr[:number]]
-  next unless data
-
-  case data
-  in { state: "MERGED" }
-    task_cmd(pr[:task_id].to_s, "done")
-    log("Merged PR ##{pr[:number]} → task #{pr[:task_id]} done")
-    details << "Merged: PR ##{pr[:number]} → done"
-    stats[:merged] += 1
-  in { state: "CLOSED" }
-    next if closed_annotation_exists.include?("#{pr[:task_id]}-#{pr[:number]}")
-
-    task_cmd(pr[:task_id].to_s, "annotate", "PR ##{pr[:number]} closed (not merged)")
-    log("Closed PR ##{pr[:number]} → annotated task #{pr[:task_id]}")
-    details << "Closed: PR ##{pr[:number]}"
-    stats[:closed_noted] += 1
-  else
-    nil
-  end
-end
-
-merged_task_ids = pr_annotations
-  .select { pr_data.dig(it[:number], :state) == "MERGED" }
-  .map { it[:task_id] }
-  .to_set
-
-# --- Step 2: Sync Linear state ---
-
-linear_annotations.each do |la|
-  next if merged_task_ids.include?(la[:task_id])
-
-  detail = linear_issue_details[la[:identifier]]
-  next unless detail
-
-  assignee_email = detail.dig(:assignee, :email)
-  state_type = detail.dig(:state, :type)
-
-  if assignee_email != MY_EMAIL
-    task_cmd(la[:task_id].to_s, "delete")
-    log("Linear #{la[:identifier]} unassigned → task #{la[:task_id]} deleted")
-    details << "Unassigned: #{la[:identifier]}"
-    stats[:linear_deleted] += 1
-  elsif %w[completed canceled].include?(state_type)
-    task_cmd(la[:task_id].to_s, "done")
-    log("Linear #{la[:identifier]} #{state_type} → task #{la[:task_id]} done")
-    details << "#{state_type.capitalize}: #{la[:identifier]}"
-    stats[:linear_done] += 1
-  end
-end
-
-existing_linear_identifiers = linear_annotations.filter_map { it[:identifier] }.to_set
-
-linear_issues.each do |issue|
-  next if existing_linear_identifiers.include?(issue[:identifier])
-
-  stdout = task_cmd("add", issue[:title], "+linear")
-  new_id = stdout.match(/Created task (\d+)/)&.[](1)
-  next unless new_id
-
-  task_cmd(new_id, "annotate", "Linear: #{issue[:url]}")
-  log("New Linear issue #{issue[:identifier]} → task #{new_id}")
-  details << "New: #{issue[:identifier]} — #{issue[:title][0, 40]}"
-  stats[:new_tasks] += 1
-end
-
-# --- Step 3: Sync PR review requests ---
+existing_identifiers = linear_annotations.filter_map { it[:identifier] }.to_set
+new_task_details = create_new_linear_tasks(fetched[:linear_issues], existing_identifiers)
 
 existing_pr_urls = pr_annotations.map { it[:url] }.to_set
+new_review_details = create_new_review_tasks(fetched[:review_prs], existing_pr_urls)
 
-review_prs.each do |pr|
-  next if existing_pr_urls.include?(pr[:url])
+priority_result = sync_priorities(fetched[:linear_issues])
 
-  stdout = task_cmd("add", "Review PR ##{pr[:number]}: #{pr[:title]}", "+review")
-  new_id = stdout.match(/Created task (\d+)/)&.[](1)
-  next unless new_id
-
-  task_cmd(new_id, "annotate", "PR: #{pr[:url]}")
-  log("New review request PR ##{pr[:number]} → task #{new_id}")
-  details << "Review: PR ##{pr[:number]} — #{pr[:title][0, 40]}"
-  stats[:new_reviews] += 1
-end
-
-# --- Step 4: Set priorities ---
-
-linear_by_identifier = linear_issues.each_with_object({}) { |issue, h|
-  h[issue[:identifier]] = issue
-}
-
-refreshed_tasks = JSON.parse(task_cmd("export"), symbolize_names: true)
-  .select { it[:status].match?(/pending|active/) }
-
-current_next = refreshed_tasks.find { (it[:tags] || []).include?("next") }
-
-priority_assignments = refreshed_tasks.map { |t|
-  identifier = (t[:annotations] || [])
-    .filter_map { it[:description].match(%r{Linear:\s*https://\S+/issue/([A-Z]+-\d+)})&.[](1) }
-    .first
-
-  issue = identifier ? linear_by_identifier[identifier] : nil
-
-  has_recent_colleague_comment = issue&.dig(:comments, :nodes)&.any? { |c|
-    c.dig(:user, :email) != MY_EMAIL &&
-      (Time.now - Time.parse(c[:createdAt])) < (COMMENT_RECENCY_DAYS * 86_400)
-  }
-
-  priority = if has_recent_colleague_comment
-    "H"
-  elsif issue
-    case issue[:priority]
-    when 1, 2 then "H"
-    when 3 then "M"
-    else "L"
-    end
-  else
-    "L"
-  end
-
-  { task: t, priority: priority }
-}
-
-priority_assignments.each do |pa|
-  current = pa[:task][:priority]
-  next if current == pa[:priority]
-
-  task_cmd(pa[:task][:id].to_s, "modify", "priority:#{pa[:priority]}")
-  log("Task #{pa[:task][:id]} priority #{current || 'none'} → #{pa[:priority]}")
-  details << "##{pa[:task][:id]} #{pa[:task][:description][0, 30]}: #{current || '-'} → #{pa[:priority]}"
-  stats[:priorities_updated] += 1
-end
-
-h_tasks = priority_assignments
-  .select { it[:priority] == "H" }
-  .map { it[:task] }
-  .sort_by { Time.parse(it[:entry].to_s) rescue Time.now }
-
-best_next = h_tasks.first
-
-if best_next && current_next&.[](:id) != best_next[:id]
-  if current_next
-    task_cmd(current_next[:id].to_s, "modify", "-next")
-    log("Removed +next from task #{current_next[:id]}")
-  end
-  task_cmd(best_next[:id].to_s, "modify", "+next")
-  log("Applied +next to task #{best_next[:id]}")
-  details << "+next → ##{best_next[:id]} #{best_next[:description][0, 30]}"
-end
-
-# --- Summary ---
+all_details = pr_result[:details] + linear_result[:details] + new_task_details +
+  new_review_details + priority_result[:details]
 
 summary_parts = [
-  ("#{stats[:merged]} merged" if stats[:merged] > 0),
-  ("#{stats[:new_tasks]} new tasks" if stats[:new_tasks] > 0),
-  ("#{stats[:new_reviews]} new reviews" if stats[:new_reviews] > 0),
-  ("#{stats[:priorities_updated]} priorities updated" if stats[:priorities_updated] > 0),
-  ("#{stats[:linear_deleted]} unassigned" if stats[:linear_deleted] > 0),
-  ("#{stats[:linear_done]} completed" if stats[:linear_done] > 0),
-  ("#{stats[:closed_noted]} PRs closed" if stats[:closed_noted] > 0)
+  ("#{pr_result[:merged]} merged" if pr_result[:merged] > 0),
+  ("#{new_task_details.size} new tasks" if new_task_details.any?),
+  ("#{new_review_details.size} new reviews" if new_review_details.any?),
+  ("#{priority_result[:updated]} priorities updated" if priority_result[:updated] > 0),
+  ("#{linear_result[:deleted]} unassigned" if linear_result[:deleted] > 0),
+  ("#{linear_result[:done]} completed" if linear_result[:done] > 0),
+  ("#{pr_result[:closed]} PRs closed" if pr_result[:closed] > 0)
 ].compact
 
 headline = summary_parts.empty? ? "No changes" : "Synced: #{summary_parts.join(', ')}"
 log(headline)
-dialog_body = details.empty? ? headline : "#{headline}\n\n#{details.join("\n")}"
+dialog_body = all_details.empty? ? headline : "#{headline}\n\n#{all_details.join("\n")}"
 notify("Task Sync", dialog_body)
