@@ -1,165 +1,341 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
-#
-# Syncs task list with Linear assignments and GitHub PR status.
-#
-# Launches a Claude session that:
-#   1. Marks tasks done when their PR is merged
-#   2. Creates tasks for new Linear issues assigned to you
-#   3. Creates tasks for new GitHub PR review requests
-#   4. Sets priority:H/M/L on every active/pending task
 
-require 'json'
-require 'open3'
-require 'time'
+require "json"
+require "net/http"
+require "open3"
+require "time"
+require "uri"
 
-tasks = JSON.parse(`task export`, symbolize_names: true)
-  .select { _1[:status].match?(/pending|active/) }
+MY_EMAIL = "jared@tanda.co"
+COMMENT_RECENCY_DAYS = 7
+LOG_PATH = File.expand_path("~/.local/share/task/task-sync.log")
+SECRETS_PATH = File.expand_path("~/.secrets")
 
-# Phase 2: Parallel PR pre-fetch
-pr_data = {}
-mutex = Mutex.new
+unless ENV["LINEAR_API_TOKEN"]
+  if File.exist?(SECRETS_PATH)
+    File.readlines(SECRETS_PATH).each do |line|
+      next unless (m = line.match(/\Aexport\s+(\w+)="(.*)"\s*\z/))
 
-threads = tasks.flat_map { |t|
-  (t[:annotations] || []).filter_map { |a|
-    match = a[:description].match(%r{PR:.*?/pull/(\d+)})
-    next unless match
-
-    pr_number = match[1]
-    Thread.new do
-      stdout, = Open3.capture2('gh', 'pr', 'view', pr_number, '--json', 'state,reviewDecision,createdAt,comments')
-      parsed = JSON.parse(stdout, symbolize_names: true) rescue nil
-      mutex.synchronize { pr_data[pr_number] = parsed }
+      ENV[m[1]] = m[2]
     end
-  }
-}
-threads.each { _1.join(10) }
-
-def age_days(timestamp_str)
-  return nil unless timestamp_str
-  normalized = timestamp_str.sub(
-    /\A(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z\z/,
-    '\1-\2-\3T\4:\5:\6Z'
-  )
-  ((Time.now - Time.parse(normalized)) / 86_400).round
-rescue ArgumentError, TypeError
-  nil
+  end
 end
 
-# Phase 3: Build enriched task list string
-active_tasks = tasks.map { |t|
-  task_age = age_days(t[:entry])
-  lines = ["  ##{t[:id]} [#{t[:status]}]: #{t[:description]}"]
-  lines << "    task-age: #{task_age}d" if task_age
+def run(*args)
+  stdout, stderr, status = Open3.capture3(*args)
+  raise "#{args.first} failed: #{stderr.strip}" unless status.success?
 
-  (t[:annotations] || []).each { |a|
-    match = a[:description].match(%r{PR:.*?/pull/(\d+)})
+  stdout.strip
+end
+
+def task_cmd(*args)
+  stdout, stderr, status = Open3.capture3("task", "rc.confirmation:off", *args)
+  raise "task #{args.first} failed: #{stderr.strip}" unless status.success?
+
+  stdout.strip
+end
+
+def log(msg)
+  line = "[#{Time.now.strftime('%Y-%m-%d %H:%M:%S')}] #{msg}"
+  File.open(LOG_PATH, "a") { it.puts(line) }
+  $stdout.puts(line)
+end
+
+def notify(title, message)
+  escaped = message.gsub('"', '\\"')
+  system("osascript", "-e", %(display dialog "#{escaped}" buttons {"OK"} default button "OK" with title "#{title}"))
+end
+
+def linear_graphql(query)
+  token = ENV.fetch("LINEAR_API_TOKEN") { abort "LINEAR_API_TOKEN not set" }
+  uri = URI("https://api.linear.app/graphql")
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+
+  req = Net::HTTP::Post.new(uri)
+  req["Authorization"] = token
+  req["Content-Type"] = "application/json"
+  req.body = { query: query }.to_json
+
+  response = http.request(req)
+  raise "Linear API error: #{response.code} #{response.body}" unless response.code == "200"
+
+  JSON.parse(response.body, symbolize_names: true).dig(:data)
+end
+
+tasks = JSON.parse(task_cmd("export"), symbolize_names: true)
+  .select { it[:status].match?(/pending|active/) }
+
+pr_annotations = tasks.flat_map { |t|
+  (t[:annotations] || []).filter_map { |a|
+    match = a[:description].match(%r{PR:\s*(https://github\.com/\S+/pull/(\d+))})
     next unless match
 
-    pr_number = match[1]
-    data = pr_data[pr_number]
-    next unless data
+    { task_id: t[:id], url: match[1], number: match[2] }
+  }
+}
 
-    pr_age = age_days(data[:createdAt])
-    comment_count = data[:comments]&.length || 0
-    review = data[:reviewDecision] || 'NONE'
-    state = data[:state] || 'UNKNOWN'
-    lines << "    PR ##{pr_number}: state=#{state}, review=#{review}, pr-age=#{pr_age}d, comments=#{comment_count}"
+linear_annotations = tasks.filter_map { |t|
+  annotation = (t[:annotations] || []).find { it[:description].match?(%r{Linear:\s*https://}) }
+  next unless annotation
+
+  url = annotation[:description].match(%r{Linear:\s*(https://\S+)})&.[](1)
+  next unless url
+
+  identifier = url.match(%r{/issue/([A-Z]+-\d+)})&.[](1)
+  { task_id: t[:id], url: url, identifier: identifier }
+}
+
+# --- Parallel data fetch ---
+
+pr_data = {}
+linear_issues = []
+linear_issue_details = {}
+review_prs = []
+pr_mutex = Mutex.new
+
+threads = []
+
+pr_annotations.each do |pr|
+  threads << Thread.new {
+    stdout = run("gh", "pr", "view", pr[:number], "--json", "state,mergedAt")
+    parsed = JSON.parse(stdout, symbolize_names: true)
+    pr_mutex.synchronize { pr_data[pr[:number]] = parsed }
+  }
+end
+
+threads << Thread.new {
+  data = linear_graphql(<<~GQL)
+    {
+      viewer {
+        assignedIssues(
+          filter: { state: { type: { nin: ["completed", "canceled"] } } }
+          first: 50
+          orderBy: updatedAt
+        ) {
+          nodes {
+            identifier
+            title
+            url
+            priority
+            state { name type }
+            comments(first: 5) {
+              nodes {
+                createdAt
+                user { email }
+              }
+            }
+          }
+        }
+      }
+    }
+  GQL
+  issues = data.dig(:viewer, :assignedIssues, :nodes) || []
+  pr_mutex.synchronize { linear_issues.replace(issues) }
+}
+
+linear_annotations.each do |la|
+  next unless la[:identifier]
+
+  threads << Thread.new {
+    data = linear_graphql(<<~GQL)
+      {
+        issue(id: "#{la[:identifier]}") {
+          identifier
+          url
+          state { name type }
+          assignee { email }
+        }
+      }
+    GQL
+    issue = data&.dig(:issue)
+    pr_mutex.synchronize { linear_issue_details[la[:identifier]] = issue } if issue
+  }
+end
+
+threads << Thread.new {
+  stdout = run("gh", "pr", "list", "--search", "review-requested:@me", "--state", "open",
+    "--json", "number,title,url")
+  pr_mutex.synchronize { review_prs.replace(JSON.parse(stdout, symbolize_names: true)) }
+}
+
+threads.each { it.join(15) }
+
+stats = { merged: 0, closed_noted: 0, linear_deleted: 0, linear_done: 0, new_tasks: 0, new_reviews: 0,
+           priorities_updated: 0 }
+details = []
+
+# --- Step 1: Sync PR state ---
+
+closed_annotation_exists = tasks.each_with_object(Set.new) { |t, set|
+  (t[:annotations] || []).each do |a|
+    match = a[:description].match(/PR #(\d+) closed/)
+    set.add("#{t[:id]}-#{match[1]}") if match
+  end
+}
+
+pr_annotations.each do |pr|
+  data = pr_data[pr[:number]]
+  next unless data
+
+  case data
+  in { state: "MERGED" }
+    task_cmd(pr[:task_id].to_s, "done")
+    log("Merged PR ##{pr[:number]} → task #{pr[:task_id]} done")
+    details << "Merged: PR ##{pr[:number]} → done"
+    stats[:merged] += 1
+  in { state: "CLOSED" }
+    next if closed_annotation_exists.include?("#{pr[:task_id]}-#{pr[:number]}")
+
+    task_cmd(pr[:task_id].to_s, "annotate", "PR ##{pr[:number]} closed (not merged)")
+    log("Closed PR ##{pr[:number]} → annotated task #{pr[:task_id]}")
+    details << "Closed: PR ##{pr[:number]}"
+    stats[:closed_noted] += 1
+  else
+    nil
+  end
+end
+
+merged_task_ids = pr_annotations
+  .select { pr_data.dig(it[:number], :state) == "MERGED" }
+  .map { it[:task_id] }
+  .to_set
+
+# --- Step 2: Sync Linear state ---
+
+linear_annotations.each do |la|
+  next if merged_task_ids.include?(la[:task_id])
+
+  detail = linear_issue_details[la[:identifier]]
+  next unless detail
+
+  assignee_email = detail.dig(:assignee, :email)
+  state_type = detail.dig(:state, :type)
+
+  if assignee_email != MY_EMAIL
+    task_cmd(la[:task_id].to_s, "delete")
+    log("Linear #{la[:identifier]} unassigned → task #{la[:task_id]} deleted")
+    details << "Unassigned: #{la[:identifier]}"
+    stats[:linear_deleted] += 1
+  elsif %w[completed canceled].include?(state_type)
+    task_cmd(la[:task_id].to_s, "done")
+    log("Linear #{la[:identifier]} #{state_type} → task #{la[:task_id]} done")
+    details << "#{state_type.capitalize}: #{la[:identifier]}"
+    stats[:linear_done] += 1
+  end
+end
+
+existing_linear_identifiers = linear_annotations.filter_map { it[:identifier] }.to_set
+
+linear_issues.each do |issue|
+  next if existing_linear_identifiers.include?(issue[:identifier])
+
+  stdout = task_cmd("add", issue[:title], "+linear")
+  new_id = stdout.match(/Created task (\d+)/)&.[](1)
+  next unless new_id
+
+  task_cmd(new_id, "annotate", "Linear: #{issue[:url]}")
+  log("New Linear issue #{issue[:identifier]} → task #{new_id}")
+  details << "New: #{issue[:identifier]} — #{issue[:title][0, 40]}"
+  stats[:new_tasks] += 1
+end
+
+# --- Step 3: Sync PR review requests ---
+
+existing_pr_urls = pr_annotations.map { it[:url] }.to_set
+
+review_prs.each do |pr|
+  next if existing_pr_urls.include?(pr[:url])
+
+  stdout = task_cmd("add", "Review PR ##{pr[:number]}: #{pr[:title]}", "+review")
+  new_id = stdout.match(/Created task (\d+)/)&.[](1)
+  next unless new_id
+
+  task_cmd(new_id, "annotate", "PR: #{pr[:url]}")
+  log("New review request PR ##{pr[:number]} → task #{new_id}")
+  details << "Review: PR ##{pr[:number]} — #{pr[:title][0, 40]}"
+  stats[:new_reviews] += 1
+end
+
+# --- Step 4: Set priorities ---
+
+linear_by_identifier = linear_issues.each_with_object({}) { |issue, h|
+  h[issue[:identifier]] = issue
+}
+
+refreshed_tasks = JSON.parse(task_cmd("export"), symbolize_names: true)
+  .select { it[:status].match?(/pending|active/) }
+
+current_next = refreshed_tasks.find { (it[:tags] || []).include?("next") }
+
+priority_assignments = refreshed_tasks.map { |t|
+  identifier = (t[:annotations] || [])
+    .filter_map { it[:description].match(%r{Linear:\s*https://\S+/issue/([A-Z]+-\d+)})&.[](1) }
+    .first
+
+  issue = identifier ? linear_by_identifier[identifier] : nil
+
+  has_recent_colleague_comment = issue&.dig(:comments, :nodes)&.any? { |c|
+    c.dig(:user, :email) != MY_EMAIL &&
+      (Time.now - Time.parse(c[:createdAt])) < (COMMENT_RECENCY_DAYS * 86_400)
   }
 
-  if t[:annotations]&.any?
-    ann_text = t[:annotations].map { _1[:description] }.join(', ')
-    lines << "    annotations: #{ann_text}"
+  priority = if has_recent_colleague_comment
+    "H"
+  elsif issue
+    case issue[:priority]
+    when 1, 2 then "H"
+    when 3 then "M"
+    else "L"
+    end
+  else
+    "L"
   end
 
-  lines.join("\n")
-}.join("\n")
+  { task: t, priority: priority }
+}
 
-prompt = <<~PROMPT
-  Sync my task list with Linear and GitHub.
+priority_assignments.each do |pa|
+  current = pa[:task][:priority]
+  next if current == pa[:priority]
 
-  Current tasks:
-  #{active_tasks}
+  task_cmd(pa[:task][:id].to_s, "modify", "priority:#{pa[:priority]}")
+  log("Task #{pa[:task][:id]} priority #{current || 'none'} → #{pa[:priority]}")
+  details << "##{pa[:task][:id]} #{pa[:task][:description][0, 30]}: #{current || '-'} → #{pa[:priority]}"
+  stats[:priorities_updated] += 1
+end
 
-  Do these four things in order. Run all task commands directly — do not ask for confirmation.
+h_tasks = priority_assignments
+  .select { it[:priority] == "H" }
+  .map { it[:task] }
+  .sort_by { Time.parse(it[:entry].to_s) rescue Time.now }
 
-  ---
+best_next = h_tasks.first
 
-  ## 1. Mark merged PRs done
+if best_next && current_next&.[](:id) != best_next[:id]
+  if current_next
+    task_cmd(current_next[:id].to_s, "modify", "-next")
+    log("Removed +next from task #{current_next[:id]}")
+  end
+  task_cmd(best_next[:id].to_s, "modify", "+next")
+  log("Applied +next to task #{best_next[:id]}")
+  details << "+next → ##{best_next[:id]} #{best_next[:description][0, 30]}"
+end
 
-  For each task above that has a `PR: <url>` annotation:
-  - If the task listing above already shows `state=MERGED` for that PR, run: `task <id> done`
-  - Otherwise run: `gh pr view <number> --json state -q '.state'` and if MERGED, run: `task <id> done`
+# --- Summary ---
 
-  ---
+summary_parts = [
+  ("#{stats[:merged]} merged" if stats[:merged] > 0),
+  ("#{stats[:new_tasks]} new tasks" if stats[:new_tasks] > 0),
+  ("#{stats[:new_reviews]} new reviews" if stats[:new_reviews] > 0),
+  ("#{stats[:priorities_updated]} priorities updated" if stats[:priorities_updated] > 0),
+  ("#{stats[:linear_deleted]} unassigned" if stats[:linear_deleted] > 0),
+  ("#{stats[:linear_done]} completed" if stats[:linear_done] > 0),
+  ("#{stats[:closed_noted]} PRs closed" if stats[:closed_noted] > 0)
+].compact
 
-  ## 2. New Linear assignments
-
-  Use the Linear tool to search for issues currently assigned to me (use action: "search" with no query to get your assigned issues).
-
-  For each issue returned:
-  - Skip if any task above already has a `Linear: <url>` annotation matching this issue's URL
-  - Otherwise create the task:
-    `task add "<issue title>" project:<project if identifiable from Linear project name>`
-    `task <newid> annotate "Linear: <url>"`
-
-  ---
-
-  ## 3. New PR review requests
-
-  Run: `gh pr list --review-requested @me --state open --json number,title,url`
-
-  For each PR returned:
-  - Skip if any task above already has a `PR: <url>` annotation matching this PR's URL
-  - Otherwise create the task:
-    `task add "Review PR #<number>: <title>"`
-    `task <newid> annotate "PR: <url>"`
-
-  ---
-
-  ## 4. Set task priorities
-
-  Before setting priorities, use the Linear tool (action: "search" with no query) to fetch
-  your current Linear assignments. Note each issue's priority field and any recent notifications
-  or comments — these are key ordering signals.
-
-  For every task listed above, run exactly one of:
-    `task <id> modify priority:H`
-    `task <id> modify priority:M`
-    `task <id> modify priority:L`
-
-  Do not skip any task.
-
-  Within the same priority tier, prefer older tasks (higher task-age) — longer-sitting tasks
-  rank higher. This means two H-priority tasks are ordered: older task first.
-
-  Ordering signals (apply in this order):
-
-  1. **Age and recent activity (strongest signal)**
-     - task-age > 7 days with no PR annotation → H
-     - PR pr-age > 14 days still open → bump up one level
-     - Recent Linear notification or comment on this issue → bump to H
-
-  2. **PR review decision**
-     - review=CHANGES_REQUESTED → H
-
-  3. **Linear priority**
-     - urgent or high → H
-     - medium → M
-     - low → L
-     - No Linear ticket → use age signal only
-
-  4. **Blocking/waiting**
-     - Task has on_hold tag or is WAITING → L
-     - Draft PR → L
-
-  After setting all priorities, apply `task <id> modify +next` to the SINGLE most critical task —
-  the one to work on right now. Remove `+next` from any task that currently has it but shouldn't:
-  `task <id> modify -next`
-
-  ---
-
-  After completing all four, print a brief summary of what changed.
-PROMPT
-
-exec('claude', '--dangerously-skip-permissions', prompt)
+headline = summary_parts.empty? ? "No changes" : "Synced: #{summary_parts.join(', ')}"
+log(headline)
+dialog_body = details.empty? ? headline : "#{headline}\n\n#{details.join("\n")}"
+notify("Task Sync", dialog_body)
