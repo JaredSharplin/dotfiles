@@ -106,15 +106,23 @@ Plain-English summary of the problem being solved. Cause → investigation → d
 Write for someone who hasn't read the ticket — summarise the issue clearly, don't say
 "see ticket for background." Use `NOTE:` callouts inline for important constraints.
 
+⛔ Do NOT reference code, class names, method names, or implementation details here.
+Describe the problem in product/user-visible terms: what the user sees, what's broken,
+what should happen instead. A reviewer should understand Background without knowing the
+codebase.
+
 <br/>
 
 ## Features / Changes
 
 - Each bullet is one distinct change the reviewer needs to know about — not an implementation step or sub-detail of a previous bullet
 - If a change needs more explanation, add another sentence to the same bullet or use indented sub-bullets; don't split into separate top-level bullets
-- The reviewer can read GitHub's diff for code specifics — this section explains
-  *what the product/system now does differently* and why that matters
-- Use backticks for code references when unavoidable: `ClassName`, `method_name`
+- Describe what the code now DOES differently (behaviour), not HOW it does it
+  (implementation) — the reviewer can read the diff for code specifics
+- Do not mix code snippets or method signatures with natural language — if a specific
+  implementation detail needs reviewer attention, add it as a comment on the relevant
+  line in the diff instead
+- Use backticks for code references only when unavoidable: `ClassName`, `method_name`
 
 <br/>
 
