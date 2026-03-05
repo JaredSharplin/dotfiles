@@ -97,19 +97,19 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 
 ### Body Structure
 
-Always use `## Level-2 headers` and `<br/>` between every section, in this order:
+Always use `### Level-3 headers` and `<br/>` between every section, in this order:
 
 ```markdown
-## Background
+### Background
 ...
 <br/>
-## Features / Changes
+### Features / Changes
 ...
 <br/>
-## Testing Tasks
+### Testing Tasks
 ...
 <br/>
-## Screenshots
+### Screenshots
 ...
 ```
 
@@ -149,7 +149,7 @@ Always use `## Level-2 headers` and `<br/>` between every section, in this order
 - Address the reviewer directly when uncertain: "FOR REVIEWERS: things I'm unsure on"
 - Write how you'd explain it to a colleague, not a corporate document
 - Background is prose paragraphs, not bullet points
-- Section headers are always `##` or `###`, never `#`
+- Section headers are always `###`, never `#` or `##`
 - Bold only for link labels (`**Linear**`, `**Related PR:**`), not for emphasis in body text
 
 ---
