@@ -20,6 +20,9 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
 | Create PR for current branch | `git town propose --title "..." --body "..."` | Then `gh pr edit --add-assignee @me --add-label <label>` |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
+| Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
+| Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
+| Watch someone's branch (read-only) | `git town observe <branch>` | Pull only, don't push |
 
 ## When to Use Git Town vs Standard Git
 
@@ -78,6 +81,75 @@ git town prepend feature/auth-models
 gh pr edit --add-assignee @me --add-label <label>
 ```
 **Why not `gh pr create`:** `git town propose` handles branch sync and stack breadcrumbs automatically.
+
+## Working on Someone Else's Branch
+
+When adopting an existing PR or working on a colleague's branch, use git town's branch type commands to control sync and push behaviour.
+
+### Branch Types
+
+| Type | `sync` pulls from remote? | `sync` syncs with parent? | `sync` pushes? | Use when... |
+|------|--------------------------|--------------------------|----------------|-------------|
+| `feature` (default) | Yes | Yes | Yes | You own the branch — full control |
+| `contribute` | Yes | No | Yes | Collaborating — the other dev manages parent sync |
+| `observe` | Yes | No | No | Read-only — just tracking their progress |
+
+### Adopting a Stale/Abandoned PR
+
+When a colleague has left or a PR went stale and you're taking over:
+
+```bash
+# 1. Fetch and checkout
+git fetch origin <branch-name>
+git checkout <branch-name>
+
+# 2. Take full ownership (sync with parent + push)
+git town feature <branch-name>
+
+# 3. Sync to rebase onto current master — resolves conflicts
+git town sync
+# If conflicts: resolve them, then `git town continue`
+```
+
+Use `feature` here because the original author is no longer managing the branch — you need full sync with parent to resolve staleness.
+
+### Contributing to an Active PR
+
+When helping a colleague who is still actively working on their branch:
+
+```bash
+git fetch origin <branch-name>
+git checkout <branch-name>
+
+# Contribute mode: push your changes, but let them manage parent sync
+git town contribute <branch-name>
+
+git town sync   # pulls their latest changes, pushes yours, skips parent sync
+```
+
+Use `contribute` because the other dev is still responsible for rebasing onto parent.
+
+### Reviewing a PR Locally (Read-Only)
+
+When you just want to pull someone's branch to read/test locally without pushing:
+
+```bash
+git fetch origin <branch-name>
+git checkout <branch-name>
+
+# Observe mode: pull only, never push
+git town observe <branch-name>
+
+git town sync   # pulls their latest, doesn't push anything
+```
+
+### Switching Back to Default
+
+To return a branch to normal feature behaviour:
+
+```bash
+git town feature <branch-name>
+```
 
 ---
 
