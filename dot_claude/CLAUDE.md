@@ -152,6 +152,7 @@ The following commands are PERMANENTLY BANNED and must NEVER be used under ANY c
 - ❌ `git commit --amend` - FORBIDDEN, always create a new commit instead
 - ❌ `git push --force` / `git push -f` / `git push --force-with-lease` - FORBIDDEN
 - ❌ `rm` - FORBIDDEN, use `trash` instead for safe deletion
+- ❌ `chezmoi apply --force` - FORBIDDEN, silently overwrites user changes without review
 
 **Why these are banned:**
 - They bypass proper testing infrastructure
