@@ -113,7 +113,7 @@ Always use `## Level-2 headers` and `<br/>` between every section, in this order
 ...
 ```
 
-#### Background
+### Background
 
 - Start from the motivation: the reported problem (bug) or the product need (feature)
 - Tell the story: what was observed or requested → what was investigated or designed → what this PR does about it
@@ -122,7 +122,7 @@ Always use `## Level-2 headers` and `<br/>` between every section, in this order
 - Prose paragraphs, not bullet points
 - Use `NOTE:` callouts inline for important constraints
 
-#### Features / Changes
+### Features / Changes
 
 - Each bullet is one distinct behavioural change — what the system now does differently
 - The reviewer reads the diff for implementation specifics — this section explains *what changed* and *why*, not *how*
@@ -133,12 +133,12 @@ Always use `## Level-2 headers` and `<br/>` between every section, in this order
 >
 > **Right** (behaviour-focused): The additional tags dropdown now correctly shows previously selected values when editing a position's wage comparison template
 
-#### Testing Tasks
+### Testing Tasks
 
 - Concrete manual QA steps through the browser with specific org/timesheet IDs where relevant
 - If hard to manually test: "Small change which is hard to manually test."
 
-#### Screenshots
+### Screenshots
 
 `![image](...)` or "None."
 
