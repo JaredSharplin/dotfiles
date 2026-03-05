@@ -4,13 +4,22 @@
 # Unified workflow command — single entry point for all task lifecycle operations.
 # Thin translator: converts intent to Taskwarrior state changes.
 # All side effects (slot assignment, git checkout, tab renaming) live in on-modify.
+#
+# Usage:
+#   t start <id>              Start a task (hook assigns slot)
+#   t review [pr] [task_id]   Self-review or peer review
+#   t qa [task_id]            Advance to QA stage
+#   t done [task_id]          Mark task done
+#   t <anything>              Passthrough to task binary
+#
+# task_id is optional when run from inside a slot worktree.
+# When run outside a slot (e.g. from Claude Code), pass task_id explicitly.
 
 require "json"
 require "open3"
 
-SLOT_BASE   = File.join(Dir.home, "programming/worktrees")
-CONTEXT_DIR = File.join(Dir.home, ".local/share/task/context")
-SLOT_COUNT  = 6
+SLOT_BASE  = File.join(Dir.home, "programming/worktrees")
+SLOT_COUNT = 6
 
 def run(*args)
   stdout, stderr, status = Open3.capture3(*args)
@@ -32,11 +41,34 @@ rescue JSON::ParserError
   nil
 end
 
+def task_by_id(task_id)
+  stdout, = Open3.capture3("task", task_id.to_s, "export")
+  return nil if stdout.strip.empty?
+
+  JSON.parse(stdout, symbolize_names: true).first
+rescue JSON::ParserError
+  nil
+end
+
 def current_slot_dir
   slot_n = slot_number_from_path(Dir.pwd)
-  return nil unless slot_n
+  slot_n ? File.join(SLOT_BASE, "slot-#{slot_n}") : nil
+end
 
-  File.join(SLOT_BASE, "slot-#{slot_n}")
+# Resolve the active task: explicit ID > slot context > error
+def resolve_task(task_id_arg, require_slot: false)
+  if task_id_arg
+    t = task_by_id(task_id_arg)
+    abort "Task ##{task_id_arg} not found" unless t
+    return t
+  end
+
+  slot_dir = current_slot_dir
+  abort "Not inside a slot worktree and no task ID given" unless slot_dir
+
+  t = active_task_in_slot(slot_dir)
+  abort "No active task in this slot" unless t
+  t
 end
 
 subcommand = ARGV.first
@@ -46,48 +78,32 @@ in "start"
   exec("task", *ARGV)
 
 in "review"
-  pr_arg = ARGV[1]
+  args = ARGV.drop(1)
 
-  slot_dir = current_slot_dir
-  abort "Not inside a slot worktree (expected path containing slot-N)" unless slot_dir
+  # Parse args: t review [pr_number_or_url] [task_id]
+  # Heuristic: PR numbers/URLs contain digits and slashes; task IDs are short integers
+  pr_arg      = args.find { it.match?(/\d/) && (it.include?("/") || it.length > 3) } ||
+                args.find { it.match?(/\A\d{3,}\z/) }
+  task_id_arg = args.find { it != pr_arg && it.match?(/\A\d+\z/) }
 
-  # Resolve PR number — from argument or from active task's PR: annotation
+  # Resolve PR number
   if pr_arg
     pr_number = pr_arg.split("/").last.gsub(/\D/, "")
     abort "Could not extract PR number from: #{pr_arg}" if pr_number.empty?
-  else
-    task = active_task_in_slot(slot_dir)
-    abort "No active task in this slot and no PR number given" unless task
-
-    pr_annotation = Array(task[:annotations])
-      .map { it[:description] }
-      .find { it.match?(/\APR: /) }
-    abort "Active task has no PR: annotation. Pass a PR number explicitly." unless pr_annotation
-
-    pr_url_raw = pr_annotation.sub(/\APR: /, "")
-    pr_number  = pr_url_raw.split("/").last.gsub(/\D/, "")
-    abort "Could not extract PR number from annotation: #{pr_annotation}" if pr_number.empty?
   end
 
-  # Fetch PR metadata
-  pr_json  = run("gh", "pr", "view", pr_number, "--json", "number,title,author,url,state")
-  pr_data  = JSON.parse(pr_json, symbolize_names: true)
-  pr_state = pr_data[:state]
-  abort "PR ##{pr_number} is #{pr_state} — can only review open PRs" unless pr_state == "OPEN"
+  # Fetch PR metadata (needed to determine author)
+  if pr_number
+    pr_json  = run("gh", "pr", "view", pr_number, "--json", "number,title,author,url,state")
+    pr_data  = JSON.parse(pr_json, symbolize_names: true)
+    pr_state = pr_data[:state]
+    abort "PR ##{pr_number} is #{pr_state} — can only review open PRs" unless pr_state == "OPEN"
+    pr_url    = pr_data[:url]
+    pr_author = pr_data.dig(:author, :login)
+    me        = `gh api user -q '.login'`.strip
+  end
 
-  pr_url    = pr_data[:url]
-  pr_author = pr_data.dig(:author, :login)
-  me        = `gh api user -q '.login'`.strip
-
-  if pr_author == me
-    # Self-review: advance current slot's task to self-review stage
-    task = active_task_in_slot(slot_dir)
-    abort "No active task in this slot for self-review" unless task
-
-    task_id = task[:id].to_s
-    run("task", task_id, "modify", "stage:self-review", "pr_url:#{pr_url}")
-    puts "Task ##{task_id} advanced to self-review — PR ##{pr_number}"
-  else
+  if pr_number && pr_author != me
     # External review: find a free slot, checkout branch, create +review task
     occupied = begin
       stdout, = Open3.capture3("task", "+ACTIVE", "export")
@@ -103,7 +119,7 @@ in "review"
     free_slot_dir = File.join(SLOT_BASE, "slot-#{free_slot}")
     Dir.chdir(free_slot_dir) { run("gh", "pr", "checkout", pr_number) }
 
-    task_id = run(
+    new_task_id = run(
       "task", "add",
       "Review PR ##{pr_number}: #{pr_data[:title]}",
       "+review",
@@ -111,28 +127,36 @@ in "review"
       "pr_url:#{pr_url}"
     ).scan(/\d+/).first
 
-    abort "Failed to create review task" unless task_id
-    run("task", task_id, "start")
-    puts "Started review of PR ##{pr_number} in Slot #{free_slot} (task ##{task_id})"
+    abort "Failed to create review task" unless new_task_id
+    run("task", new_task_id, "start")
+    puts "Started review of PR ##{pr_number} in Slot #{free_slot} (task ##{new_task_id})"
+  else
+    # Self-review: resolve task, set stage + pr_url
+    task = resolve_task(task_id_arg)
+
+    # If no PR number given, read from task's PR: annotation
+    unless pr_number
+      pr_annotation = Array(task[:annotations])
+        .map { it[:description] }
+        .find { it.match?(/\APR: /) }
+      abort "Task ##{task[:id]} has no PR: annotation and no PR number given" unless pr_annotation
+
+      raw_url   = pr_annotation.sub(/\APR: /, "")
+      pr_number = raw_url.split("/").last.gsub(/\D/, "")
+      pr_url    = raw_url
+    end
+
+    run("task", task[:id].to_s, "modify", "stage:self-review", "pr_url:#{pr_url}")
+    puts "Task ##{task[:id]} advanced to self-review — PR ##{pr_number}"
   end
 
 in "qa"
-  slot_dir = current_slot_dir
-  abort "Not inside a slot worktree" unless slot_dir
-
-  task = active_task_in_slot(slot_dir)
-  abort "No active task in this slot" unless task
-
+  task = resolve_task(ARGV[1])
   run("task", task[:id].to_s, "modify", "stage:qa")
   puts "Task ##{task[:id]} advanced to qa"
 
 in "done"
-  slot_dir = current_slot_dir
-  abort "Not inside a slot worktree" unless slot_dir
-
-  task = active_task_in_slot(slot_dir)
-  abort "No active task in this slot" unless task
-
+  task = resolve_task(ARGV[1])
   run("task", task[:id].to_s, "done")
   puts "Task ##{task[:id]} marked done"
 

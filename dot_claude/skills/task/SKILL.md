@@ -62,21 +62,33 @@ Annotations are cheap. Annotate often. They create a trail that survives session
 | Command | What it does |
 |---|---|
 | `t start <id>` | Start a task — hook assigns slot, sets stage:execute, writes context |
-| `t review [number]` | Advance to self-review (your PR), or start peer review (someone else's) |
-| `t qa` | Advance current slot's task to qa stage |
-| `t done` | Mark task done — hook cleans up slot, parks branch, returns to Main |
+| `t review [pr] [task_id]` | Advance to self-review (your PR), or start peer review (someone else's) |
+| `t qa [task_id]` | Advance task to qa stage |
+| `t done [task_id]` | Mark task done — hook cleans up slot, parks branch, returns to Main |
 | `t <anything>` | Passthrough to `task` binary (e.g. `t list`, `t next`, `t active`) |
 
 ### `t review` behaviour
 
 `t review` is context-aware — it determines mode from the PR author:
 
-- **Your PR** (self-review): transitions the active slot task to `stage:self-review`. The Claude session loop detects the stage and automatically runs walkthrough → code review.
+- **Your PR** (self-review): transitions the task to `stage:self-review`. The Claude session loop detects the stage and automatically runs walkthrough → code review.
 - **Someone else's PR** (peer review): creates a `+review` task, finds a free slot, checks out the branch, starts the task. Same loop runs in that slot.
 
 You can pass a PR number or URL: `t review 1234` or `t review https://github.com/.../pull/1234`
 
 Without a number, `t review` reads the `PR:` annotation from the active slot task.
+
+### Running outside a slot (Claude Code context)
+
+`t review`, `t qa`, and `t done` detect the current task from the slot worktree in `$PWD`. **When run outside a slot** (e.g. from Claude Code's working directory), pass the task ID explicitly:
+
+```bash
+t review 1234 42    # advance task #42 to self-review for PR #1234
+t qa 42             # advance task #42 to qa
+t done 42           # mark task #42 done
+```
+
+Claude Code MUST always pass the task ID explicitly — it never runs inside a slot worktree.
 
 ## `task` Command Reference (query/view only)
 
