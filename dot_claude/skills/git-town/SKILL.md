@@ -97,46 +97,50 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 
 ### Body Structure
 
-Always use this exact section order with `## Level-2 headers` and `<br/>` between every section:
+Always use `## Level-2 headers` and `<br/>` between every section, in this order:
 
 ```markdown
 ## Background
-
-Plain-English summary of the problem being solved. Cause → investigation → decision.
-Write for someone who hasn't read the ticket — summarise the issue clearly, don't say
-"see ticket for background." Use `NOTE:` callouts inline for important constraints.
-
-⛔ Do NOT reference code, class names, method names, or implementation details here.
-Describe the problem in product/user-visible terms: what the user sees, what's broken,
-what should happen instead. A reviewer should understand Background without knowing the
-codebase.
-
+...
 <br/>
-
 ## Features / Changes
-
-- Each bullet is one distinct change the reviewer needs to know about — not an implementation step or sub-detail of a previous bullet
-- If a change needs more explanation, add another sentence to the same bullet or use indented sub-bullets; don't split into separate top-level bullets
-- Describe what the code now DOES differently (behaviour), not HOW it does it
-  (implementation) — the reviewer can read the diff for code specifics
-- Do not mix code snippets or method signatures with natural language — if a specific
-  implementation detail needs reviewer attention, add it as a comment on the relevant
-  line in the diff instead
-- Use backticks for code references only when unavoidable: `ClassName`, `method_name`
-
+...
 <br/>
-
 ## Testing Tasks
-
-- [x] Concrete manual QA steps through the browser with specific org/timesheet IDs where relevant
-- [x] If hard to manually test: "Small change which is hard to manually test."
-
+...
 <br/>
-
 ## Screenshots
-
-![image](...) or "None."
+...
 ```
+
+#### Background
+
+- Start from the motivation: the reported problem (bug) or the product need (feature)
+- Tell the story: what was observed or requested → what was investigated or designed → what this PR does about it
+- Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
+- Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
+- Prose paragraphs, not bullet points
+- Use `NOTE:` callouts inline for important constraints
+
+#### Features / Changes
+
+- Each bullet is one distinct behavioural change — what the system now does differently
+- The reviewer reads the diff for implementation specifics — this section explains *what changed* and *why*, not *how*
+- If an implementation detail needs reviewer attention, add it as an inline comment on the diff, not in the PR body
+- Don't mix code snippets or method signatures with natural language
+
+> **Wrong** (implementation-focused): Changed `allowance_tag_options` to accept the template as a kwarg instead of hardcoding `employment_condition_set_template`
+>
+> **Right** (behaviour-focused): The additional tags dropdown now correctly shows previously selected values when editing a position's wage comparison template
+
+#### Testing Tasks
+
+- Concrete manual QA steps through the browser with specific org/timesheet IDs where relevant
+- If hard to manually test: "Small change which is hard to manually test."
+
+#### Screenshots
+
+`![image](...)` or "None."
 
 ### Tone
 
