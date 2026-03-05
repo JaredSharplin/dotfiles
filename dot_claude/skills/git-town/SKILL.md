@@ -1,6 +1,6 @@
 ---
 name: git-town
-description: Use this skill when working with git branches, creating PRs, or managing stacked changes. Triggers include "create branch", "new feature branch", "git town", "stacked PR", "split PR", or any branch management operations. (user)
+description: Use this skill when working with git branches, creating PRs, or managing stacked changes. Triggers include "create branch", "new feature branch", "git town", "stacked PR", "split PR", "rebase", "resolve conflicts", "checkout branch", "adopt PR", "work on someone's PR", "merge conflicts", or any branch management operations. MUST be loaded before any git checkout, git rebase, git push, git stash, git clone, or branch switching operation. (user)
 ---
 
 # Git Town Stacked Changes Guide
