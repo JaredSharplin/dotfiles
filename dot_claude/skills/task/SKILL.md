@@ -7,6 +7,8 @@ description: "PROACTIVE SKILL — Claude MUST load this skill automatically at t
 
 Taskwarrior (`task`) is the personal task management system. Tasks are the single source of truth for what's being worked on — they coordinate across sessions, tools, and branches.
 
+All workflow operations go through the `t` command. Use `task` (bare) only for querying and viewing.
+
 ## Proactive Behaviour (MANDATORY)
 
 Claude MUST use Taskwarrior automatically as part of the development workflow:
@@ -21,7 +23,7 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 1. Check if a relevant task already exists: `task project:<name> list` or `task /keyword/ list`
 2. If no task exists, create one: `task add "description" project:<name>`
 3. If running inside a slot (detect from `$PWD` matching `slot-N`): `task <id> modify project_dir:$PWD` — this pins the task to the current slot instead of the hook picking the first free one
-4. Start it: `task <id> start`
+4. Start it: `t start <id>`
 5. Annotate the approach: `task <id> annotate "Starting: <brief plan>"`
 
 ### Adding Tasks from User Requests
@@ -38,31 +40,52 @@ When the user provides requirements, context, or detail while requesting a task:
 - `task <id> annotate "Decision: ..."` — significant design choices
 - `task <id> annotate "Blocked: ..."` — when hitting a blocker
 - `task <id> annotate "Tests passing"` — after tests go green
-- `task <id> annotate "PR: <url>"` — after creating a pull request
+- `task <id> annotate "PR: <url>"` — after creating a pull request, then **immediately** call `t review <pr_number>`
 
 ### Finishing Work
 
 ⛔ **NEVER mark a task done until the PR is both reviewed AND merged.**
 
-1. After creating PR: `task <id> annotate "PR: <url>"`
-2. Exit the session — the loop auto-detects the PR annotation and chains walkthrough → review
-3. Wait for the PR to be reviewed and merged
-4. Verify `Self-reviewed:` annotation exists: `task <id> info`
-5. `task <id> done`
+1. After creating PR with `git town propose`:
+   - `task <id> annotate "PR: <url>"`
+   - **Immediately call `t review <pr_number>`** — this advances the task to self-review stage and triggers the walkthrough + code review loop automatically. This step is MANDATORY and not optional.
+2. Wait for the PR to be reviewed and merged
+3. `t done`
 
 ### Key Principle
 Annotations are cheap. Annotate often. They create a trail that survives session boundaries and helps the next session pick up where things left off.
 
-## Command Reference
+## `t` Command Reference
+
+`t` is the single workflow command. All slot lifecycle operations go through it.
+
+| Command | What it does |
+|---|---|
+| `t start <id>` | Start a task — hook assigns slot, sets stage:execute, writes context |
+| `t review [number]` | Advance to self-review (your PR), or start peer review (someone else's) |
+| `t qa` | Advance current slot's task to qa stage |
+| `t done` | Mark task done — hook cleans up slot, parks branch, returns to Main |
+| `t <anything>` | Passthrough to `task` binary (e.g. `t list`, `t next`, `t active`) |
+
+### `t review` behaviour
+
+`t review` is context-aware — it determines mode from the PR author:
+
+- **Your PR** (self-review): transitions the active slot task to `stage:self-review`. The Claude session loop detects the stage and automatically runs walkthrough → code review.
+- **Someone else's PR** (peer review): creates a `+review` task, finds a free slot, checks out the branch, starts the task. Same loop runs in that slot.
+
+You can pass a PR number or URL: `t review 1234` or `t review https://github.com/.../pull/1234`
+
+Without a number, `t review` reads the `PR:` annotation from the active slot task.
+
+## `task` Command Reference (query/view only)
 
 ### Core Commands
 
 | Command | Description |
 |---|---|
 | `task add "desc"` | Create a task |
-| `task <id> start` | Mark as active (spawns Zellij tab) |
 | `task <id> stop` | Deactivate without completing (closes Zellij tab) |
-| `task <id> done` | Mark complete (closes Zellij tab) |
 | `task <id> delete` | Delete a task |
 | `task <id> modify "new desc" +tag` | Change attributes |
 | `task <id> annotate "msg"` | Add a timestamped note |
@@ -184,29 +207,43 @@ Do NOT use `rc.confirmation=off` — it doesn't suppress the prompt in non-inter
 - **Decompose vague tasks** — "Renovate kitchen" is not a task, "Select floor tiles" is
 - **Use `wait` to reduce clutter** — hide tasks not relevant this week
 - **Review regularly** — delete stale tasks, correct metadata
-- **Start tasks** — `task start` tracks what you're actively doing
+- **Start tasks** — `t start` tracks what you're actively doing
 - **Keep descriptions short** — they become Zellij tab names
 
 ## Zellij Integration
 
 The `workspace-payaus` layout pre-builds 6 slot tabs (Slot 1–6), each with a suspended Claude pane, nvim, and lazygit. Slots map to worktree directories `~/programming/worktrees/slot-{1,2,3,4,5,6}`.
 
+### Pipeline Stages
+
+Tasks move through stages as work progresses. The tab name reflects the current stage:
+
+| Stage | Tab label | How to enter |
+|---|---|---|
+| execute | `Slot N: #42 description` | `t start <id>` |
+| self-review | `Slot N: #42 description [self-review]` | `t review <pr_number>` |
+| qa | `Slot N: #42 description [qa]` | `t qa` |
+| peer-review | `Slot N: Reviewing #1234` | `t review <pr_number>` (external) |
+
 ### Tab Lifecycle
 
 | Event | Action |
 |---|---|
-| `task start` | Assigns first free slot, sets `project_dir` UDA, writes context file, renames "Slot N" → task description, switches focus |
-| `task done`/`task stop` | Renames tab back to "Slot N", switches to Main, deletes context file |
+| `t start` | Assigns first free slot, sets `project_dir` UDA, writes context file, renames tab, switches focus |
+| `t review` | Transitions stage, checks out PR branch, renames tab |
+| `t qa` | Transitions stage, renames tab |
+| `t done` | Marks task complete, renames tab back to "Slot N", switches to Main |
 
-Slots are freed implicitly — a slot is "free" when no `+ACTIVE` task has its `project_dir` pointing to it. Stopping then restarting a task reuses the same slot.
+Slots are freed implicitly — a slot is "free" when no `+ACTIVE` task has its `project_dir` pointing to it.
 
-If all 6 slots are occupied, `task start` prints a warning and no tab switch occurs.
+If all 6 slots are occupied, `t start` prints a warning and no tab switch occurs.
 
 ### Claude Pane
 
 Each slot's Claude pane starts suspended. When activated:
-- If a context file exists (`~/.local/share/task/context/<uuid>.json`), Claude launches in plan mode with the task description
-- If no context file matches the working directory, Claude launches bare
+- Reads `stage` from the task context file (`~/.local/share/task/context/<uuid>.json`)
+- `execute`/`qa`: launches with task implementation prompt
+- `self-review`/`peer-review`: launches walkthrough session → code review session automatically
 
 Context files are written by the on-modify hook and deleted on task completion/stop.
 
@@ -257,44 +294,6 @@ A task is **stale** when it's active (`+ACTIVE`) but has had no annotation in 24
 The Zellij statusbar shows stale count in red when > 0. On seeing a stale warning:
 1. Run `task +ACTIVE info` to check annotations
 2. Either annotate with current status or stop the task if it's not being worked on
-
-## PR Review Workflow
-
-Slots are shared between tasks and PR reviews. Scripts manage the review lifecycle.
-
-### `pr-review <number|url>`
-
-Run from any terminal inside Zellij. Auto-detects whether you are the PR author:
-
-- **Self-review** (you are the author): uses the current slot (branch already checked out),
-  writes `review-slot-N.json` with `is_self_review: true`, renames tab `"Slot N: Self-review #N"`.
-  Usually triggered automatically — after any implementation session exits, the loop checks
-  for an unreviewed `PR:` annotation and calls `pr-review` itself. No manual step needed.
-
-- **External review** (someone else's PR): finds a free slot, checks out the branch, writes
-  `review-slot-N.json` with `is_self_review: false`, renames tab `"Slot N: Reviewing #N"`,
-  then switches to that slot.
-
-In both modes, `task-tab-claude.sh` runs two sessions in sequence:
-1. **Walkthrough** — explains the diff file-by-file, pauses for questions at each file.
-   If self-review, annotates the task with `Self-reviewed: <summary>` when you confirm understanding.
-2. **Code review** — fetches the diff fresh as an independent reviewer, uses 37signals +
-   ActiveRecord personalities, posts inline comments and a summary.
-
-After both sessions complete, the review context file is deleted and the tab is renamed back.
-
-### `pr-done`
-
-Run from within an external review slot to abort a review early. Removes the `.pr-review`
-marker and review context file, renames the tab back to "Slot N", and switches to Main.
-
-### How Free Slots Are Detected
-
-A slot is occupied if either:
-- An `+ACTIVE` task has `project_dir` pointing to it
-- A `.pr-review` marker file exists in the slot directory
-
-The first slot that satisfies neither condition is assigned.
 
 ## Integration with Other Skills
 

@@ -6,47 +6,50 @@
 # Usage: slot-rename-tab [slot_number]
 #
 # If slot_number is omitted, detects from $PWD.
-# Checks for review context, then task context, then falls back to "Slot N".
+# Reads stage from task context to determine tab label:
+#   execute:     "Slot N: #42 description"
+#   self-review: "Slot N: #42 description [self-review]"
+#   qa:          "Slot N: #42 description [qa]"
+#   peer-review: "Slot N: Reviewing #1234"
+#   idle:        "Slot N"
 
-require 'json'
+require "json"
 
-CONTEXT_DIR = File.join(Dir.home, '.local/share/task/context')
-SLOT_BASE   = File.join(Dir.home, 'programming/worktrees')
+CONTEXT_DIR = File.join(Dir.home, ".local/share/task/context")
+SLOT_BASE   = File.join(Dir.home, "programming/worktrees")
 
-exit 0 unless ENV['ZELLIJ']
+exit 0 unless ENV["ZELLIJ"]
 
 slot_n = ARGV[0] || Dir.pwd[/slot-(\d+)/, 1]
 exit 0 unless slot_n
 
-slot_dir       = "#{SLOT_BASE}/slot-#{slot_n}"
-review_context = "#{CONTEXT_DIR}/review-slot-#{slot_n}.json"
+slot_dir = "#{SLOT_BASE}/slot-#{slot_n}"
+
+task_file = Dir.glob("#{CONTEXT_DIR}/*.json").find do
+  data = JSON.parse(File.read(it), symbolize_names: true) rescue next
+  data[:project_dir] == slot_dir
+end
 
 tab_name =
-  if File.exist?(review_context)
-    data = JSON.parse(File.read(review_context), symbolize_names: true)
-    pr_number = data[:pr_number]
-    if data[:is_self_review]
-      "Slot #{slot_n}: Self-review ##{pr_number}"
+  if task_file
+    data  = JSON.parse(File.read(task_file), symbolize_names: true)
+    id    = data[:id]
+    desc  = data[:description].to_s.then { it.length > 20 ? "#{it[0, 20]}\u2026" : it }
+    stage = data[:stage].to_s
+
+    case stage
+    in "self-review"
+      "Slot #{slot_n}: ##{id} #{desc} [self-review]"
+    in "qa"
+      "Slot #{slot_n}: ##{id} #{desc} [qa]"
+    in "peer-review"
+      pr_num = data[:pr_url]&.split("/")&.last&.gsub(/\D/, "")
+      pr_num ? "Slot #{slot_n}: Reviewing ##{pr_num}" : "Slot #{slot_n}: ##{id} #{desc}"
     else
-      "Slot #{slot_n}: Reviewing ##{pr_number}"
+      "Slot #{slot_n}: ##{id} #{desc}"
     end
   else
-    task_file = Dir.glob("#{CONTEXT_DIR}/*.json").find do
-      next if File.basename(it).start_with?('review-')
-
-      data = JSON.parse(File.read(it), symbolize_names: true) rescue next
-      data[:project_dir] == slot_dir
-    end
-
-    if task_file
-      data = JSON.parse(File.read(task_file), symbolize_names: true)
-      task_id   = data[:id]
-      task_desc = data[:description].to_s
-      task_desc = "#{task_desc[0, 20]}\u2026" if task_desc.length > 20
-      "Slot #{slot_n}: ##{task_id} #{task_desc}"
-    else
-      "Slot #{slot_n}"
-    end
+    "Slot #{slot_n}"
   end
 
-exec('zellij', 'action', 'rename-tab', tab_name)
+exec("zellij", "action", "rename-tab", tab_name)

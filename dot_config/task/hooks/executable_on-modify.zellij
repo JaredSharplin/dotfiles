@@ -4,13 +4,14 @@
 # Taskwarrior on-modify hook for Zellij slot tab management.
 #
 # On task start: assigns a free worktree slot, writes context, renames tab.
+# On stage change: handles review checkout, updates context, renames tab.
 # On task done/stop: renames tab back to idle name, switches to Main.
 
 require "json"
 require "fileutils"
 
 SLOT_COUNT = 6
-SLOT_BASE = File.expand_path("~/programming/worktrees")
+SLOT_BASE  = File.expand_path("~/programming/worktrees")
 CONTEXT_DIR = File.expand_path("~/.local/share/task/context")
 
 def slot_path(n) = "#{SLOT_BASE}/slot-#{n}"
@@ -31,9 +32,7 @@ rescue JSON::ParserError
 end
 
 def slot_free?(n, exclude_uuid:)
-  used = active_slot_dirs(exclude_uuid:)
-  review_marker = "#{SLOT_BASE}/slot-#{n}/.pr-review"
-  !used.include?(slot_path(n)) && !File.exist?(review_marker)
+  !active_slot_dirs(exclude_uuid:).include?(slot_path(n))
 end
 
 def first_free_slot(exclude_uuid:)
@@ -47,13 +46,15 @@ end
 def write_context(task)
   FileUtils.mkdir_p(CONTEXT_DIR)
   context = {
-    id: task["id"],
-    uuid: task["uuid"],
+    id:          task["id"],
+    uuid:        task["uuid"],
     description: task["description"],
-    project: task["project"],
-    tags: task["tags"] || [],
+    project:     task["project"],
+    tags:        task["tags"] || [],
     annotations: (task["annotations"] || []).map { it["description"] },
-    project_dir: task["project_dir"]
+    project_dir: task["project_dir"],
+    stage:       task["stage"],
+    pr_url:      task["pr_url"]
   }
   File.write("#{CONTEXT_DIR}/#{task['uuid']}.json", JSON.pretty_generate(context))
 end
@@ -68,10 +69,35 @@ def zellij(*args)
 end
 
 def rename_slot_tab(n)
-  system(File.expand_path("~/.config/task/scripts/slot-rename-tab"), n.to_s, out: File::NULL, err: File::NULL)
+  system(
+    File.expand_path("~/.config/task/scripts/slot-rename-tab"), n.to_s,
+    out: File::NULL, err: File::NULL
+  )
 end
 
 def in_zellij? = ENV.key?("ZELLIJ")
+
+def pr_number_from_url(url)
+  url&.split("/")&.last&.gsub(/\D/, "")
+end
+
+def checkout_pr(slot_n, pr_url)
+  pr_number = pr_number_from_url(pr_url)
+  return unless pr_number && !pr_number.empty?
+
+  system(
+    "gh", "pr", "checkout", pr_number,
+    chdir: slot_path(slot_n),
+    out: File::NULL, err: File::NULL
+  )
+end
+
+def park_branch(slot_n)
+  slot_dir = slot_path(slot_n)
+  unless system("git", "-C", slot_dir, "checkout", "slot-#{slot_n}", out: File::NULL, err: File::NULL)
+    system("git", "-C", slot_dir, "checkout", "-b", "slot-#{slot_n}", out: File::NULL, err: File::NULL)
+  end
+end
 
 old_task = JSON.parse($stdin.readline)
 new_task = JSON.parse($stdin.readline)
@@ -80,6 +106,7 @@ was_started = old_task["start"].nil? && !new_task["start"].nil?
 was_stopped = (!old_task["start"].nil? && new_task["start"].nil?) ||
               (old_task["status"] != "completed" && new_task["status"] == "completed") ||
               (old_task["status"] != "deleted" && new_task["status"] == "deleted")
+was_stage_changed = !was_started && !was_stopped && old_task["stage"] != new_task["stage"]
 
 if was_started
   pwd_slot = current_slot_from_pwd
@@ -89,6 +116,7 @@ if was_started
 
   if slot_n
     new_task["project_dir"] ||= slot_path(slot_n)
+    new_task["stage"] ||= "execute"
     write_context(new_task)
 
     if in_zellij?
@@ -100,16 +128,27 @@ if was_started
   else
     warn "No free slots for: #{new_task['description']}"
   end
+
+elsif was_stage_changed
+  slot_n = slot_number_from_path(new_task["project_dir"])
+
+  if slot_n
+    case new_task["stage"]
+    when "self-review", "peer-review"
+      checkout_pr(slot_n, new_task["pr_url"])
+    when "execute"
+      park_branch(slot_n)
+    end
+
+    write_context(new_task)
+    rename_slot_tab(slot_n) if in_zellij?
+    warn "Slot #{slot_n} stage \u2192 #{new_task['stage']}"
+  end
+
 elsif was_stopped
   slot_n = slot_number_from_path(old_task["project_dir"])
   delete_context(old_task["uuid"])
-
-  if slot_n
-    slot_dir_path = slot_path(slot_n)
-    unless system("git", "-C", slot_dir_path, "checkout", "slot-#{slot_n}", out: File::NULL, err: File::NULL)
-      system("git", "-C", slot_dir_path, "checkout", "-b", "slot-#{slot_n}", out: File::NULL, err: File::NULL)
-    end
-  end
+  park_branch(slot_n) if slot_n
 
   if in_zellij? && slot_n
     zellij("go-to-tab", slot_tab_index(slot_n).to_s)
