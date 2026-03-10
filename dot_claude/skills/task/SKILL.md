@@ -7,7 +7,7 @@ description: "PROACTIVE SKILL — Claude MUST load this skill automatically at t
 
 Taskwarrior (`task`) is the personal task management system. Tasks are the single source of truth for what's being worked on — they coordinate across sessions, tools, and branches.
 
-All workflow operations go through the `t` command. Use `task` (bare) only for querying and viewing.
+Use `t` for start/done/stop (it handles Zellij tab renaming). Use `task` directly for everything else.
 
 ## Proactive Behaviour (MANDATORY)
 
@@ -22,13 +22,12 @@ Claude MUST use Taskwarrior automatically as part of the development workflow:
 ### When Starting Work
 1. Check if a relevant task already exists: `task project:<name> list` or `task /keyword/ list`
 2. If no task exists, create one: `task add "description" project:<name>`
-3. If running inside a slot (detect from `$PWD` matching `slot-N`): `task <id> modify project_dir:$PWD` — this pins the task to the current slot instead of the hook picking the first free one
-4. Start it: `t start <id>`
-5. Annotate the approach: `task <id> annotate "Starting: <brief plan>"`
+3. Start it: `t start <id>`
+4. Annotate the approach: `task <id> annotate "Starting: <brief plan>"`
 
 ### Adding Tasks from User Requests
 
-⛔ **The description is just a short title — it is NOT the place for requirements.**
+The description is just a short title — it is NOT the place for requirements.
 
 When the user provides requirements, context, or detail while requesting a task:
 1. Keep `task add "..."` short — it becomes the tab name and task title
@@ -40,64 +39,37 @@ When the user provides requirements, context, or detail while requesting a task:
 - `task <id> annotate "Decision: ..."` — significant design choices
 - `task <id> annotate "Blocked: ..."` — when hitting a blocker
 - `task <id> annotate "Tests passing"` — after tests go green
-- `task <id> annotate "PR: <url>"` — after creating a pull request, then **immediately** call `t review <pr_number>`
+- `task <id> annotate "PR: <url>"` — after creating a pull request
 
 ### Finishing Work
 
-⛔ **NEVER mark a task done until the PR is both reviewed AND merged.**
-
-1. After creating PR with `git town propose`:
-   - `task <id> annotate "PR: <url>"`
-   - **Immediately call `t review <pr_number>`** — this advances the task to self-review stage and triggers the walkthrough + code review loop automatically. This step is MANDATORY and not optional.
-2. Wait for the PR to be reviewed and merged
-3. `t done`
+1. After creating a draft PR: `task <id> annotate "PR: <url>"`
+2. Self-review and manual QA the PR
+3. Mark PR ready for review: `gh pr ready <number>`
+4. Wait for the PR to be reviewed and merged
+5. `t done <id>`
 
 ### Key Principle
 Annotations are cheap. Annotate often. They create a trail that survives session boundaries and helps the next session pick up where things left off.
 
 ## `t` Command Reference
 
-`t` is the single workflow command. All slot lifecycle operations go through it.
+`t` is a thin wrapper around `task` that handles Zellij tab renaming.
 
 | Command | What it does |
 |---|---|
-| `t start <id>` | Start a task — hook assigns slot, sets stage:execute, writes context |
-| `t review [pr] [task_id]` | Advance to self-review (your PR), or start peer review (someone else's) |
-| `t qa [task_id]` | Advance task to qa stage |
-| `t done [task_id]` | Mark task done — hook cleans up slot, parks branch, returns to Main |
+| `t start <id>` | Start a task, rename current Zellij tab to `"#<id> description"` |
+| `t done <id>` | Mark task done, rename tab back to `"Slot N"` |
+| `t stop <id>` | Stop task (stays pending), rename tab back |
 | `t <anything>` | Passthrough to `task` binary (e.g. `t list`, `t next`, `t active`) |
 
-### `t review` behaviour
-
-`t review` is context-aware — it determines mode from the PR author:
-
-- **Your PR** (self-review): transitions the task to `stage:self-review`. The Claude session loop detects the stage and automatically runs walkthrough → code review.
-- **Someone else's PR** (peer review): creates a `+review` task, finds a free slot, checks out the branch, starts the task. Same loop runs in that slot.
-
-You can pass a PR number or URL: `t review 1234` or `t review https://github.com/.../pull/1234`
-
-Without a number, `t review` reads the `PR:` annotation from the active slot task.
-
-### Running outside a slot (Claude Code context)
-
-`t review`, `t qa`, and `t done` detect the current task from the slot worktree in `$PWD`. **When run outside a slot** (e.g. from Claude Code's working directory), pass the task ID explicitly:
-
-```bash
-t review 1234 42    # advance task #42 to self-review for PR #1234
-t qa 42             # advance task #42 to qa
-t done 42           # mark task #42 done
-```
-
-Claude Code MUST always pass the task ID explicitly — it never runs inside a slot worktree.
-
-## `task` Command Reference (query/view only)
+## `task` Command Reference
 
 ### Core Commands
 
 | Command | Description |
 |---|---|
 | `task add "desc"` | Create a task |
-| `task <id> stop` | Deactivate without completing (closes Zellij tab) |
 | `task <id> delete` | Delete a task |
 | `task <id> modify "new desc" +tag` | Change attributes |
 | `task <id> annotate "msg"` | Add a timestamped note |
@@ -224,56 +196,35 @@ Do NOT use `rc.confirmation=off` — it doesn't suppress the prompt in non-inter
 
 ## Zellij Integration
 
-The `workspace-payaus` layout pre-builds 6 slot tabs (Slot 1–6), each with a suspended Claude pane, nvim, and lazygit. Slots map to worktree directories `~/programming/worktrees/slot-{1,2,3,4,5,6}`.
-
-### Pipeline Stages
-
-Tasks move through stages as work progresses. The tab name reflects the current stage:
-
-| Stage | Tab label | How to enter |
-|---|---|---|
-| execute | `Slot N: #42 description` | `t start <id>` |
-| self-review | `Slot N: #42 description [self-review]` | `t review <pr_number>` |
-| qa | `Slot N: #42 description [qa]` | `t qa` |
-| peer-review | `Slot N: Reviewing #1234` | `t review <pr_number>` (external) |
+The `workspace-payaus` layout pre-builds 6 slot tabs (Slot 1–6), each with a Claude pane, nvim, and lazygit. Slots map to worktree directories `~/programming/worktrees/slot-{1,2,3,4,5,6}`.
 
 ### Tab Lifecycle
 
 | Event | Action |
 |---|---|
-| `t start` | Assigns first free slot, sets `project_dir` UDA, writes context file, renames tab, switches focus |
-| `t review` | Transitions stage, checks out PR branch, renames tab |
-| `t qa` | Transitions stage, renames tab |
-| `t done` | Marks task complete, renames tab back to "Slot N", switches to Main |
+| `t start <id>` | Renames current tab to `"#<id> description"` |
+| `t done <id>` | Renames tab back to `"Slot N"` |
+| `t stop <id>` | Renames tab back to `"Slot N"` |
 
-Slots are freed implicitly — a slot is "free" when no `+ACTIVE` task has its `project_dir` pointing to it.
+If all 6 slots are occupied, navigate to a slot and stop its task first.
 
-If all 6 slots are occupied, `t start` prints a warning and no tab switch occurs.
+### zjstatus Bar
 
-### Claude Pane
+The status bar shows task counts and GitHub PR status:
+- **active** (green): currently started tasks
+- **Next** (yellow): next `+PENDING` task description (wide screens)
+- **draft PRs** (orange): your open draft PRs
+- **stale PRs** (red): your PRs labelled stale
+- **queued** (blue): pending backlog count
+- **on hold** (orange): waiting tasks count
 
-Each slot's Claude pane starts suspended. When activated:
-- Reads `stage` from the task context file (`~/.local/share/task/context/<uuid>.json`)
-- `execute`/`qa`: launches with task implementation prompt
-- `self-review`/`peer-review`: launches walkthrough session → code review session automatically
+## Monday Review
 
-Context files are written by the on-modify hook and deleted on task completion/stop.
-
-### Outside Zellij
-
-The hook still assigns a slot and writes context, but skips all Zellij commands. The `ZELLIJ` env var controls this.
-
-## Monday Review (Automated)
-
-On session start, if today is Monday (or if `task +WAITING` shows resurfaced tasks), Claude automatically runs a review:
+On session start, if today is Monday, Claude automatically runs a review:
 
 1. **Check resurfaced tasks:** `task +WAITING list` — tasks with `wait:monday` reappear on Mondays
-2. **Cross-reference PRs:** Run `gh pr list --author @me --state open` and compare with task annotations:
-   - Mark tasks done only if their PR was reviewed AND merged (check `gh pr view <url> --json state,mergedAt,reviews` — `state` must be `MERGED`)
-   - Annotate tasks if their PR has new review comments
-   - Flag tasks whose PRs have been idle (no activity in 7+ days)
-3. **Triage each resurfaced task:** Ask the user "Keep waiting or act on it?"
-4. **Defer skipped tasks:** `task <id> modify wait:monday` to push back another week
+2. **Triage each resurfaced task:** Ask the user "Keep waiting or act on it?"
+3. **Defer skipped tasks:** `task <id> modify wait:monday` to push back another week
 
 ### On-Hold Tasks
 
@@ -290,7 +241,7 @@ Two contexts are configured for focused work:
 | Context | Purpose | Filter |
 |---|---|---|
 | `focus` | Only active and next-tagged work | `+ACTIVE or +next` |
-| `sprint` | Current payaus sprint work, excluding on-hold | `project:payaus -on_hold -WAITING` |
+| `sprint` | Current payaus sprint work | `project:payaus or project:payaus.internal` |
 
 Switch contexts:
 ```bash
@@ -298,14 +249,6 @@ task context focus      # narrow to active work only
 task context sprint     # see current sprint backlog
 task context none       # clear context, see everything
 ```
-
-## Stale Task Detection
-
-A task is **stale** when it's active (`+ACTIVE`) but has had no annotation in 24 hours. This indicates work that's started but idle — possibly forgotten across sessions.
-
-The Zellij statusbar shows stale count in red when > 0. On seeing a stale warning:
-1. Run `task +ACTIVE info` to check annotations
-2. Either annotate with current status or stop the task if it's not being worked on
 
 ## Integration with Other Skills
 

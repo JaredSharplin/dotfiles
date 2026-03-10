@@ -28,7 +28,7 @@ layout {
                 datetime_format   "%a %d %b %H:%M"
                 datetime_timezone "Australia/Brisbane"
 
-                command_task_command    "bash -c '$HOME/.config/task/scripts/zjstatus-task-check.sh'"
+                command_task_command    "$HOME/.config/task/scripts/zjstatus-task-check"
                 command_task_format     "{stdout}"
                 command_task_interval   "300"
                 command_task_rendermode "dynamic"

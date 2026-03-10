@@ -28,7 +28,7 @@ layout {
                 datetime_format   "%a %d %b %H:%M"
                 datetime_timezone "Australia/Brisbane"
 
-                command_task_command    "bash -c '$HOME/.config/task/scripts/zjstatus-task-check.sh'"
+                command_task_command    "$HOME/.config/task/scripts/zjstatus-task-check"
                 command_task_format     "{stdout}"
                 command_task_interval   "300"
                 command_task_rendermode "dynamic"
@@ -90,8 +90,8 @@ layout {
 
     tab name="Slot 1" cwd="~/programming/worktrees/slot-1" {
         pane split_direction="vertical" {
-            pane size="40%" command="bash" start_suspended=true {
-                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            pane size="40%" command="claude" start_suspended=true {
+                args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -102,8 +102,8 @@ layout {
 
     tab name="Slot 2" cwd="~/programming/worktrees/slot-2" {
         pane split_direction="vertical" {
-            pane size="40%" command="bash" start_suspended=true {
-                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            pane size="40%" command="claude" start_suspended=true {
+                args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -114,8 +114,8 @@ layout {
 
     tab name="Slot 3" cwd="~/programming/worktrees/slot-3" {
         pane split_direction="vertical" {
-            pane size="40%" command="bash" start_suspended=true {
-                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            pane size="40%" command="claude" start_suspended=true {
+                args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -126,8 +126,8 @@ layout {
 
     tab name="Slot 4" cwd="~/programming/worktrees/slot-4" {
         pane split_direction="vertical" {
-            pane size="40%" command="bash" start_suspended=true {
-                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            pane size="40%" command="claude" start_suspended=true {
+                args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -138,8 +138,8 @@ layout {
 
     tab name="Slot 5" cwd="~/programming/worktrees/slot-5" {
         pane split_direction="vertical" {
-            pane size="40%" command="bash" start_suspended=true {
-                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            pane size="40%" command="claude" start_suspended=true {
+                args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -150,8 +150,8 @@ layout {
 
     tab name="Slot 6" cwd="~/programming/worktrees/slot-6" {
         pane split_direction="vertical" {
-            pane size="40%" command="bash" start_suspended=true {
-                args "-c" "$HOME/.config/task/scripts/task-tab-claude.sh"
+            pane size="40%" command="claude" start_suspended=true {
+                args "--dangerously-skip-permissions"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true

@@ -124,6 +124,24 @@ end
 config.dig(:database, :primary) => {host:, port:}
 ```
 
+## Keyword Arguments for Multi-Parameter Methods
+
+**Use keyword args** when a method takes more than one argument. Use shorthand syntax when the variable name matches the key.
+
+```ruby
+# WRONG
+def create_user(name, email, role)
+send_notification(user, "welcome", true)
+
+# RIGHT
+def create_user(name:, email:, role:)
+send_notification(user:, template: "welcome", immediate: true)
+
+# Shorthand: `user:` is short for `user: user`
+user = find_user(id)
+send_notification(user:, template:)
+```
+
 # Scripting Language
 
 **For dotfiles scripts, tooling, and automation (anything in `~/.config/task/scripts/`, `~/bin/`, or similar):**
@@ -233,18 +251,20 @@ Why: `git diff` against master includes merge commit artifacts and shows incorre
 3. If large: `gh pr diff <number> --name-only` first, then read specific files
 - Do NOT use `--patch` - it shows individual commit patches, not the net PR diff
 
-## Creating PRs
+## Creating PRs (always draft)
 
-Use `git town propose` to create PRs — it handles branch sync and stack breadcrumbs:
+All PRs MUST start as drafts. Mark ready for review only after self-review and manual QA.
 
 ```bash
-git town propose --title "..." --body "..."
+git town sync
+gh pr create --draft --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <label>
 ```
 
-**Both flags are mandatory** — `--title` and `--body` must always be provided (they skip the interactive TUI).
+# TODO: Switch back to `git town propose --draft` once supported
+# Tracking: https://github.com/git-town/git-town/issues/6079
 
-Every PR MUST also have (set via `gh pr edit` after propose):
+Every PR MUST also have (set via `gh pr edit` after create):
 - `--add-assignee @me` — always assign yourself
 - `--add-label <label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
 

@@ -1,14 +1,4 @@
 data.location=~/.local/share/task
-hooks.location=~/.config/task/hooks
-
-uda.project_dir.type=string
-uda.project_dir.label=Project Dir
-
-uda.stage.type=string
-uda.stage.label=Stage
-
-uda.pr_url.type=string
-uda.pr_url.label=PR URL
 
 dateformat=Y-M-D
 weekstart=monday

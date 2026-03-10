@@ -18,7 +18,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Update stacked branches with latest changes | `git town sync -s` | Syncs entire stack safely |
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
-| Create PR for current branch | `git town propose --title "..." --body "..."` | Then `gh pr edit --add-assignee @me --add-label <label>` |
+| Create draft PR for current branch | `git town sync` then `gh pr create --draft ...` | Then `gh pr edit --add-assignee @me --add-label <label>` |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
@@ -73,14 +73,20 @@ git town prepend feature/auth-models
 # Creates: main -> auth-models -> user-auth
 ```
 
-### `git town propose --title "..." --body "..."`
-**Purpose:** Create pull request for current branch
-**Requires:** Both `--title` and `--body` flags — skips interactive TUI entirely
-**Always follow with:**
+### Creating a PR (always draft)
+
+All PRs start as drafts. Mark ready for review only after self-review and manual QA.
+
 ```bash
+git town sync
+gh pr create --draft --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <label>
 ```
-**Why not `gh pr create`:** `git town propose` handles branch sync and stack breadcrumbs automatically.
+
+# TODO: Switch back to `git town propose --draft` once supported
+# Tracking: https://github.com/git-town/git-town/issues/6079
+
+`git town sync` pushes the branch and adds stack breadcrumbs to any existing PRs. `gh pr create --draft` creates the PR as a draft.
 
 ## Working on Someone Else's Branch
 
@@ -331,13 +337,15 @@ git town append feature/follow-up
 ### After Organizing: Create PRs
 
 ```bash
-# Create PR for each branch in stack
+# Create draft PR for each branch in stack
 git checkout migration/foundation
-git town propose --title "..." --body "..."
+git town sync
+gh pr create --draft --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <label>
 
 git checkout feature/implementation
-git town propose --title "..." --body "Depends on #<parent-pr>"
+git town sync
+gh pr create --draft --title "..." --body "Depends on #<parent-pr>"
 gh pr edit --add-assignee @me --add-label <label>
 ```
 
