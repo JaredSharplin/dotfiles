@@ -217,7 +217,7 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 - Think about the user journey: what does a human do to trigger this code path? That's your testing task
 - For bug fixes: reproduce using the actual reported data — reference the org ID, user, and steps from the Linear ticket. The reviewer should be able to follow the original reproduction steps and confirm the bug is fixed
 - NEVER include `bin/rails test` or other CLI test commands — that's what CI is for
-- "Small change which is hard to manually test." is only for genuinely invisible changes (internal refactors with no UI effect, log format changes). If the change fixes a bug or adds a feature that a user can see, it IS testable through the browser — describe how
+- NEVER write "Small change which is hard to manually test." — think through the user journey and describe it. Every change that touches code a user can trigger is testable through the browser. The only exception is a pure internal refactor with zero UI effect (e.g. renaming a private method, changing a log format) — and even then, describe what you'd check to confirm nothing broke
 
 ### Screenshots
 
