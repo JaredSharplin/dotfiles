@@ -258,17 +258,18 @@ All PRs MUST start as drafts. Mark ready for review only after self-review and m
 ```bash
 git town sync
 gh pr create --draft --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <label>
+gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
 # TODO: Switch back to `git town propose --draft` once supported
 # Tracking: https://github.com/git-town/git-town/issues/6079
 
-Every PR MUST also have (set via `gh pr edit` after create):
+Every PR MUST have (set via `gh pr edit` after create):
 - `--add-assignee @me` — always assign yourself
-- `--add-label <label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+- `--add-label built-in-australia` — always added to every PR
+- `--add-label <type-label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
 
-Choose the label based on the nature of the change. If unsure, ask the user before creating the PR.
+Choose the type label based on the nature of the change. If unsure, ask the user before creating the PR.
 
 ## ⚠️ Editing PR Bodies
 **NEVER replace a PR body wholesale.** The user may have made manual edits (checked boxes, added notes, etc.) that will be lost.

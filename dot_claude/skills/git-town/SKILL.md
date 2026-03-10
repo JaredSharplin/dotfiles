@@ -18,7 +18,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Update stacked branches with latest changes | `git town sync -s` | Syncs entire stack safely |
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
-| Create draft PR for current branch | `git town sync` then `gh pr create --draft ...` | Then `gh pr edit --add-assignee @me --add-label <label>` |
+| Create draft PR for current branch | `git town sync` then `gh pr create --draft ...` | Then `gh pr edit` to add assignee + labels |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
@@ -80,7 +80,7 @@ All PRs start as drafts. Mark ready for review only after self-review and manual
 ```bash
 git town sync
 gh pr create --draft --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <label>
+gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
 # TODO: Switch back to `git town propose --draft` once supported
@@ -341,12 +341,12 @@ git town append feature/follow-up
 git checkout migration/foundation
 git town sync
 gh pr create --draft --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <label>
+gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 
 git checkout feature/implementation
 git town sync
 gh pr create --draft --title "..." --body "Depends on #<parent-pr>"
-gh pr edit --add-assignee @me --add-label <label>
+gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
 ## ⛔ NEVER Manually Stash
