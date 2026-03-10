@@ -66,6 +66,8 @@ workspace() {
 
 # Suppress macOS alert dialogs when bin/dev processes fail (payaus)
 export DISABLE_DEV_NOTIFICATIONS=true
+export PROSOPITE_RAISE=true
+export DISABLE_ACTIVERECORD_LOGS=true
 
 # =================
 # Tool initialisation
