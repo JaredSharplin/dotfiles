@@ -347,10 +347,17 @@ fetched = fetch_parallel(tasks, pr_annotations, linear_annotations)
 pr_result = sync_pr_state(pr_annotations, fetched[:pr_data], tasks)
 linear_result = sync_linear_state(linear_annotations, fetched[:linear_details], pr_result[:merged_ids])
 
-existing_identifiers = linear_annotations.filter_map { it[:identifier] }.to_set
+all_tasks = JSON.parse(task_cmd("export"), symbolize_names: true)
+existing_identifiers = all_tasks.filter_map { |t|
+  find_annotation(t, %r{Linear:\s*https://\S+/issue/([A-Z]+-\d+)})&.[](1)
+}.to_set
 new_task_details = create_new_linear_tasks(fetched[:linear_issues], existing_identifiers)
 
-existing_pr_urls = pr_annotations.map { it[:url] }.to_set
+existing_pr_urls = all_tasks.flat_map { |t|
+  (t[:annotations] || []).filter_map { |a|
+    a[:description].match(%r{PR:\s*(https://github\.com/\S+/pull/\d+)}) { it[1] }
+  }
+}.to_set
 new_review_details = create_new_review_tasks(fetched[:review_prs], existing_pr_urls)
 
 priority_result = sync_priorities(fetched[:linear_issues])
