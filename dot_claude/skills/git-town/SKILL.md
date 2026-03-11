@@ -1,6 +1,6 @@
 ---
 name: git-town
-description: Use this skill when working with git branches, creating PRs, or managing stacked changes. Triggers include "create branch", "new feature branch", "git town", "stacked PR", "split PR", "rebase", "resolve conflicts", "checkout branch", "adopt PR", "work on someone's PR", "merge conflicts", or any branch management operations. MUST be loaded before any git checkout, git rebase, git push, git stash, git clone, or branch switching operation. (user)
+description: Use this skill when working with git branches, creating PRs, or managing stacked changes. Triggers include "create branch", "new feature branch", "git town", "stacked PR", "split PR", "rebase", "resolve conflicts", "checkout branch", "adopt PR", "work on someone's PR", "merge conflicts", "make a pr", "create a pr", "open a pr", or any branch management operations. MUST be loaded before any `gh pr create`, `gh pr edit`, `git town sync`, `git checkout`, `git rebase`, `git push`, `git stash`, `git clone`, or branch switching operation. (user)
 ---
 
 # Git Town Stacked Changes Guide
@@ -184,7 +184,7 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 ### Features / Changes
 ...
 <br/>
-### Testing Tasks
+### Manual Browser QA Tasks
 ...
 <br/>
 ### Screenshots
@@ -211,12 +211,15 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 >
 > **Right** (behaviour-focused): The additional tags dropdown now correctly shows previously selected values when editing a position's wage comparison template
 
-### Testing Tasks
+### Manual Browser QA Tasks
 
-- Always describe how a reviewer can verify this change through the browser — navigate to the page, perform the action, check the result
-- Think about the user journey: what does a human do to trigger this code path? That's your testing task
+This section is step-by-step instructions for a reviewer to manually verify the change in a browser. It is NOT a place to describe automated tests or what you did during development. Each task MUST be a markdown checkbox (`- [ ]`).
+
+- Format every task as a checkbox: `- [ ] Navigate to Settings > Permissions and verify...`
+- Describe how a reviewer can verify this change through the browser — navigate to the page, perform the action, check the result
+- Think about the user journey: what does a human do to trigger this code path? That's your QA task
 - For bug fixes: reproduce using the actual reported data — reference the org ID, user, and steps from the Linear ticket. The reviewer should be able to follow the original reproduction steps and confirm the bug is fixed
-- NEVER include `bin/rails test` or other CLI test commands — that's what CI is for
+- NEVER include `bin/rails test`, automated test results, or descriptions of test coverage — that's what CI is for
 - NEVER write "Small change which is hard to manually test." — think through the user journey and describe it. Every change that touches code a user can trigger is testable through the browser. The only exception is a pure internal refactor with zero UI effect (e.g. renaming a private method, changing a log format) — and even then, describe what you'd check to confirm nothing broke
 
 ### Screenshots
