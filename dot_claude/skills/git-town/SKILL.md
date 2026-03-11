@@ -19,6 +19,9 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
 | Create draft PR for current branch | `git town sync` then `gh pr create --draft ...` | Then `gh pr edit` to add assignee + labels |
+| Switch to parent branch | `git town down` | Move down the stack |
+| Switch to child branch | `git town up` | Move up the stack |
+| Fix something on a parent branch | See "Making Changes on a Parent Branch" | Stash → down → fix → sync → up → pop → sync |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
@@ -72,6 +75,57 @@ git town append feature/user-auth-tests
 git town prepend feature/auth-models
 # Creates: main -> auth-models -> user-auth
 ```
+
+### Navigating a Branch Stack
+
+Use `git town down` and `git town up` to move between branches in a stack:
+
+| Command | Purpose |
+|---------|---------|
+| `git town down` | Switch to the parent branch (move down the stack) |
+| `git town up` | Switch to the child branch (move up the stack) |
+
+For non-adjacent branches (e.g. jumping from grandchild to grandparent), use `git checkout <branch-name>` directly.
+
+**Note:** `git town switch` exists but is an interactive TUI — Claude cannot use it.
+
+**Important:** `git town down`/`up` do NOT auto-stash uncommitted changes. They are thin wrappers around `git checkout`. Uncommitted changes either carry over (if non-conflicting) or cause the command to fail. See "Making Changes on a Parent Branch" for the safe workflow.
+
+### Making Changes on a Parent Branch
+
+When you're working on a child branch and need to make a fix on a parent branch:
+
+```bash
+# 1. Stash any uncommitted changes on the child branch
+git stash
+
+# 2. Switch to the parent branch
+git town down
+
+# 3. Make your changes and commit
+git add <specific files>
+git commit -m "Fix description"
+
+# 4. Sync the parent branch (pushes changes)
+git town sync
+
+# 5. Switch back to the child branch
+git town up
+
+# 6. Restore your uncommitted changes
+git stash pop
+
+# 7. Sync the child branch (merges parent changes into child automatically)
+git town sync
+```
+
+**Why stash here?** Without stashing, uncommitted child-branch changes carry over to the parent's working tree. This is dangerous because:
+- `git add .` would accidentally commit child-branch work on the parent
+- If the same file has both child WIP and needs a parent fix, there's no way to selectively stage (Claude can't use interactive `git add -p`)
+
+This is the **one exception** to the "never manually stash" rule — `git town down`/`up` don't auto-stash like `hack`/`sync`/`append` do.
+
+**Shortcut:** After step 4, `git town sync --stack` syncs all descendants too, so you could skip step 7 — but you still need to `git town up` and `git stash pop` to get back to your child branch.
 
 ### Creating a PR (always draft)
 
@@ -352,12 +406,17 @@ gh pr create --draft --title "..." --body "Depends on #<parent-pr>"
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
-## ⛔ NEVER Manually Stash
+## ⛔ NEVER Manually Stash (With One Exception)
 
-**`git stash` is FORBIDDEN when using git town.** Git town automatically stashes and restores uncommitted changes for `hack`, `sync`, `append`, `prepend`, and all branch-switching commands. Running `git stash` manually before a git town command is redundant, creates extra stash entries, and complicates the workflow.
+**`git stash` is FORBIDDEN when using git town commands that auto-stash.** Git town automatically stashes and restores uncommitted changes for `hack`, `sync`, `append`, `prepend`, and all branch-switching commands. Running `git stash` manually before these commands is redundant, creates extra stash entries, and complicates the workflow.
 
 - ❌ `git stash` then `git town hack` — WRONG
 - ✅ `git town hack feature/name` directly with dirty working directory — CORRECT
+
+**Exception:** `git town down`/`up` do NOT auto-stash (they're thin `git checkout` wrappers). When switching to a parent branch to make a fix, stash first to avoid cross-contaminating branches:
+
+- ✅ `git stash` → `git town down` → fix → `git town up` → `git stash pop` — CORRECT
+- ❌ `git town down` with uncommitted changes then `git add .` on parent — WRONG (commits child work on parent)
 
 ## Tips for Claude Code
 
