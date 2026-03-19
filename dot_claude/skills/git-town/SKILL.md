@@ -140,7 +140,7 @@ gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-aust
 # TODO: Switch back to `git town propose --draft` once supported
 # Tracking: https://github.com/git-town/git-town/issues/6079
 
-`git town sync` pushes the branch and adds stack breadcrumbs to any existing PRs. `gh pr create --draft` creates the PR as a draft.
+`git town sync` pushes the branch and automatically adds stack navigation links to the PR body (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. `gh pr create --draft` creates the PR as a draft.
 
 ## Working on Someone Else's Branch
 
@@ -402,7 +402,7 @@ gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-aust
 
 git checkout feature/implementation
 git town sync
-gh pr create --draft --title "..." --body "Depends on #<parent-pr>"
+gh pr create --draft --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
