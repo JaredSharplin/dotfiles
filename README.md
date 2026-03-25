@@ -23,23 +23,15 @@ chezmoi init --apply https://github.com/jaredsharplin/dotfiles.git
 | Lazygit | `dot_config/lazygit/` |
 | Git | `dot_config/git/` |
 | Starship | (via Brewfile) |
-| Taskwarrior | `dot_config/task/` |
 | Ghostty (macOS) | `dot_config/ghostty/` |
 | Hyprland (Linux) | `dot_config/hypr/` |
 | keyd (Linux) | `etc/keyd/` |
 
 ## Zellij Layouts
 
-- **`default.kdl`** — Terminal + Main (nvim/claude/lazygit) + Dotfiles tabs
-- **`task-workspace.kdl`** — Spawned by Taskwarrior hooks per task (`task start`)
+- **`workspace.kdl`** — Main + Dotfiles tabs
+- **`workspace-payaus.kdl`** — Server + Main + Slots + Code Review + Dotfiles tabs
 - **`server.kdl`** — Payaus dev server (tunnel/server/webpack/worker)
-
-## Post-Install Steps
-
-```bash
-# Install npm dependencies for task scripts (mermaid-ascii etc.)
-cd ~/.config/task && npm install
-```
 
 ## Repo Structure
 
