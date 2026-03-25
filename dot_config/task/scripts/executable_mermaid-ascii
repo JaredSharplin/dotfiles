@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-exec "$(dirname "$0")/../node_modules/.bin/tsx" "$(dirname "$0")/mermaid-render.ts"

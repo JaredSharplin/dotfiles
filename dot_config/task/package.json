@@ -1,7 +1,0 @@
-{
-  "type": "module",
-  "dependencies": {
-    "beautiful-mermaid": "latest",
-    "tsx": "latest"
-  }
-}
