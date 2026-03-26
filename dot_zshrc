@@ -21,7 +21,7 @@ antidote load ${ZDOTDIR:-$HOME}/.zsh_plugins.txt
 export EDITOR='nvim'
 export VISUAL='nvim'
 
-export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 
 # =================
 # Aliases
