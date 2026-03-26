@@ -292,6 +292,37 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 
 ---
 
+## ⛔ Editing PR Bodies
+
+**`gh pr edit --body "full replacement"` is FORBIDDEN** — same severity as `git push --force`. It destroys checked checkboxes (`[x]` → `[ ]`), manually added notes, and any reviewer edits.
+
+### Required Workflow
+
+```bash
+# 1. Fetch current body
+body=$(gh pr view <number> --json body -q '.body')
+
+# 2. Make surgical edits with Ruby
+updated_body=$(ruby -e '
+  body = ARGF.read
+  # Insert, replace, or append — never wholesale replace
+  body.sub!("## Changes", "## Changes\n- New bullet point")
+  print body
+' <<< "$body")
+
+# 3. Write back
+gh pr edit <number> --body "$updated_body"
+```
+
+### Rules
+
+- **Always fetch the current body first** — never assume you know what's there
+- **Surgical edits only** — insert, append, or replace specific sections. Never rewrite the full body
+- **Preserve user state** — checked checkboxes (`[x]`), manually added notes, reviewer comments in the body
+- **Leave `<!-- branch-stack-start -->` / `<!-- branch-stack-end -->` blocks alone** — git town manages these
+
+---
+
 ### `git town set-parent <parent-branch>`
 **Purpose:** Change which branch is the parent of current branch
 **When to use:** Reorganizing stack structure or fixing dependencies
