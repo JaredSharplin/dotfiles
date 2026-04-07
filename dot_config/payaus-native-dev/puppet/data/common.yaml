@@ -1,0 +1,32 @@
+# Common Hiera data for local development setup
+---
+# PostgreSQL configuration
+postgresql::version: '15'
+postgresql::port: 5432
+postgresql::databases:
+  - payaus_development
+  - payaus_test
+postgresql::users:
+  payaus_local:
+    password: ''
+    superuser: true
+
+# Memcached configuration
+memcached::port: 11211
+memcached::memory_limit: 64
+memcached::threads: 4
+memcached::conn_limit: 1024
+
+# Ruby/Node versions (matching .ruby-version and .nvmrc - update at time of running if need be)
+ruby::version: '3.4.2'
+node::version: '20.17.0'
+
+# Development tools
+tools::shell:
+  - fd
+  - ripgrep
+  - ast-grep
+  - fzf
+  - jq
+  - yq
+  - gh
