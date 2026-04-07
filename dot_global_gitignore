@@ -1,0 +1,15 @@
+.aider*
+CLAUDE.md
+.tool-versions*
+.mise.local.toml
+.claude/commands/pull-request-chunker.md
+.claude/commands/personal/*
+.claude/agents/branch-stacking-expert.md
+.claude/agents/project-manager-backlog.md
+backlog/*
+backlog
+.pr-review
+
+# Native local dev — deployed files (source of truth is chezmoi)
+.pumaenv
+config/initializers/99_local_native_dev.rb
