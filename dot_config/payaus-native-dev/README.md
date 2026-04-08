@@ -5,9 +5,10 @@ Run the payaus Rails app natively on macOS using puma-dev. Supports multiple wor
 ## Quick reference
 
 ```bash
-# Set up a worktree for native dev
-~/.config/payaus-native-dev/setup-worktree.rb payaus     # main repo
-~/.config/payaus-native-dev/setup-worktree.rb slot-1     # worktree
+# Set up any payaus directory for native dev
+# <name> becomes the .test domain and the puma-dev symlink (~/.puma-dev/<name>)
+~/.config/payaus-native-dev/setup-worktree.rb payaus     # main repo → https://payaus.test
+~/.config/payaus-native-dev/setup-worktree.rb slot-1     # worktree  → https://slot-1.test
 
 # Ensure services (postgres, memcached, minio, puma-dev) are running
 ~/.config/payaus-native-dev/ensure-services.sh
@@ -16,8 +17,8 @@ Run the payaus Rails app natively on macOS using puma-dev. Supports multiple wor
 ~/.config/payaus-native-dev/setup-worktree.rb --list
 ~/.config/payaus-native-dev/setup-worktree.rb --teardown slot-1
 
-# In a worktree: compile assets and visit
-source .pumaenv && yarn watch
+# Compile assets and visit
+~/.config/payaus-native-dev/watch
 # https://payaus.test or https://slot-1.test
 ```
 

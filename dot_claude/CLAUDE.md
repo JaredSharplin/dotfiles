@@ -209,6 +209,8 @@ This developer has native local dev set up using puma-dev. It can be used in the
 ```
 This deploys `.pumaenv` + initializer + puma-dev symlink. The app is then available at `https://<name>.test`.
 
+The main repo uses `payaus` → `https://payaus.test`. Worktrees use their directory name (e.g. `slot-1` → `https://slot-1.test`).
+
 ## ⛔ CRITICAL: Rails commands in native local dev
 
 **ALWAYS use the wrapper:** `~/.config/payaus-native-dev/rails` instead of `bin/rails`
