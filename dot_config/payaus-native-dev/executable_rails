@@ -1,0 +1,78 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Safe Rails wrapper for native local development.
+#
+# Sources .pumaenv (which sets BOOT_WITHOUT_SECRETS=true) before delegating
+# to bin/rails. Without this, the vault loader overwrites local env vars
+# with shared remote dev server credentials.
+#
+# Usage:
+#   ~/.config/payaus-native-dev/rails db:migrate
+#   ~/.config/payaus-native-dev/rails db:reset
+#   ~/.config/payaus-native-dev/rails console
+
+require "pathname"
+
+def find_pumaenv
+  dir = Pathname.pwd
+  dir.ascend do |path|
+    candidate = path.join(".pumaenv")
+    return candidate if candidate.exist?
+  end
+  nil
+end
+
+def load_pumaenv(path)
+  File.readlines(path).each do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?("#")
+
+    # Parse: export KEY=value or KEY=value
+    line = line.delete_prefix("export ")
+    key, value = line.split("=", 2)
+    next unless key && value
+
+    # Strip surrounding quotes (single or double)
+    value = value.delete_prefix('"').delete_suffix('"')
+    value = value.delete_prefix("'").delete_suffix("'")
+    ENV[key] = value
+  end
+end
+
+def verify_safety!
+  unless ENV["BOOT_WITHOUT_SECRETS"] == "true"
+    abort <<~ERROR
+      SAFETY ERROR: BOOT_WITHOUT_SECRETS is not set to 'true'.
+
+      Without this, bin/rails will load vault credentials and connect
+      to the SHARED REMOTE DEV DATABASE. This wrapper refuses to proceed.
+
+      Check your .pumaenv file has: export BOOT_WITHOUT_SECRETS=true
+    ERROR
+  end
+
+  unless ENV["DEV_DATABASE_HOST"] == "localhost"
+    abort <<~ERROR
+      SAFETY ERROR: DEV_DATABASE_HOST is '#{ENV["DEV_DATABASE_HOST"]}', not 'localhost'.
+
+      This wrapper only runs Rails against the local database.
+      Check your .pumaenv file has: export DEV_DATABASE_HOST=localhost
+    ERROR
+  end
+end
+
+pumaenv = find_pumaenv
+abort "ERROR: No .pumaenv found in current directory or parents.\nRun: ~/.config/payaus-native-dev/setup-worktree.rb <name>" unless pumaenv
+
+load_pumaenv(pumaenv)
+verify_safety!
+
+# Safe to bypass Rails' protected environment check — we've already
+# verified DEV_DATABASE_HOST=localhost and BOOT_WITHOUT_SECRETS=true.
+ENV["DISABLE_DATABASE_ENVIRONMENT_CHECK"] = "1"
+
+bin_rails = File.join(File.dirname(pumaenv), "bin", "rails")
+abort "ERROR: bin/rails not found at #{bin_rails}" unless File.exist?(bin_rails)
+
+exec(bin_rails, *ARGV)

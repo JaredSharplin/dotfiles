@@ -194,6 +194,42 @@ The following commands are PERMANENTLY BANNED and must NEVER be used under ANY c
 - Does this command appear in the FORBIDDEN list above?
 - If YES → STOP IMMEDIATELY and find an alternative approach
 
+# Native Local Development (puma-dev)
+
+This developer has native local dev set up using puma-dev. It can be used in the main repo or any worktree. The project CLAUDE.md says to assume remote dev box — **override that when native local dev is active**.
+
+## When to use native local dev
+- Browser verification of changes via Chrome MCP
+- Database operations on the local dev database
+- Running the Rails app locally without Docker
+
+## Setup a directory for native dev
+```bash
+~/.config/payaus-native-dev/setup-worktree.rb <name>  # e.g. payaus, slot-1
+```
+This deploys `.pumaenv` + initializer + puma-dev symlink. The app is then available at `https://<name>.test`.
+
+## ⛔ CRITICAL: Rails commands in native local dev
+
+**ALWAYS use the wrapper:** `~/.config/payaus-native-dev/rails` instead of `bin/rails`
+
+```bash
+# CORRECT
+~/.config/payaus-native-dev/rails db:reset
+~/.config/payaus-native-dev/rails db:migrate
+
+# WRONG — connects to SHARED REMOTE DEV DATABASE
+bin/rails db:reset
+```
+
+The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Running destructive DB commands without the wrapper **will drop the shared developer database**.
+
+## Assets
+Use `yarn watch` to compile assets (writes to disk, puma-dev serves them). Not `yarn serve`.
+
+## Full documentation
+See `~/.config/payaus-native-dev/README.md` for architecture, design decisions, and troubleshooting.
+
 # Modifying Config Files
 
 **MANDATORY rules for ANY config file modification (gitignore, dotfiles, rc files, etc.):**
