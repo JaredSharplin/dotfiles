@@ -225,7 +225,11 @@ bin/rails db:reset
 The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Running destructive DB commands without the wrapper **will drop the shared developer database**.
 
 ## Assets
-Use `yarn watch` to compile assets (writes to disk, puma-dev serves them). Not `yarn serve`.
+Use `~/.config/payaus-native-dev/watch` to compile assets (writes to disk, puma-dev serves them).
+
+## Login credentials (local seeded DB)
+- Sysadmin (Team Tanda): `info@tanda.co` / `password1`
+- Demo org admin (Local Dev Cafe): `demoaccount+1@tanda.co` / `password123`
 
 ## Full documentation
 See `~/.config/payaus-native-dev/README.md` for architecture, design decisions, and troubleshooting.
