@@ -2,6 +2,8 @@
 
 **ONLY use `bin/rails test file.rb:123`** - ALWAYS use line numbers
 
+**`bin/rails test` always works regardless of native dev setup — the wrapper is not needed for tests.**
+
 ⛔ NEVER use `bin/dev test`
 
 ## Rules (MANDATORY - verify before writing ANY test)
@@ -226,8 +228,18 @@ bin/rails db:reset
 
 The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Running destructive DB commands without the wrapper **will drop the shared developer database**.
 
+## Restarting the app
+
+**Use:** `~/.config/payaus-native-dev/restart slot-1`
+
+This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
+
+To stop all apps: `~/.config/payaus-native-dev/restart` (no argument) — runs `puma-dev -stop`.
+
 ## Assets
-Use `~/.config/payaus-native-dev/watch` to compile assets (writes to disk, puma-dev serves them).
+Use `~/.config/payaus-native-dev/watch` to compile assets (writes to disk, puma-dev serves them). This also runs `yarn install --frozen-lockfile` to ensure packages are up to date before building.
+
+After recompiling assets, always hard-refresh the browser (`ignoreCache: true` in Chrome MCP) to avoid stale cached bundles.
 
 ## Login credentials (local seeded DB)
 Always use the **Local Dev Cafe** org for browser verification. Do NOT use Team Tanda (sysadmin).
@@ -293,18 +305,14 @@ Why: `git diff` against master includes merge commit artifacts and shows incorre
 3. If large: `gh pr diff <number> --name-only` first, then read specific files
 - Do NOT use `--patch` - it shows individual commit patches, not the net PR diff
 
-## Creating PRs (always draft)
-
-All PRs MUST start as drafts. Mark ready for review only after self-review and manual QA.
+## Creating PRs
 
 ```bash
-git town sync
-gh pr create --draft --title "..." --body "..."
+git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
-# TODO: Switch back to `git town propose --draft` once supported
-# Tracking: https://github.com/git-town/git-town/issues/6079
+`git town propose` syncs the branch and opens the PR in one step — no separate `git town sync` needed.
 
 Every PR MUST have (set via `gh pr edit` after create):
 - `--add-assignee @me` — always assign yourself

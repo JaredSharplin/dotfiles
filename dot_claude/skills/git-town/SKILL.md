@@ -18,7 +18,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Update stacked branches with latest changes | `git town sync -s` | Syncs entire stack safely |
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
-| Create draft PR for current branch | `git town sync` then `gh pr create --draft ...` | Then `gh pr edit` to add assignee + labels |
+| Create PR for current branch | `git town propose --title ... --body ...` | Then `gh pr edit` to add assignee + labels |
 | Switch to parent branch | `git town down` | Move down the stack |
 | Switch to child branch | `git town up` | Move up the stack |
 | Fix something on a parent branch | See "Making Changes on a Parent Branch" | Stash → down → fix → sync → up → pop → sync |
@@ -127,20 +127,14 @@ This is the **one exception** to the "never manually stash" rule — `git town d
 
 **Shortcut:** After step 4, `git town sync --stack` syncs all descendants too, so you could skip step 7 — but you still need to `git town up` and `git stash pop` to get back to your child branch.
 
-### Creating a PR (always draft)
-
-All PRs start as drafts. Mark ready for review only after self-review and manual QA.
+### Creating a PR
 
 ```bash
-git town sync
-gh pr create --draft --title "..." --body "..."
+git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 
-# TODO: Switch back to `git town propose --draft` once supported
-# Tracking: https://github.com/git-town/git-town/issues/6079
-
-`git town sync` pushes the branch and automatically adds stack navigation links to the PR body (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. `gh pr create --draft` creates the PR as a draft.
+`git town propose` syncs the branch (pushing it) and opens the PR in one step. It also automatically adds stack navigation links to the PR body (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically.
 
 ## Working on Someone Else's Branch
 
@@ -256,14 +250,18 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 
 ### Features / Changes
 
-- Each bullet is one distinct behavioural change — what the system now does differently
-- The reviewer reads the diff for implementation specifics — this section explains *what changed* and *why*, not *how*
+- Each bullet is one impactful change described in general terms — what the user or system now does differently
+- Keep it short. A reviewer skimming the list should understand the PR's impact in seconds
+- No code specifics — no method names, class names, file paths, parameter changes, or implementation details. The diff is right there
 - If an implementation detail needs reviewer attention, add it as an inline comment on the diff, not in the PR body
-- Don't mix code snippets or method signatures with natural language
 
-> **Wrong** (implementation-focused): Changed `allowance_tag_options` to accept the template as a kwarg instead of hardcoding `employment_condition_set_template`
+> **Wrong**: Changed `allowance_tag_options` to accept the template as a kwarg instead of hardcoding `employment_condition_set_template`
 >
-> **Right** (behaviour-focused): The additional tags dropdown now correctly shows previously selected values when editing a position's wage comparison template
+> **Wrong**: Refactored the `WageComparison` model to use `find_by` with a composite key lookup on `award_id` and `level`
+>
+> **Right**: The additional tags dropdown now correctly shows previously selected values when editing a wage comparison template
+>
+> **Right**: Fixed duplicate wage comparison rows appearing when the same award level is assigned twice
 
 ### Manual Browser QA Tasks
 
@@ -425,15 +423,13 @@ git town append feature/follow-up
 ### After Organizing: Create PRs
 
 ```bash
-# Create draft PR for each branch in stack
+# Create a PR for each branch in stack
 git checkout migration/foundation
-git town sync
-gh pr create --draft --title "..." --body "..."
+git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 
 git checkout feature/implementation
-git town sync
-gh pr create --draft --title "..." --body "..."
+git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
 ```
 

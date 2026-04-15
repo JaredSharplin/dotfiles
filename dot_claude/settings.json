@@ -26,5 +26,6 @@
     "cc-zjstatus@claude-code-zellij-status": true,
     "ruby-lsp@claude-plugins-official": true
   },
+  "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true
 }
