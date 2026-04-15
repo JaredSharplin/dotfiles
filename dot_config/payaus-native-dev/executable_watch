@@ -46,4 +46,7 @@ webpack_config = File.join(project_root, "config", "webpack", "development.babel
 abort "ERROR: webpack config not found at #{webpack_config}" unless File.exist?(webpack_config)
 
 Dir.chdir(project_root)
+
+system("yarn", "install", "--frozen-lockfile", exception: true)
+
 exec("npx", "webpack", "--watch", "--config", webpack_config)

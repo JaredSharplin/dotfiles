@@ -52,6 +52,7 @@ No nginx. puma-dev handles DNS, TLS, static files, and Rails proxying.
 | `initializer.rb` | `<worktree>/config/initializers/99_local_native_dev.rb` | Adds .test to Rails allowed hosts |
 | `setup-worktree.rb` | (run directly) | Deploys .pumaenv + initializer + puma-dev symlink |
 | `ensure-services.sh` | (run directly) | Starts postgres/memcached/minio via Puppet |
+| `restart` | (run directly) | Cleanly restart puma-dev apps + remove stale sockets |
 | `puppet/` | (used by ensure-services.sh) | Puppet manifests for service management |
 
 Deployed files are gitignored in payaus via `~/.global_gitignore`.
@@ -182,6 +183,14 @@ source .pumaenv && DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bin/rails db:drop db:cre
 cat /etc/resolver/test  # should show nameserver 127.0.0.1
 ```
 If missing: `sudo puma-dev -setup`
+
+### App unresponsive after restart / "There is already a server bound to" socket error
+
+puma-dev's phased restart (`touch tmp/restart.txt`) has a race condition: the old process may not clean up its Unix socket before the new process tries to bind. Use the restart script instead:
+```bash
+~/.config/payaus-native-dev/restart        # stop all apps + clean sockets
+~/.config/payaus-native-dev/restart slot-1  # clean sockets for slot-1 only
+```
 
 ### PostgreSQL "role postgres does not exist"
 

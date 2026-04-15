@@ -72,6 +72,10 @@ verify_safety!
 # verified DEV_DATABASE_HOST=localhost and BOOT_WITHOUT_SECRETS=true.
 ENV["DISABLE_DATABASE_ENVIRONMENT_CHECK"] = "1"
 
+# Unset vars from shell env that conflict with local Rails commands.
+# DISABLE_ACTIVERECORD_LOGS is set for remote dev but blocks migrations locally.
+ENV.delete("DISABLE_ACTIVERECORD_LOGS")
+
 bin_rails = File.join(File.dirname(pumaenv), "bin", "rails")
 abort "ERROR: bin/rails not found at #{bin_rails}" unless File.exist?(bin_rails)
 
