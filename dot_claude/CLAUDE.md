@@ -1,26 +1,36 @@
+# Working together
+
+These are the conventions I've settled on for this codebase. If a rule doesn't fit the situation, say so and explain — I'd rather revisit a rule than have you work around it silently. Push back if you see a better approach than what I've asked for.
+
+Rules written as absolutes ("off the table", "not negotiable") genuinely have no exceptions. Everything else is a default you can reason about.
+
 # Testing
 
-**ONLY use `bin/rails test file.rb:123`** - ALWAYS use line numbers
+Use `bin/rails test file.rb:123` — always include the line number. `bin/rails test` works regardless of native dev setup; the wrapper is only needed for other Rails commands.
 
-**`bin/rails test` always works regardless of native dev setup — the wrapper is not needed for tests.**
+Don't use `bin/dev test`.
 
-⛔ NEVER use `bin/dev test`
+## Writing tests
 
-## Rules (MANDATORY - verify before writing ANY test)
-- [ ] DETERMINISTIC - no if/else or conditional logic
-- [ ] EXACT VALUES - calculate expected values first, no `.positive?` or vague checks
-- [ ] `assert_in_delta expected, actual` - defaults only, no extra arguments
-- [ ] No comments or messages in tests
-- [ ] NEVER SKIP - if environment issues block testing, fix them first
-- [ ] NEVER "SIMPLIFY" TESTS TO MAKE THEM PASS - if a test fails, fix the code or fix the test logic, don't weaken assertions
-- [ ] EXCELLENT COVERAGE IS MANDATORY - tests must thoroughly cover the functionality, not just pass
+Good tests here look like:
+
+- Deterministic — one execution path, no if/else branches
+- Exact values — calculate expected results up front, assert against them directly
+- `assert_in_delta expected, actual` with defaults, no extra arguments
+- No comments or assertion messages
+- Coverage is thorough — exercise the behavior, not just the happy path
+
+Two absolutes:
+
+- **Don't skip tests.** If the environment is blocking, fix the environment first.
+- **Don't weaken an assertion to turn red green.** If a test fails, the cause is in the code or the test's logic. Matching the assertion to broken behavior defeats the point of the test.
 
 ```ruby
-# WRONG
+# Wrong
 assert result > 0
 if condition; assert_equal x, y; else; assert_nil z; end
 
-# RIGHT
+# Right
 hours = 5.0
 rate = 25.10
 expected = hours * rate  # 125.50
@@ -29,30 +39,28 @@ assert_in_delta expected, result
 
 # Code Quality
 
-## Linting Commands
-- Run `bundle exec rubocop` for Ruby linting
-- Run `srb tc` for Sorbet type checking
+## Linting commands
+
+- `bundle exec rubocop` for Ruby linting
+- `srb tc` for Sorbet type checking
 - If either fails due to missing gems, run `bundle install` first
 
-## ⛔ NEVER DISABLE LINTS - EVER
+## Lints are not negotiable
 
-**This is an ABSOLUTE rule with NO exceptions:**
-- ❌ NEVER add `# rubocop:disable` comments
-- ❌ NEVER add `# T.unsafe` to bypass Sorbet
-- ❌ NEVER add `# typed: ignore` or weaken type strictness
-- ❌ NEVER add inline disable comments for ANY linter
+When rubocop or Sorbet complains, restructure the code until it passes. Disable-comments (`# rubocop:disable`, `# T.unsafe`, `# typed: ignore`, weakening `# typed:` strictness, or any inline disable) are off the table — no exceptions.
 
-**If a linter complains, FIX THE CODE.** Restructure until both rubocop and Sorbet are satisfied. Disabling lints is lazy, creates technical debt, and hides real issues.
+A linter complaint is a real signal. Silencing it without fixing the cause hides the issue for later.
 
-## Other Rules
-- All code MUST be translated, do not embed plain English into user-facing strings
+## User-facing strings
 
-## Use Enumerable, Not C-Style Loops
+All user-facing strings must go through translation. Don't embed plain English directly.
 
-⛔ **NEVER** initialize variables, loop with `each`, and mutate. This screams LLM-generated Ruby.
+## Use Enumerable, not C-style loops
+
+Prefer Enumerable chains over initialize-plus-mutate loops.
 
 ```ruby
-# WRONG                                    # RIGHT
+# Avoid                                    # Prefer
 total = 0                                  total = items.sum(&:price)
 items.each { |i| total += i.price }
 
@@ -63,7 +71,8 @@ lookup = {}                                lookup = records.index_by(&:id)
 records.each { |r| lookup[r.id] = r }
 ```
 
-**Chain methods fluently:**
+Chain methods fluently:
+
 ```ruby
 users
   .select(&:active?)
@@ -72,7 +81,8 @@ users
   .uniq
 ```
 
-**Use `.then` for transformations and `.tap` for side effects:**
+Use `.then` for transformations and `.tap` for side effects:
+
 ```ruby
 # .then (also known as yield_self) - transform and return new value
 User.find(id)
@@ -86,11 +96,11 @@ User.new(params)
   .save!
 ```
 
-**Key methods:** `map`, `select`, `find`, `sum`, `group_by`, `index_by`, `filter_map`, `flat_map`, `then`, `tap`
+Key methods: `map`, `select`, `find`, `sum`, `group_by`, `index_by`, `filter_map`, `flat_map`, `then`, `tap`.
 
-## Use Ruby 3.4 `it` in Single-Parameter Blocks
+## Use Ruby 3.4 `it` in single-parameter blocks
 
-**Prefer `it`** over named block parameters in short, single-parameter blocks. Still use `&:method` for bare method calls, and named parameters for multi-arg blocks.
+Prefer `it` over named block parameters in short, single-parameter blocks. Use `&:method` for bare method calls, and named parameters for multi-arg blocks.
 
 ```ruby
 # &:method for bare calls       # `it` when there's more to the expression
@@ -99,9 +109,9 @@ items.select(&:active?)         items.select { it.score > threshold }
                                 prices.sum { it * tax_rate }
 ```
 
-## Use Ruby 3 Pattern Matching
+## Use Ruby 3 pattern matching
 
-**Prefer `case/in`** over chains of `if`/`elsif` when destructuring hashes or arrays. Patterns match hash keys partially by default.
+Prefer `case/in` over chains of `if`/`elsif` when destructuring hashes or arrays. Patterns match hash keys partially by default.
 
 ```ruby
 # Hash destructuring
@@ -126,16 +136,16 @@ end
 config.dig(:database, :primary) => {host:, port:}
 ```
 
-## Keyword Arguments for Multi-Parameter Methods
+## Keyword arguments for multi-parameter methods
 
-**Use keyword args** when a method takes more than one argument. Use shorthand syntax when the variable name matches the key.
+Use keyword args when a method takes more than one argument. Use shorthand syntax when the variable name matches the key.
 
 ```ruby
-# WRONG
+# Avoid
 def create_user(name, email, role)
 send_notification(user, "welcome", true)
 
-# RIGHT
+# Prefer
 def create_user(name:, email:, role:)
 send_notification(user:, template: "welcome", immediate: true)
 
@@ -144,166 +154,145 @@ user = find_user(id)
 send_notification(user:, template:)
 ```
 
-# Scripting Language
+# Scripting language
 
-**For dotfiles scripts, tooling, and automation (anything in `~/.config/task/scripts/`, `~/bin/`, or similar):**
+For dotfiles scripts, tooling, and automation (anything in `~/.config/task/scripts/`, `~/bin/`, or similar):
 
 - **Use Ruby** — not bash, not Python, not TypeScript
-- Bash is only acceptable for scripts under ~15 lines that are purely command glue with no real logic
+- Bash is fine for scripts under ~15 lines that are purely command glue with no real logic
 - Anything with JSON handling, conditional logic, string building, or multiple steps → Ruby
 
-**Shebang:** `#!/usr/bin/env ruby`
+Shebang: `#!/usr/bin/env ruby`
 
-**Subprocess calls:** Use backticks for simple captures, `IO.popen` or `Open3.capture3` for anything that needs stderr or exit status.
+Subprocess calls: Use backticks for simple captures, `IO.popen` or `Open3.capture3` for anything that needs stderr or exit status.
 
-**JSON:** Use `require 'json'` — `JSON.parse(...)` and `.to_json`.
+JSON: `require 'json'` — `JSON.parse(...)` and `.to_json`.
 
-# Forbidden Commands
+# Commands that cause real damage
 
-The following commands are PERMANENTLY BANNED and must NEVER be used under ANY circumstances:
-- ❌ `bin/dev` (EXCEPT `bin/dev console` for READ-ONLY queries - invoke /dev-console skill first) - FORBIDDEN
-- ❌ `rails runner` / `bin/rails runner` - FORBIDDEN
-- ❌ `rails console` / `bin/rails console` / `rails c` / `bin/rails c` - FORBIDDEN
-- ❌ `ruby -i` / `ruby -pe` / `ruby -ne` for inline file modifications - FORBIDDEN
-- ❌ `sed -i` for inline file modifications - FORBIDDEN
-- ❌ `awk -i` for inline file modifications - FORBIDDEN
-- ❌ `perl -i` / `perl -pe` for inline file modifications - FORBIDDEN
-- ❌ `git push` (use `git town sync` instead) - FORBIDDEN
-- ❌ `git commit --amend` - FORBIDDEN, always create a new commit instead
-- ❌ `git push --force` / `git push -f` / `git push --force-with-lease` - FORBIDDEN
-- ❌ `rm` - FORBIDDEN, use `trash` instead for safe deletion
-- ❌ `chezmoi apply --force` - FORBIDDEN, silently overwrites user changes without review
+Git operations (`git push`, `git push --force`, `git commit --amend`) are blocked by a Claude Code hook — see `dot_claude/hooks/executable_block-forbidden-git.sh`. Use `git town sync` / `git town propose` for pushing, and create new commits rather than amending.
 
-**Why these are banned:**
-- They bypass proper testing infrastructure
-- They can corrupt development environment
-- They skip necessary setup and validation
-- Console/runner commands are not reproducible or testable
-- Inline file modification scripts (ruby -i, sed -i, etc.) often introduce syntax errors and break files
-- These scripts are difficult to debug and impossible to undo without git
+For everything else, use the alternative — these aren't judgment calls:
 
-**What to do instead:**
-1. Run the actual test suite: `bin/rails test path/to/test.rb`
-2. Read existing tests to understand behavior
-3. Check fixtures and test data
-4. Trace through code logic using Read tool
-5. If you need to verify something works, write a test for it
-6. **For file modifications:** ALWAYS use the Read and Edit tools - NEVER use sed, awk, ruby -i, or perl scripts
-7. If you need to edit multiple similar lines, use multiple Edit tool calls or ask the user to do it manually
-8. **For pushing changes:** ALWAYS use `git town sync` - NEVER use `git push` directly
+| Don't use                                   | Use instead                                    | Why                                                             |
+|---------------------------------------------|------------------------------------------------|-----------------------------------------------------------------|
+| `bin/dev`*                                  | Native dev setup (`~/.config/payaus-native-dev/`) | Native dev is the default path for this developer; see below |
+| `rails runner`, `rails console`, `rails c`  | Write a test                                   | Not reproducible or testable; `/dev-console` skill handles read-only queries |
+| `sed -i`, `awk -i`, `perl -i`, `ruby -i`    | Read + Edit tools                              | Inline edits frequently introduce syntax errors, hard to reverse |
+| `rm`                                        | `trash`                                        | Recoverable                                                      |
+| `chezmoi apply --force`                     | `chezmoi apply` with review                    | Silently overwrites uncommitted edits                            |
 
-**Before executing ANY bash command, ask yourself:**
-- Does this command appear in the FORBIDDEN list above?
-- If YES → STOP IMMEDIATELY and find an alternative approach
+*Except `bin/dev console` for read-only queries via the `/dev-console` skill.
 
-# Native Local Development (puma-dev)
+# Native local development (puma-dev)
 
-This developer has native local dev set up using puma-dev. It can be used in the main repo or any worktree. The project CLAUDE.md says to assume remote dev box — **override that when native local dev is active**.
+This developer has native local dev set up using puma-dev. It can be used in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native local dev is active.
 
 ## When to use native local dev
+
 - Browser verification of changes via Chrome MCP
 - Database operations on the local dev database
 - Running the Rails app locally without Docker
 
 ## Setup a directory for native dev
+
 ```bash
 ~/.config/payaus-native-dev/setup-worktree.rb <name>  # e.g. payaus, slot-1
 ```
+
 This deploys `.pumaenv` + initializer + puma-dev symlink. The app is then available at `https://<name>.test`.
 
 The main repo uses `payaus` → `https://payaus.test`. Worktrees use their directory name (e.g. `slot-1` → `https://slot-1.test`).
 
-## ⛔ CRITICAL: Rails commands in native local dev
+## Rails commands in native local dev
 
-**ALWAYS use the wrapper:** `~/.config/payaus-native-dev/rails` instead of `bin/rails`
+Always use the wrapper: `~/.config/payaus-native-dev/rails` instead of `bin/rails`.
 
 ```bash
-# CORRECT
+# Correct
 ~/.config/payaus-native-dev/rails db:reset
 ~/.config/payaus-native-dev/rails db:migrate
 
-# WRONG — connects to SHARED REMOTE DEV DATABASE
+# Wrong — connects to the SHARED REMOTE DEV DATABASE
 bin/rails db:reset
 ```
 
-The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Running destructive DB commands without the wrapper **will drop the shared developer database**.
+The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Running destructive DB commands without the wrapper **will drop the shared developer database** — this is the one bash-level thing to be genuinely careful about.
 
 ## Restarting the app
 
-**Use:** `~/.config/payaus-native-dev/restart slot-1`
+Use `~/.config/payaus-native-dev/restart slot-1`. This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
 
-This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
-
-To stop all apps: `~/.config/payaus-native-dev/restart` (no argument) — runs `puma-dev -stop`.
+To stop all apps: `~/.config/payaus-native-dev/restart` with no argument — runs `puma-dev -stop`.
 
 ## Assets
+
 Use `~/.config/payaus-native-dev/watch` to compile assets (writes to disk, puma-dev serves them). This also runs `yarn install --frozen-lockfile` to ensure packages are up to date before building.
 
-After recompiling assets, always hard-refresh the browser (`ignoreCache: true` in Chrome MCP) to avoid stale cached bundles.
+After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrome MCP) to avoid stale cached bundles.
 
 ## Login credentials (local seeded DB)
-Always use the **Local Dev Cafe** org for browser verification. Do NOT use Team Tanda (sysadmin).
+
+Use the **Local Dev Cafe** org for browser verification, not Team Tanda (sysadmin).
+
 - Login: `demoaccount+1@tanda.co` / `password123`
 
 ## Full documentation
+
 See `~/.config/payaus-native-dev/README.md` for architecture, design decisions, and troubleshooting.
 
-# Modifying Config Files
+# Modifying config files
 
-**MANDATORY rules for ANY config file modification (gitignore, dotfiles, rc files, etc.):**
+For any config file (gitignore, dotfiles, rc files):
 
-1. **Investigate existing setup FIRST** - Check what's already configured before making changes
-   - Run `git config --global core.excludesfile` to see current gitignore
-   - Check for existing dotfiles: `ls -la ~/.*`
+1. **Investigate existing setup first.** Check what's already configured before making changes.
+   - `git config --global core.excludesfile` to see the current gitignore
+   - `ls -la ~/.*` for existing dotfiles
    - The solution may already exist
+2. **Read, then Edit.** Use the Read tool first, then Edit for targeted changes. Don't use `echo >>` (appends blindly) or Write on an existing file (overwrites everything).
+3. **Global gitignore:** check `git config --global core.excludesfile` first. User's global gitignore is at `~/.global_gitignore`.
 
-2. **NEVER use `echo >>` to append to files** - This blindly adds content without seeing what's there
+# Git workflow
 
-3. **NEVER use Write tool on existing files** - Write OVERWRITES the entire file, destroying existing content
+Use git town for branch management. Invoke the `/git-town` skill for detailed stacking guidance.
 
-4. **ALWAYS use Read then Edit** - Read the file first, then use Edit to make targeted changes
-
-5. **For global gitignore specifically:**
-   - Check `git config --global core.excludesfile` first
-   - User's global gitignore is at `~/.global_gitignore`
-
-# Git Workflow
-
-Use git town for branch management. Invoke /git-town skill for detailed stacking guidance.
 - `git town hack feature/name` to start branches
 - `git town sync` instead of `git push`
-- Never push directly to master
+- `git town propose` to open a PR (syncs and opens in one step)
 
-## Commit and Push Cadence
+## Commit and push cadence
 
 - **Commit** when a logical unit of work is complete — not after every individual file edit
 - **`git town sync`** only when explicitly asked
-- A "commit and push" request in one message does not mean keep syncing after every subsequent change
+- A "commit and push" request in one message doesn't mean keep syncing after every subsequent change
 
-## Git Town Behavior
-When running `git town sync`, it will sometimes edit **unrelated PRs** to update the branch stack metadata shown in PR bodies (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). This is normal behavior to keep stack navigation links correct across all PRs in the stack. Do not treat this as an error or attempt to "fix" it.
+## Git town behavior
 
-## ⛔ NEVER SWITCH BRANCHES TO "CHECK IF TESTS PASS ON MASTER"
-**TESTS ALWAYS PASS ON MASTER.** This is a CI guarantee. If a test is failing on your branch:
-1. Your branch broke it - analyze YOUR changes to find the cause
-2. Use `git diff master -- <file>` to see what YOU changed
-3. NEVER run `git checkout master` or `git stash` to "verify" - it wastes time and leaves the repo in a bad state
-4. If a test fails, the bug is in YOUR code changes, not master
-5. **NEVER label a test failure "pre-existing"** — this label does not exist. If you ran `git stash` or `git checkout` to check, you violated rule 3 and your "proof" is invalid. Fix the failure.
-6. **Re-run a failing test once before debugging** — transient fixture population issues can cause false failures. If it passes on re-run, move on. If it fails again, your code broke it.
+When running `git town sync`, it will sometimes edit **unrelated PRs** to update the branch stack metadata shown in PR bodies (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). This is normal — git town keeps stack navigation links correct across all PRs in the stack. Not an error.
+
+## When a test fails on your branch
+
+Tests pass on master — CI enforces this. If a test is red on your branch, your diff caused it.
+
+- Use `git diff master -- <file>` to see what you changed
+- Don't check out master or stash to "verify" — it's a dead end and leaves the repo in a messy state
+- Re-run the test once before debugging; fixtures can be transient. If it fails a second time, it's your code.
+- There's no such thing as a "pre-existing failure" on your branch — fix forward
 
 # GitHub PRs
 
-## ⛔ Analyzing PR Changes
-**ALWAYS use `gh pr diff <number>` - NEVER use `git diff master` or `git diff origin/master`**
+## Analyzing PR changes
+
+Use `gh pr diff <number>` — not `git diff master` or `git diff origin/master`.
 
 Why: `git diff` against master includes merge commit artifacts and shows incorrect file lists. Only `gh pr diff` shows the true PR diff that reviewers see.
 
-## Commands
-1. First check PR size: `gh pr view <number> --json additions,deletions`
-2. If small (<1000 lines): `gh pr diff <number>` (no flags)
-3. If large: `gh pr diff <number> --name-only` first, then read specific files
-- Do NOT use `--patch` - it shows individual commit patches, not the net PR diff
+Workflow:
+1. Check PR size: `gh pr view <number> --json additions,deletions`
+2. Small (<1000 lines): `gh pr diff <number>` with no flags
+3. Large: `gh pr diff <number> --name-only` first, then read specific files
+
+Don't use `--patch` — it shows individual commit patches, not the net PR diff.
 
 ## Creating PRs
 
@@ -314,23 +303,26 @@ gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-aust
 
 `git town propose` syncs the branch and opens the PR in one step — no separate `git town sync` needed.
 
-Every PR MUST have (set via `gh pr edit` after create):
+Every PR must have (set via `gh pr edit` after create):
+
 - `--add-assignee @me` — always assign yourself
 - `--add-label built-in-australia` — always added to every PR
-- `--add-label <type-label>` — always pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+- `--add-label <type-label>` — pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
 
-Choose the type label based on the nature of the change. If unsure, ask the user before creating the PR.
+Choose the type label based on the nature of the change. If unsure, ask before creating the PR.
 
-## ⚠️ Editing PR Bodies
-**NEVER replace a PR body wholesale.** The user may have made manual edits (checked boxes, added notes, etc.) that will be lost.
+## Editing PR bodies
 
-Before editing a PR body:
-1. **Fetch current body first:** `gh pr view <number> --json body -q '.body'`
-2. **Make incremental changes** - only modify the specific section you need to change
-3. If adding a new section, append it rather than rewriting everything
+Don't replace a PR body wholesale — the user may have made manual edits (checked boxes, added notes) that would be lost.
 
-# Claude Behavior
+Before editing:
 
-- When I reference a documentation file, you MUST read the ENTIRE file immediately, not in chunks
-- Token minimization does NOT apply to reading referenced documentation
-- Thoroughness trumps token efficiency for technical documentation
+1. Fetch the current body: `gh pr view <number> --json body -q '.body'`
+2. Make incremental changes — modify only the specific section you need to change
+3. If adding a new section, append rather than rewriting everything
+
+# Working style
+
+- When I reference a documentation file, read the entire file in one pass — don't chunk for token savings. Thoroughness beats token efficiency for technical docs.
+- When you think I'm wrong or asking for the wrong thing, say so before acting on it.
+- If a rule here doesn't fit the current context, flag it — these are guidelines for the common case, not traps.
