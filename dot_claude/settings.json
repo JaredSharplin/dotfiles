@@ -1,15 +1,5 @@
 {
   "hooks": {
-    // "UserPromptSubmit": [
-    //   {
-    //     "hooks": [
-    //       {
-    //         "type": "command",
-    //         "command": "~/.claude/hooks/user-skills-reminder.sh"
-    //       }
-    //     ]
-    //   }
-    // ],
     "PreToolUse": [
       {
         "matcher": "Bash",
