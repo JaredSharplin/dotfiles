@@ -1,15 +1,15 @@
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/user-skills-reminder.sh"
-          }
-        ]
-      }
-    ],
+    // "UserPromptSubmit": [
+    //   {
+    //     "hooks": [
+    //       {
+    //         "type": "command",
+    //         "command": "~/.claude/hooks/user-skills-reminder.sh"
+    //       }
+    //     ]
+    //   }
+    // ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -27,5 +27,9 @@
     "ruby-lsp@claude-plugins-official": true
   },
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true,
+  "permissions": {
+    "defaultMode": "auto"
+  }
 }
