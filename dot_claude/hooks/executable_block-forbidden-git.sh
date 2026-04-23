@@ -42,4 +42,16 @@ if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+commit[[:space:]
   exit 2
 fi
 
+# Block bin/rails runner / console / c — arbitrary code / interactive session against shared remote dev DB
+if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]]|bin/)rails[[:space:]]+(runner|console|c)([[:space:]]|$)'; then
+  echo "Blocked: bin/rails runner/console hits the shared remote dev DB. Use ~/.config/payaus-native-dev/rails for local, Grep/Read for code exploration, or write a test for verification." >&2
+  exit 2
+fi
+
+# Block bin/rails db:* — destructive DB ops against shared remote dev DB
+if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]]|bin/)rails[[:space:]]+db:'; then
+  echo "Blocked: bin/rails db:* hits the shared remote dev DB. Use ~/.config/payaus-native-dev/rails for local migrations." >&2
+  exit 2
+fi
+
 exit 0

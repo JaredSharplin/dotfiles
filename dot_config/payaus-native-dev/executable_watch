@@ -1,44 +1,29 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Webpack watch wrapper for native local development.
+# Webpack wrapper for native local development.
 #
-# Sources .pumaenv then runs webpack --watch, which compiles assets to
-# public/assets/webpack/ on disk. puma-dev serves these as static files.
+# Sources .pumaenv then runs webpack against the project config, writing
+# compiled assets to public/assets/webpack/ on disk. puma-dev serves them
+# as static files.
+#
+# Agent note: when running long-form (without --once) via a background
+# task, do NOT pipe stdout through `tail`/`head`/`grep` without
+# `--line-buffered`. Webpack's stdout is the progress stream — each
+# compile ends with a line like "webpack X.Y.Z compiled successfully in
+# 42015 ms" which is the reliable grep target for Monitor filters.
 #
 # Usage:
-#   ~/.config/payaus-native-dev/watch
+#   ~/.config/payaus-native-dev/watch                 # watch + recompile forever
+#   ~/.config/payaus-native-dev/watch --once          # compile once and exit
+#   ~/.config/payaus-native-dev/watch --skip-install  # skip yarn install
 
-require "pathname"
+require_relative "lib"
 
-def find_pumaenv
-  dir = Pathname.pwd
-  dir.ascend do |path|
-    candidate = path.join(".pumaenv")
-    return candidate if candidate.exist?
-  end
-  nil
-end
+once = ARGV.delete("--once")
+skip_install = ARGV.delete("--skip-install")
 
-def load_pumaenv(path)
-  File.readlines(path).each do |line|
-    line = line.strip
-    next if line.empty? || line.start_with?("#")
-
-    line = line.delete_prefix("export ")
-    key, value = line.split("=", 2)
-    next unless key && value
-
-    value = value.delete_prefix('"').delete_suffix('"')
-    value = value.delete_prefix("'").delete_suffix("'")
-    ENV[key] = value
-  end
-end
-
-pumaenv = find_pumaenv
-abort "ERROR: No .pumaenv found in current directory or parents.\nRun: ~/.config/payaus-native-dev/setup-worktree.rb <name>" unless pumaenv
-
-load_pumaenv(pumaenv)
+pumaenv = PayausNativeDev.require_pumaenv!
 ENV["NODE_ENV"] = "development"
 
 project_root = File.dirname(pumaenv)
@@ -46,7 +31,9 @@ webpack_config = File.join(project_root, "config", "webpack", "development.babel
 abort "ERROR: webpack config not found at #{webpack_config}" unless File.exist?(webpack_config)
 
 Dir.chdir(project_root)
+PayausNativeDev.ensure_yarn_install!(project_root, skip: skip_install)
 
-system("yarn", "install", "--frozen-lockfile", exception: true)
+webpack_args = ["--config", webpack_config]
+webpack_args << "--watch" unless once
 
-exec("npx", "webpack", "--watch", "--config", webpack_config)
+exec("npx", "webpack", *webpack_args, *ARGV)

@@ -18,7 +18,8 @@ Run the payaus Rails app natively on macOS using puma-dev. Supports multiple wor
 ~/.config/payaus-native-dev/setup-worktree.rb --teardown slot-1
 
 # Compile assets and visit
-~/.config/payaus-native-dev/watch
+~/.config/payaus-native-dev/watch          # long-running: compile on every change
+~/.config/payaus-native-dev/watch --once   # one-shot: compile once and exit
 # https://payaus.test or https://slot-1.test
 ```
 
@@ -53,6 +54,9 @@ No nginx. puma-dev handles DNS, TLS, static files, and Rails proxying.
 | `setup-worktree.rb` | (run directly) | Deploys .pumaenv + initializer + puma-dev symlink |
 | `ensure-services.sh` | (run directly) | Starts postgres/memcached/minio via Puppet |
 | `restart` | (run directly) | Cleanly restart puma-dev apps + remove stale sockets |
+| `watch` | (run directly) | Compile assets (`--once` to exit after one compile) |
+| `rails` | (run directly) | `bin/rails` with .pumaenv + local-DB safety checks |
+| `lib.rb` | (required by wrappers) | Shared .pumaenv loader + yarn-install skip logic |
 | `puppet/` | (used by ensure-services.sh) | Puppet manifests for service management |
 
 Deployed files are gitignored in payaus via `~/.global_gitignore`.
@@ -160,6 +164,19 @@ bin/rails db:create && bin/rails db:schema:load && bin/rails db:seed
 Login credentials (from seeds):
 - Sysadmin: `info@tanda.co` / `password1`
 - Demo org: `demoaccount+1@tanda.co` / `password123`
+
+## Running from an agent / background task
+
+- For "compile once, then verify in the browser" use **`watch --once`**.
+  It exits 0/non-zero when the compile finishes and is the right primitive
+  for single-session flows.
+- Without `--once`, `watch` never exits. If you launch it via a background
+  task, do **not** pipe stdout through `tail`/`head`/`grep` without
+  `--line-buffered` — pipe buffering will hide all output until the
+  process dies.
+- If you do need to stream long-running `watch`, the reliable grep target
+  for a Monitor filter is webpack's own end-of-compile line, e.g.
+  `"compiled (successfully|with \d+ (errors?|warnings?)) in \d+ ms"`.
 
 ## Troubleshooting
 

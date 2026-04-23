@@ -177,7 +177,7 @@ For everything else, use the alternative — these aren't judgment calls:
 | Don't use                                   | Use instead                                    | Why                                                             |
 |---------------------------------------------|------------------------------------------------|-----------------------------------------------------------------|
 | `bin/dev`*                                  | Native dev setup (`~/.config/payaus-native-dev/`) | Native dev is the default path for this developer; see below |
-| `rails runner`, `rails console`, `rails c`  | Write a test                                   | Not reproducible or testable; `/dev-console` skill handles read-only queries |
+| `bin/rails runner`, `bin/rails console`, `bin/rails c`, `bin/rails db:*` | Native dev wrapper (`~/.config/payaus-native-dev/rails ...`) for local DB work; Grep/Read for code exploration; write a test for verification | **Hits the shared remote dev DB.** Hook-enforced — see `dot_claude/hooks/` |
 | `sed -i`, `awk -i`, `perl -i`, `ruby -i`    | Read + Edit tools                              | Inline edits frequently introduce syntax errors, hard to reverse |
 | `rm`                                        | `trash`                                        | Recoverable                                                      |
 | `chezmoi apply --force`                     | `chezmoi apply` with review                    | Silently overwrites uncommitted edits                            |
@@ -206,18 +206,23 @@ The main repo uses `payaus` → `https://payaus.test`. Worktrees use their direc
 
 ## Rails commands in native local dev
 
-Always use the wrapper: `~/.config/payaus-native-dev/rails` instead of `bin/rails`.
+**The core distinction:** `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. Any command that touches the DB or executes Ruby (`db:*`, `runner`, `console`) must go through the wrapper. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB.
 
 ```bash
-# Correct
+# Correct — local DB via wrapper
 ~/.config/payaus-native-dev/rails db:reset
 ~/.config/payaus-native-dev/rails db:migrate
+~/.config/payaus-native-dev/rails runner '...'
+~/.config/payaus-native-dev/rails console
 
-# Wrong — connects to the SHARED REMOTE DEV DATABASE
-bin/rails db:reset
+# Wrong — shared remote dev DB
+bin/rails db:reset      # would drop the shared developer database
+bin/rails db:migrate    # migrates against shared DB
+bin/rails runner '...'  # arbitrary code against shared DB
+bin/rails console       # interactive session against shared DB
 ```
 
-The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Running destructive DB commands without the wrapper **will drop the shared developer database** — this is the one bash-level thing to be genuinely careful about.
+The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. `bin/rails runner` / `console` / `c` / `db:*` are blocked by `dot_claude/hooks/executable_block-forbidden-git.sh` — the hook exists precisely because this failure mode is so destructive.
 
 ## Restarting the app
 
@@ -227,7 +232,11 @@ To stop all apps: `~/.config/payaus-native-dev/restart` with no argument — run
 
 ## Assets
 
-Use `~/.config/payaus-native-dev/watch` to compile assets (writes to disk, puma-dev serves them). This also runs `yarn install --frozen-lockfile` to ensure packages are up to date before building.
+`~/.config/payaus-native-dev/watch` compiles assets (writes to `public/assets/webpack/`, puma-dev serves them).
+
+- Default: long-running `webpack --watch`. Use for iteration. **Never** launch in `run_in_background` with a piped `tail`/`head`/`grep` — pipe buffering hides the output. If you must stream it, grep `--line-buffered` for webpack's own `compiled .* in \d+ ms` marker.
+- `watch --once`: compile once and exit. Use this before browser verification in a single-session flow (e.g. an agent about to run Chrome MCP).
+- `watch --skip-install`: skip the `yarn install` check when you know the lockfile hasn't changed. (The wrapper already skips automatically when `yarn.lock` mtime hasn't moved since the last install — the flag is for short-circuiting that check itself.)
 
 After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrome MCP) to avoid stale cached bundles.
 

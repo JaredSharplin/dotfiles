@@ -276,7 +276,7 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 
 ### Screenshots
 
-`![image](...)` or "None."
+Leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. The author replaces each with `![image](...)` after browser QA. Use "None." only for pure internal changes.
 
 ### Tone
 
