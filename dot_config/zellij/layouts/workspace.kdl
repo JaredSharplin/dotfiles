@@ -47,7 +47,7 @@ layout {
     tab name="Main" focus=true {
         pane split_direction="vertical" {
             pane size="40%" command="claude" {
-                args "--dangerously-skip-permissions"
+                args "--permission-mode" "auto"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -61,7 +61,7 @@ layout {
 
     tab name="Dotfiles" cwd="~/.local/share/chezmoi" {
         pane command="claude" {
-            args "--dangerously-skip-permissions"
+            args "--permission-mode" "auto"
         }
     }
 }

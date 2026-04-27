@@ -74,7 +74,7 @@ layout {
     tab name="Main" focus=true {
         pane split_direction="vertical" {
             pane size="40%" command="claude" {
-                args "--dangerously-skip-permissions"
+                args "--permission-mode" "auto"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -86,7 +86,7 @@ layout {
     tab name="Slot 1" cwd="~/programming/worktrees/slot-1" {
         pane split_direction="vertical" {
             pane size="40%" command="claude" start_suspended=true {
-                args "--dangerously-skip-permissions"
+                args "--permission-mode" "auto"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -98,7 +98,7 @@ layout {
     tab name="Slot 2" cwd="~/programming/worktrees/slot-2" {
         pane split_direction="vertical" {
             pane size="40%" command="claude" start_suspended=true {
-                args "--dangerously-skip-permissions"
+                args "--permission-mode" "auto"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -110,7 +110,7 @@ layout {
     tab name="Slot 3" cwd="~/programming/worktrees/slot-3" {
         pane split_direction="vertical" {
             pane size="40%" command="claude" start_suspended=true {
-                args "--dangerously-skip-permissions"
+                args "--permission-mode" "auto"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -122,7 +122,7 @@ layout {
     tab name="Code Review" cwd="~/programming/worktrees/code-review" {
         pane split_direction="vertical" {
             pane size="40%" command="claude" start_suspended=true {
-                args "--dangerously-skip-permissions"
+                args "--permission-mode" "auto"
             }
             pane stacked=true size="60%" {
                 pane command="nvim" start_suspended=true
@@ -133,7 +133,7 @@ layout {
 
     tab name="Dotfiles" cwd="~/.local/share/chezmoi" {
         pane command="claude" {
-            args "--dangerously-skip-permissions"
+            args "--permission-mode" "auto"
         }
     }
 }
