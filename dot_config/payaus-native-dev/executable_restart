@@ -25,6 +25,7 @@ def restart_single_app(name)
   restart_file = app_dir.join("tmp", "restart.txt")
   FileUtils.touch(restart_file)
   puts "Touched #{restart_file}"
+  app_dir
 end
 
 def stop_all_apps
@@ -32,21 +33,24 @@ def stop_all_apps
   puts "Sent USR1 to puma-dev (all apps stopped)"
 end
 
-def wait_for_boot(name, timeout: 60)
+# 5xx means Rails is either still booting (502 from puma-dev) or serving
+# errors (500 from a crashed worker). Neither counts as "ready".
+def wait_for_boot(name, app_dir, timeout: 60)
   url = URI("https://#{name}.test/users/sign_in")
   print "Waiting for #{name}.test to boot"
 
   deadline = Time.now + timeout
+  last_response = nil
   loop do
     http = Net::HTTP.new(url.host, url.port)
     http.use_ssl = true
     http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     http.open_timeout = 5
     http.read_timeout = 10
-    response = http.get(url.path)
+    last_response = http.get(url.path)
 
-    if response.code.to_i != 502
-      puts " ready! (HTTP #{response.code})"
+    if last_response.code.to_i < 500
+      puts " ready! (HTTP #{last_response.code})"
       return true
     end
   rescue Errno::ECONNREFUSED, Errno::ECONNRESET, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError
@@ -54,6 +58,8 @@ def wait_for_boot(name, timeout: 60)
   ensure
     if Time.now > deadline
       puts " timed out after #{timeout}s"
+      dump_response_error(last_response)
+      dump_boot_diagnostics(app_dir)
       return false
     end
     print "."
@@ -61,11 +67,49 @@ def wait_for_boot(name, timeout: 60)
   end
 end
 
+# Rails' dev-mode rescue template embeds the exception text in
+# <script id="exception-message-for-copy">. If the boot failed with a
+# proper Rails error (pending migration, missing gem, etc.), this surfaces
+# it directly without the user having to grep logs.
+def dump_response_error(response)
+  return if response.nil? || response.body.to_s.empty?
+
+  match = response.body.match(%r{<script[^>]*id="exception-message-for-copy"[^>]*>(.+?)</script>}m)
+  return unless match
+
+  warn "--- Rails exception from HTTP #{response.code} response ---"
+  warn match[1].strip
+end
+
+# Surface the likely boot failure on timeout — reading the tail of
+# development.log saves the user from having to grep it themselves.
+def dump_boot_diagnostics(app_dir)
+  log = app_dir.join("log", "development.log")
+  unless log.exist?
+    warn "(no log file at #{log} — can't surface diagnostics)"
+    return
+  end
+
+  tail = IO.popen(["tail", "-500", log.to_s]) { |io| io.read }
+  lines = tail.each_line
+    .map { |l| l.gsub(/\e\[[\d;]*m/, "") } # strip ANSI color codes
+    .reject { |l| l.match?(/\A\s*(SELECT|INSERT|UPDATE|DELETE|BEGIN|COMMIT|ROLLBACK)\b/i) }
+    .select { |l| l.match?(/FATAL|\w+(?:::\w+)*Error\b|Exception:| Completed 5\d\d /) }
+    .last(20)
+
+  warn "--- Recent error/fatal/exception lines from #{log.basename} ---"
+  if lines.empty?
+    warn "(no matching lines in last 500 lines — boot may be hanging rather than erroring)"
+  else
+    lines.each { |line| warn line.chomp }
+  end
+end
+
 app_name = ARGV[0]
 
 if app_name
-  restart_single_app(app_name)
-  wait_for_boot(app_name)
+  app_dir = restart_single_app(app_name)
+  wait_for_boot(app_name, app_dir)
 else
   stop_all_apps
   # Can't wait for boot without knowing which app — they boot on next request
