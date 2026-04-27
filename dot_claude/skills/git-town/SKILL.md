@@ -52,8 +52,8 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 - Before creating PRs
 - After main branch updates
 **Options:**
-- `git town sync` - Syncs current branch only
-- `git town sync --stack` (or `-s`) - Syncs entire stack (use regularly to prevent phantom merge conflicts)
+- `git town sync --stack` (or `-s`) - Syncs entire stack. **Use this whenever there's more than one branch in the stack** (current branch has a parent other than master, or has children). Plain `sync` on a stacked branch leaves siblings/descendants stale and produces phantom merge conflicts.
+- `git town sync` - Syncs current branch only. Use only for a lone branch off master with no children.
 **Warning:** Don't use `--stack` on master - it will sync all branches
 
 ### `git town append <branch-name>`
