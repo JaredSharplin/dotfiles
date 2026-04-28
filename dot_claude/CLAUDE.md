@@ -176,13 +176,24 @@ For everything else, use the alternative — these aren't judgment calls:
 
 | Don't use                                   | Use instead                                    | Why                                                             |
 |---------------------------------------------|------------------------------------------------|-----------------------------------------------------------------|
-| `bin/dev`*                                  | Native dev setup (`~/.config/payaus-native-dev/`) | Native dev is the default path for this developer; see below |
+| `bin/dev` for app dev (server, migrate, watch) | Native dev setup (`~/.config/payaus-native-dev/`) | Native dev is the default path for this developer; see below |
 | `bin/rails runner`, `bin/rails console`, `bin/rails c`, `bin/rails db:*` | Native dev wrapper (`~/.config/payaus-native-dev/rails ...`) for local DB work; Grep/Read for code exploration; write a test for verification | **Hits the shared remote dev DB.** Hook-enforced — see `dot_claude/hooks/` |
 | `sed -i`, `awk -i`, `perl -i`, `ruby -i`    | Read + Edit tools                              | Inline edits frequently introduce syntax errors, hard to reverse |
 | `rm`                                        | `trash`                                        | Recoverable                                                      |
 | `chezmoi apply --force`                     | `chezmoi apply` with review                    | Silently overwrites uncommitted edits                            |
 
-*Except `bin/dev console` for read-only queries via the `/dev-console` skill.
+## Bug investigation against the remote dev box
+
+Most dev work for this developer is **local** (native dev or Docker, with isolated local DBs). The remote dev box is only used for **bug investigation** that requires the shared, prod-scrubbed dataset — typically reproducing a customer-reported issue.
+
+The remote dev box is wired to the **main repo only** (`~/programming/payaus`). It does **not** work in worktrees. If a bug-investigation step needs `bin/dev`, switch to the main repo first.
+
+For read-only investigation, the project ships a `/dev-console` skill in `payaus/.claude/skills/dev-console/`. That skill is the canonical contract:
+- `bin/dev runner "..."` — preferred for one-shot reads (no interactive session)
+- `bin/dev console --sandbox` — interactive REPL; `--sandbox` rolls back any accidental DB writes on exit
+- Strict banned-methods list (no `save`, `update`, `create`, `destroy`, etc.) enumerated in the skill
+
+These commands are allowed for read-only use. They are *not* in the same risk class as `bin/rails runner`/`console`, which connect to the shared DB without sandbox protection and are hook-enforced as forbidden.
 
 # Native local development (puma-dev)
 
@@ -206,7 +217,7 @@ The main repo uses `payaus` → `https://payaus.test`. Worktrees use their direc
 
 ## Rails commands in native local dev
 
-**The core distinction:** `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. Any command that touches the DB or executes Ruby (`db:*`, `runner`, `console`) must go through the wrapper. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB.
+**The core distinction:** bare `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. For DB-touching or Ruby-executing rails commands (`bin/rails db:*`, `bin/rails runner`, `bin/rails console`), use the wrapper. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB. (`bin/dev console` and `bin/dev runner` are a separate path — see *Bug investigation against the remote dev box* above.)
 
 ```bash
 # Correct — local DB via wrapper
@@ -222,7 +233,7 @@ bin/rails runner '...'  # arbitrary code against shared DB
 bin/rails console       # interactive session against shared DB
 ```
 
-The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. `bin/rails runner` / `console` / `c` / `db:*` are blocked by `dot_claude/hooks/executable_block-forbidden-git.sh` — the hook exists precisely because this failure mode is so destructive.
+The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Bare `bin/rails runner` / `console` / `c` / `db:*` are blocked by `dot_claude/hooks/executable_block-forbidden-git.sh` — the hook exists precisely because this failure mode is so destructive. The hook does **not** block `bin/dev console` / `bin/dev runner`, which are sandboxed/read-only and used for bug investigation against prod-shaped data via the project's `/dev-console` skill.
 
 ## Restarting the app
 
