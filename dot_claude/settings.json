@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "defaultMode": "auto"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -18,8 +21,5 @@
   },
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true,
-  "permissions": {
-    "defaultMode": "auto"
-  }
+  "skipAutoPermissionPrompt": true
 }

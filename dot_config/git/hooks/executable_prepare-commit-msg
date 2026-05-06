@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Adds [skip ci] to git-town sync merge commits when no PR exists for the branch.
+# Buildkite skips builds with [skip ci] in the HEAD commit message of a push.
+# See ~/.claude/CLAUDE.md "Saving CI builds with [skip ci]" for the full workflow.
+
+msg_file=$1
+src=$2
+[[ "$src" != "merge" ]] && exit 0
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null) || exit 0
+gh pr view "$branch" --json number 2>/dev/null | grep -q '"number"' && exit 0
+
+read -r first < "$msg_file"
+[[ "$first" =~ ^Merge\ branch\ \' ]] || exit 0
+grep -qE '\[(skip ci|ci skip)\]' "$msg_file" && exit 0
+
+ed -s "$msg_file" <<< $'1s/$/ [skip ci]/\nw'
