@@ -3,15 +3,17 @@
 
 # Set up native local development (puma-dev) for a payaus worktree.
 #
-# Deploys .pumaenv + Rails initializer + puma-dev symlink so the worktree
-# is accessible at https://<name>.test.
+# Deploys .pumaenv + Rails initializer + puma-dev symlink, then compiles
+# assets with `watch --once`, so the worktree is browser-ready at
+# https://<name>.test.
 #
 # Usage:
-#   setup-worktree.rb <name>           # set up worktree or main repo
+#   setup-worktree.rb [<name>]          # defaults to basename of cwd
 #   setup-worktree.rb --teardown <name> # remove puma-dev symlink
-#   setup-worktree.rb --list           # show current puma-dev symlinks
+#   setup-worktree.rb --list            # show current puma-dev symlinks
 #
 # Examples:
+#   setup-worktree.rb                  # from inside a worktree, infers name
 #   setup-worktree.rb payaus           # main repo → https://payaus.test
 #   setup-worktree.rb slot-1           # worktree  → https://slot-1.test
 #   setup-worktree.rb --teardown slot-1
@@ -42,14 +44,25 @@ def setup(name)
   verify_pumaenv_safety(worktree_path)
   deploy_initializer(worktree_path)
   create_symlink(name, worktree_path)
+  compile_assets(worktree_path)
 
   puts ""
   puts "Native dev ready: https://#{domain}"
   puts "  .pumaenv deployed (BOOT_WITHOUT_SECRETS=true verified)"
   puts "  initializer deployed"
   puts "  puma-dev symlink created"
+  puts "  assets compiled"
   puts ""
-  puts "Next: cd #{worktree_path} && source .pumaenv && yarn watch"
+  puts "For iterative work, start `watch` (persistent) from #{worktree_path}."
+end
+
+def compile_assets(worktree_path)
+  puts ""
+  puts "== Compiling assets (watch --once) =="
+  watch_script = File.join(CONFIG_DIR, "watch")
+  Dir.chdir(worktree_path) do
+    system(watch_script, "--once", exception: true)
+  end
 end
 
 def verify_pumaenv_safety(worktree_path)
@@ -155,6 +168,6 @@ elsif options[:teardown]
   name = ARGV[0] || abort("ERROR: provide worktree name")
   teardown(name)
 else
-  name = ARGV[0] || abort("ERROR: provide worktree name (e.g. 'payaus', 'slot-1')")
+  name = ARGV[0] || File.basename(Dir.pwd)
   setup(name)
 end

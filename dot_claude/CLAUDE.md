@@ -208,12 +208,21 @@ This developer has native local dev set up using puma-dev. It can be used in the
 ## Setup a directory for native dev
 
 ```bash
-~/.config/payaus-native-dev/setup-worktree.rb <name>  # e.g. payaus, slot-1
+~/.config/payaus-native-dev/setup-worktree.rb        # from inside a worktree, infers name from basename
+~/.config/payaus-native-dev/setup-worktree.rb slot-1 # explicit name
 ```
 
-This deploys `.pumaenv` + initializer + puma-dev symlink. The app is then available at `https://<name>.test`.
+Deploys `.pumaenv` + initializer + puma-dev symlink, then runs `watch --once` to compile assets. After it finishes, the worktree is browser-ready at `https://<name>.test`.
 
 The main repo uses `payaus` → `https://payaus.test`. Worktrees use their directory name (e.g. `slot-1` → `https://slot-1.test`).
+
+## Ephemeral worktrees from agent view
+
+When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolation: "worktree")`, and `claude --worktree`), the new worktree lands at `~/programming/worktrees/<name>/` — same path as manually-created worktrees. Payaus's `WorktreeCreate` hook (`.claude/hooks/worktree-create.rb`) routes through `bin/manage-worktrees`, so dependencies and a per-worktree test database are installed automatically. `bin/rails test` works inside immediately.
+
+Native dev is *not* set up by that hook — it's opt-in. When a task in an ephemeral worktree needs browser verification, run `setup-worktree.rb` (no args) from inside the worktree.
+
+**Shared dev DB caveat:** all worktrees share `payaus_development` and `payaus_jobsdb_development`. Per-worktree isolation only applies to the *test* DB (via `TEST_ENV_NUMBER`). Two parallel browser-verifying sessions on branches with incompatible migrations will clash on the dev DB — uncommon but worth knowing.
 
 ## Rails commands in native local dev
 
@@ -238,6 +247,8 @@ The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without t
 ## Restarting the app
 
 Use `~/.config/payaus-native-dev/restart slot-1`. This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
+
+**Never pipe `restart` through `tail`/`head`.** On boot failure, the script already surfaces the Rails exception by parsing the dev-mode error page — the exception class and message print first, the middleware stack last. `tail -N` chops off the cause and leaves you staring at middleware noise. If output is too long, redirect to a file and read it with the Read tool. The `(no log file at … — can't surface diagnostics)` line is normal on first boot of an ephemeral worktree and not the error.
 
 To stop all apps: `~/.config/payaus-native-dev/restart` with no argument — runs `puma-dev -stop`.
 
@@ -366,8 +377,23 @@ Before editing:
 2. Make incremental changes — modify only the specific section you need to change
 3. If adding a new section, append rather than rewriting everything
 
+# Shape docs
+
+Shape Up planning lives at `~/notes/shaping/<project>/`. Standard files:
+
+- `frame.md` — the pitch: source quote, problem, appetite, no-gos
+- `shaping.md` — current state, outcome-framed requirements (R0..Rn), rabbit holes, fat-marker sketch
+- `slices.md` — vertical slices (V1..Vn), each ending in a concrete demo
+- `spike-*.md` — focused technical investigations referenced from the above
+- `V<n>-pr-stack.md` — per-slice PR stack mapping (added when a slice goes into flight)
+
+When picking up work on a slice, read at least `frame.md`, `slices.md`, and the relevant `V<n>-pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Spikes are background — read the ones a slice or stack explicitly cites.
+
+Frontmatter `shaping: true` marks these files so tooling can find them.
+
 # Working style
 
 - When I reference a documentation file, read the entire file in one pass — don't chunk for token savings. Thoroughness beats token efficiency for technical docs.
 - When you think I'm wrong or asking for the wrong thing, say so before acting on it.
 - If a rule here doesn't fit the current context, flag it — these are guidelines for the common case, not traps.
+- **Use the AskUserQuestion tool to ask questions.** Don't present options as prose menus.
