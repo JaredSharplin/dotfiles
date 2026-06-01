@@ -208,13 +208,13 @@ This developer has native local dev set up using puma-dev. It can be used in the
 ## Setup a directory for native dev
 
 ```bash
-~/.config/payaus-native-dev/setup-worktree.rb        # from inside a worktree, infers name from basename
-~/.config/payaus-native-dev/setup-worktree.rb slot-1 # explicit name
+~/.config/payaus-native-dev/setup-worktree.rb            # from inside a worktree, infers name from basename
+~/.config/payaus-native-dev/setup-worktree.rb my-feature # explicit name
 ```
 
 Deploys `.pumaenv` + initializer + puma-dev symlink, then runs `watch --once` to compile assets. After it finishes, the worktree is browser-ready at `https://<name>.test`.
 
-The main repo uses `payaus` → `https://payaus.test`. Worktrees use their directory name (e.g. `slot-1` → `https://slot-1.test`).
+The main repo uses `payaus` → `https://payaus.test`. Worktrees use their directory name (e.g. `my-feature` → `https://my-feature.test`).
 
 ## Ephemeral worktrees from agent view
 

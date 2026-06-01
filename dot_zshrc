@@ -41,9 +41,6 @@ workspace() {
   fi
   local session="${PWD##*/}"
   local layout=~/.config/zellij/layouts/workspace.kdl
-  if [[ "$PWD" == */payaus* ]]; then
-    layout=~/.config/zellij/layouts/workspace-payaus.kdl
-  fi
   if zellij list-sessions --no-formatting 2>/dev/null | grep "^${session} " | grep -qv EXITED; then
     zellij attach "$session"
     return

@@ -4,23 +4,23 @@ This is a [chezmoi](https://www.chezmoi.io/)-managed dotfiles repository. Source
 
 ## Development Workflow Architecture
 
-The dotfiles implement a slot-based parallel development workflow using Zellij and git worktrees.
-
-### Core Concept
-
-3 **slots** (persistent worktree directories at `~/programming/worktrees/slot-{1..3}`) serve as parallel workspaces, plus a dedicated **Code Review** worktree at `~/programming/worktrees/code-review`.
+Parallel development runs through Claude Code's **agent view** (`claude agents`). Each dispatched
+session auto-isolates into its own git worktree, so multiple tasks run concurrently without a
+persistent slot setup. Worktrees land under `~/programming/worktrees/<name>/`; the main payaus repo
+at `~/programming/payaus` keeps `master` checked out as a clean baseline (and is where shared-dev-DB
+rails console and exploratory sessions run).
 
 ### Session Startup
 
-The `workspace` shell function (in `dot_zshrc`) launches or reattaches a Zellij session using a layout file. It picks `workspace-payaus.kdl` if inside a payaus directory, otherwise `workspace.kdl`. Both layouts define:
+The `workspace` shell function (in `dot_zshrc`) launches or reattaches a Zellij session using
+`workspace.kdl`. That layout defines:
 
 - **Main tab** — Claude + nvim/lazygit stack
-- **Slot 1–3 tabs** — each with a Claude pane, nvim, and lazygit, rooted at their worktree directory
-- **Code Review tab** — dedicated worktree for reviewing others' PRs
 - **Dotfiles tab** — Claude session for this repo
 - **zjstatus bar** — tabs on left, session + datetime on right
 
-The payaus layout also has a **Server tab** for tunnel/server/webpack/worker. The `dev-server` function recreates this tab dynamically using `server.kdl`.
+Zellij is now a lightweight local session shell; parallel agent orchestration lives in agent view,
+not in per-slot Zellij tabs.
 
 ### PR Workflow
 
@@ -35,7 +35,7 @@ All PRs start as drafts. GitHub is the source of truth for PR status:
 
 ### zjstatus (Zellij Status Bar)
 
-Configured in workspace layout files. Uses the [zjstatus](https://github.com/dj95/zjstatus) WASM plugin with gruvbox-dark colors. Tab dividers use dim gray (`#665c54`). Claude Code session status is piped via `pipe_status`.
+Configured in `workspace.kdl`. Uses the [zjstatus](https://github.com/dj95/zjstatus) WASM plugin with gruvbox-dark colors. Tab dividers use dim gray (`#665c54`). Claude Code session status is piped via `pipe_status`.
 
 ## Chezmoi Naming Conventions
 

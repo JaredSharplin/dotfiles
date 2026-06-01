@@ -30,8 +30,8 @@ chezmoi init --apply https://github.com/jaredsharplin/dotfiles.git
 ## Zellij Layouts
 
 - **`workspace.kdl`** — Main + Dotfiles tabs
-- **`workspace-payaus.kdl`** — Server + Main + Slots + Code Review + Dotfiles tabs
-- **`server.kdl`** — Payaus dev server (tunnel/server/webpack/worker)
+
+Parallel dev work runs through Claude Code's agent view (`claude agents`), not per-slot Zellij tabs.
 
 ## Repo Structure
 
