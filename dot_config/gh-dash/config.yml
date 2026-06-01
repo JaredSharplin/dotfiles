@@ -75,7 +75,9 @@ keybindings:
     # "Needs My Review" (review-requested:@me). Uses my literal login: gh only
     # expands "@me" for --add-assignee, not --add-reviewer. No-op-with-error on
     # my own PRs (GitHub blocks requesting review from the author).
-    - key: R
+    # Key "+" = "add a reviewer"; kept off the letter row to avoid the m=merge
+    # neighbourhood. R/r (refresh) and m (merge) are taken by gh-dash.
+    - key: "+"
       name: request-my-review
       command: gh pr edit {{.PrNumber}} --repo {{.RepoName}} --add-reviewer JaredSharplin
   branches: []
