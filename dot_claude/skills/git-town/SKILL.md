@@ -19,6 +19,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
 | Create PR for current branch | `git town propose --title ... --body ...` | Then `gh pr edit` to add assignee + labels |
+| Push branch/stack to remote | `git town sync --push` | Pushing is off by default — see "Pushing (off by default)" |
 | Switch to parent branch | `git town down` | Move down the stack |
 | Switch to child branch | `git town up` | Move up the stack |
 | Fix something on a parent branch | See "Making Changes on a Parent Branch" | Stash → down → fix → sync → up → pop → sync |
@@ -26,6 +27,17 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
 | Watch someone's branch (read-only) | `git town observe <branch>` | Pull only, don't push |
+
+## Pushing (off by default)
+
+Pushing is **off by default** (`push-branches = false` in global git config). This is deliberate: routine syncs shouldn't burn Buildkite CI builds.
+
+- `git town sync` (and `sync -s`) update branches **locally only** — they do **not** push to the remote.
+- To push on purpose: **`git town sync --push`** (overrides the config for that run). Use `git town sync -s --push` to push the whole stack.
+- `git town propose` **always pushes** — it has to, in order to open the PR. So proposing a branch is also how its first push (and first CI run) happens.
+- `observe` branches never push regardless (they're read-only).
+
+Rule of thumb: sync freely to stay up to date; push only when you actually want the remote / PR updated or CI to run.
 
 ## When to Use Git Town vs Standard Git
 
@@ -106,7 +118,7 @@ git town down
 git add <specific files>
 git commit -m "Fix description"
 
-# 4. Sync the parent branch (pushes changes)
+# 4. Sync the parent branch (local only — does not push)
 git town sync
 
 # 5. Switch back to the child branch
@@ -144,9 +156,11 @@ When adopting an existing PR or working on a colleague's branch, use git town's 
 
 | Type | `sync` pulls from remote? | `sync` syncs with parent? | `sync` pushes? | Use when... |
 |------|--------------------------|--------------------------|----------------|-------------|
-| `feature` (default) | Yes | Yes | Yes | You own the branch — full control |
-| `contribute` | Yes | No | Yes | Collaborating — the other dev manages parent sync |
-| `observe` | Yes | No | No | Read-only — just tracking their progress |
+| `feature` (default) | Yes | Yes | Only with `--push` | You own the branch — full control |
+| `contribute` | Yes | No | Only with `--push` | Collaborating — the other dev manages parent sync |
+| `observe` | Yes | No | Never | Read-only — just tracking their progress |
+
+The "`sync` pushes?" column reflects this setup's `push-branches = false`: plain `sync` never pushes for any type. For `feature`/`contribute`, add `--push` when you want to push; `observe` branches never push.
 
 ### Adopting a Stale/Abandoned PR
 
@@ -178,7 +192,8 @@ git checkout <branch-name>
 # Contribute mode: push your changes, but let them manage parent sync
 git town contribute <branch-name>
 
-git town sync   # pulls their latest changes, pushes yours, skips parent sync
+git town sync          # pulls their latest changes, skips parent sync (local only)
+git town sync --push   # when you want to push your changes back to share them
 ```
 
 Use `contribute` because the other dev is still responsible for rebasing onto parent.
@@ -211,6 +226,16 @@ git town feature <branch-name>
 
 Derived from analysis of Jared's PRs written before May 2025 (pre-Claude). Always match this style exactly.
 
+### Length & Language (read this first)
+
+These two rules override the urge to be thorough. PR bodies here are short and human, not exhaustive.
+
+- **Short by default.** A reviewer should be able to read the whole body in under ~30 seconds. When in doubt, cut. The diff carries the detail — the body just frames it.
+- **Plain English, like you'd explain it to a teammate out loud** — not architecture documentation. No engineering jargon or implementation vocabulary ("refactored", "extracted", "wired up", "leverages", "abstraction", "encapsulates"), and no class / method / file names in the body. Those belong in the diff or as inline review comments.
+- **No padding.** Don't restate the title. Don't open with "This PR…". Don't walk through the changes file-by-file or commit-by-commit.
+
+If the body reads like a changelog of code edits, rewrite it as a couple of plain sentences about what changed for the user or the system.
+
 ### Title Format
 
 Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
@@ -241,19 +266,20 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 
 ### Background
 
+- **2–4 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the motivation and the outcome.
 - Start from the motivation: the reported problem (bug) or the product need (feature)
-- Tell the story: what was observed or requested → what was investigated or designed → what this PR does about it
+- Briefly: what was observed or requested → what this PR does about it
 - Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
 - Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
-- Prose paragraphs, not bullet points
+- Prose, not bullet points
 - Use `NOTE:` callouts inline for important constraints
 
 ### Features / Changes
 
-- Each bullet is one impactful change described in general terms — what the user or system now does differently
+- A few short bullets, each one impactful change in plain user-facing terms — what the user or system now does differently
 - Keep it short. A reviewer skimming the list should understand the PR's impact in seconds
 - No code specifics — no method names, class names, file paths, parameter changes, or implementation details. The diff is right there
-- If an implementation detail needs reviewer attention, add it as an inline comment on the diff, not in the PR body
+- If it reads like a changelog of code edits, rewrite it. If an implementation detail needs reviewer attention, add it as an inline comment on the diff, not in the PR body
 
 > **Wrong**: Changed `allowance_tag_options` to accept the template as a kwarg instead of hardcoding `employment_condition_set_template`
 >
@@ -277,6 +303,42 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 ### Screenshots
 
 Leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. The author replaces each with `![image](...)` after browser QA. Use "None." only for pure internal changes.
+
+#### Capturing during final QA
+
+When taking screenshots via Chrome DevTools MCP for the placeholders above, decide the final destination up front — don't dump them somewhere intermediate and reorganise later.
+
+**Destination:** `~/Desktop/<branch-slug>-screenshots/`, where `<branch-slug>` is the current branch name with `/` replaced by `-` (so `feature/mds-v4-edit` → `feature-mds-v4-edit`). Per-branch subfolder is easy to drag from when filling in the PR body, and easy to delete after merge.
+
+**Filenames:** slugify the screenshot prompt verbatim. A placeholder of `_<!-- Edit this week, daily view -->_` becomes `edit-this-week-daily.png`. Self-describing filenames let you match files to PR prompts by sight — no index, no guessing order.
+
+**Workflow.** Chrome DevTools MCP's `take_screenshot` has a restrictive `filePath` allowlist that rejects `~/Desktop/...`, `$CLAUDE_JOB_DIR`, and most paths you'd want. The macOS system temp dir (`$TMPDIR`, resolves to `/var/folders/.../T/`) is always accepted and is the right intermediate.
+
+`take_screenshot` takes a literal string, not a shell expression — so resolve `$TMPDIR` and the branch slug to concrete values *before* the screenshot call, then reuse them:
+
+```bash
+# Resolve once at the start of QA
+TMP=$(echo -n "$TMPDIR")                            # e.g. /var/folders/zz/abc.../T/
+SLUG=$(git branch --show-current | tr '/' '-')      # e.g. feature-mds-v4-edit
+DEST="$HOME/Desktop/${SLUG}-screenshots"
+mkdir -p "$DEST"
+echo "TMP=$TMP  DEST=$DEST"                         # capture the resolved values
+```
+
+Then per screenshot, using the resolved literals:
+
+```
+take_screenshot filePath=/var/folders/zz/abc.../T/edit-this-week-daily.png
+```
+
+```bash
+mv /var/folders/zz/abc.../T/edit-this-week-daily.png \
+   /Users/<you>/Desktop/feature-mds-v4-edit-screenshots/edit-this-week-daily.png
+```
+
+**Never `cd` to do the move.** `cd` mutates persistent cwd, and downstream `git` / `gh` commands then silently target the wrong repo. `mv` with absolute paths doesn't need a cwd change.
+
+Don't use any repo's `tmp/` directory as an intermediate — it leaves stray files in the repo and forces a later move anyway. System temp → final destination, one move.
 
 ### Tone
 
@@ -462,5 +524,5 @@ gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-aust
 - Branch naming: feature/task-description or feature/task-id-description
 - Standard workflow: 1) Check current branch, 2) Create feature branch, 3) Implement code, 4) Write tests, 5) Commit
 - **`git town propose` syncs the branch automatically — no need to run `git town sync` before proposing**
-- **Only run `git town sync` when explicitly asked to push**
+- **`git town sync` does NOT push (pushing is off by default) — push deliberately with `git town sync --push`**
 - **NEVER use `git push` directly**

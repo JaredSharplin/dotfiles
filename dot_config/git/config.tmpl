@@ -51,6 +51,30 @@
 	enabled = true           # Record and reuse conflict resolutions
 	autoupdate = true        # Apply stored conflict resolutions automatically
 
+# Personal git-town preferences. Repo-specific keys (main-branch, forge-type,
+# github-connector) stay per-repo / auto-detected — not set here.
+[git-town]
+	sync-feature-strategy = merge      # merge, not compress/rebase: never rewrites history, so push-branches=false stays conflict-free
+	sync-prototype-strategy = rebase
+	sync-perennial-strategy = ff-only
+	push-branches = false              # syncs don't push (saves CI); push deliberately with `git town sync --push`
+	share-new-branches = no
+	ship-strategy = api
+	ship-delete-tracking-branch = false
+	sync-tags = false
+	sync-upstream = true
+	auto-sync = true
+	detached = false
+	push-hook = true
+	stash = true
+	ignore-uncommitted = false
+	interactive = true
+	new-branch-type = feature
+	unknown-branch-type = feature
+	order = asc
+	proposal-breadcrumb = stacks
+	proposal-breadcrumb-direction = down
+
 [alias]
 	# Basic aliases
 	co = checkout
@@ -73,3 +97,6 @@
 	set-parent = town set-parent
 	sync = town sync
 	rename = town rename
+	continue = town continue
+	down = town down
+	up = town up

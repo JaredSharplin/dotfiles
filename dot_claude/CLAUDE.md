@@ -297,23 +297,14 @@ Use git town for branch management. Invoke the `/git-town` skill for detailed st
 - **`git town sync`** only when explicitly asked
 - A "commit and push" request in one message doesn't mean keep syncing after every subsequent change
 
-## Saving CI builds with `[skip ci]`
+## CI builds and pushing
 
-Buildkite triggers on every push regardless of PR status, so intermediate `git town sync` runs burn builds. Two layers handle this:
+Pushing is off by default (`push-branches = false` in global git config), which is what keeps CI spend down — no `[skip ci]` machinery needed. `git town sync` updates branches **locally only** and does not push, so intermediate syncs burn no Buildkite builds. The pushes that do happen are deliberate:
 
-**Automatic — git-town sync merge commits.** A `prepare-commit-msg` hook (deployed via chezmoi at `~/.config/git/hooks/prepare-commit-msg`) appends `[skip ci]` to git-town-style merge commits (`Merge branch '...' into ...`) when no PR exists for the current branch. This handles the unfixable case where master/parent drift creates an auto-generated merge commit you can't amend. Once a PR is open, the hook stops adding the marker so drift pull-ins still get CI signal.
+- `git town propose` pushes once when opening the PR — that's the build you want.
+- `git town sync --push` pushes on purpose (e.g. to update an open PR with newly-synced changes).
 
-**Manual — intermediate WIP commits.** Only add `[skip ci]` to a commit subject when the commit will be HEAD of a `git town sync` push *before* a PR exists. Decide based on the next action:
-
-- Next action is `git town propose` → **no** `[skip ci]`. Propose's push needs CI.
-- Next action is `git town sync` (backup, sharing, drift pull-in) with no PR yet → **add** `[skip ci]`.
-- Unsure / no immediate next action → **no** `[skip ci]`. The merge-commit hook covers the common case anyway; an unwanted CI run is cheaper than a missed signal.
-
-Example: `Refactor scheduling logic [skip ci]`
-
-**`git town propose` workflow.** The propose-time merge commit will get `[skip ci]` from the hook (no PR exists yet at sync time). After the PR opens, push an empty trigger commit so reviewers see a running build — see the **Creating PRs** section below for the full command sequence.
-
-**Squash-merge to master strips per-commit messages**, so `[skip ci]` on a feature commit cannot leak to master CI.
+The feature sync strategy is `merge` (not compress/rebase), so syncs never rewrite history — a later push is always a clean fast-forward. There is no `[skip ci]` hook.
 
 ## Git town behavior
 
@@ -348,16 +339,9 @@ Don't use `--patch` — it shows individual commit patches, not the net PR diff.
 ```bash
 git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
-
-# If propose's sync created a merge commit, the hook stamped it with [skip ci].
-# Check the tip — if so, push an empty trigger so the PR opens with a running build:
-if git log -1 --pretty=%s | grep -q '\[skip ci\]'; then
-  git commit --allow-empty -m "Run CI"
-  git town sync
-fi
 ```
 
-`git town propose` syncs the branch and opens the PR in one step — no separate `git town sync` needed before propose. The conditional empty-commit-and-sync only fires when propose's sync had to merge in parent changes; if the branch was already up to date, propose pushes the original commits and CI runs on them directly. See **Saving CI builds with `[skip ci]`** above for the full mechanism.
+`git town propose` syncs the branch, pushes it, and opens the PR in one step — no separate `git town sync` needed before propose, and its push is what triggers CI on the PR.
 
 Every PR must have (set via `gh pr edit` after create):
 
