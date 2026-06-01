@@ -226,7 +226,7 @@ Native dev is *not* set up by that hook — it's opt-in. When a task in an ephem
 
 ## Rails commands in native local dev
 
-**The core distinction:** bare `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. For DB-touching or Ruby-executing rails commands (`bin/rails db:*`, `bin/rails runner`, `bin/rails console`), use the wrapper. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB. (`bin/dev console` and `bin/dev runner` are a separate path — see *Bug investigation against the remote dev box* above.)
+**The core distinction:** bare `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. For DB-touching or Ruby-executing rails commands (`bin/rails db:*`, `bin/rails runner`, `bin/rails console`, `bin/rails rails_rbi:*`), use the wrapper. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB. (`bin/dev console` and `bin/dev runner` are a separate path — see *Bug investigation against the remote dev box* above.)
 
 ```bash
 # Correct — local DB via wrapper
@@ -234,19 +234,46 @@ Native dev is *not* set up by that hook — it's opt-in. When a task in an ephem
 ~/.config/payaus-native-dev/rails db:migrate
 ~/.config/payaus-native-dev/rails runner '...'
 ~/.config/payaus-native-dev/rails console
+~/.config/payaus-native-dev/rails rails_rbi:helpers   # regenerate sorbet/rails-rbi/*.rbi
 
 # Wrong — shared remote dev DB
 bin/rails db:reset      # would drop the shared developer database
 bin/rails db:migrate    # migrates against shared DB
 bin/rails runner '...'  # arbitrary code against shared DB
 bin/rails console       # interactive session against shared DB
+bin/rails rails_rbi:*   # boots Rails against shared DB to introspect helpers/models
 ```
+
+**RBI regeneration is surgical, not bulk.** When Sorbet complains about a missing method on a new helper/model/route (e.g. `_()` not resolving on a new helper because `include Kernel` isn't injected yet), the fix is to update the relevant `sorbet/rails-rbi/*.rbi` file — *not* to add `include Kernel`, a `T.unsafe`, or any inline workaround.
+
+For models, **always pass the model name(s)** as task args. Bare `rails_rbi:models` regenerates every model RBI and produces a huge noisy diff. The task accepts a comma-separated list:
+
+```bash
+~/.config/payaus-native-dev/rails 'rails_rbi:models[DataStream::Join]'
+~/.config/payaus-native-dev/rails 'rails_rbi:models[Foo,Bar::Baz]'
+```
+
+(Quote the whole task arg — zsh interprets `[...]` as a glob.)
+
+The other `rails_rbi:*` tasks don't take per-item args, but each only touches its own category of files (so the diff stays contained):
+
+- `rails_rbi:helpers` → regenerates `sorbet/rails-rbi/helpers/*.rbi` only
+- `rails_rbi:routes` → regenerates the routes RBI only
+- `rails_rbi:mailers` → mailer RBIs only
+- `rails_rbi:jobs` → job RBIs only
+- `rails_rbi:active_record` → AR base RBI only
+
+`rails_rbi:all` is off the table for fixing a single Sorbet error — it regenerates everything.
+
+If a regen still touches an RBI file you didn't expect, revert that file: `git checkout -- sorbet/rails-rbi/<file>.rbi`. A noisy multi-file RBI churn in a PR diff is a bug, not normal — if you can't articulate why an RBI was touched, revert it.
+
+**Migration file mutations are suppressed on native dev.** Upstream, `config/initializers/02_configuration/migration_timings.rb` prepends `MigrationTimings` to `ActiveRecord::Migration` and writes debug timing comments back into each migration `.rb` file on every `:up` run in development. That's signal on a prod-shaped dev box but pure noise on a tiny seeded local DB. The native-dev initializer (`~/.config/payaus-native-dev/initializer.rb`, deployed as `config/initializers/99_local_native_dev.rb` by `setup-worktree.rb`) no-ops `MigrationTimings#log_migration_timings` and `#clear_migration_timings` when `RUNNING_LOCAL_NATIVE_ENV=true`, so migrations run normally but never touch their own files. If you ever see migration-file diffs after `db:migrate`, the override isn't loaded — check that the worktree has `config/initializers/99_local_native_dev.rb` and `.pumaenv` exports `RUNNING_LOCAL_NATIVE_ENV=true`.
 
 The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Bare `bin/rails runner` / `console` / `c` / `db:*` are blocked by `dot_claude/hooks/executable_block-forbidden-git.sh` — the hook exists precisely because this failure mode is so destructive. The hook does **not** block `bin/dev console` / `bin/dev runner`, which are sandboxed/read-only and used for bug investigation against prod-shaped data via the project's `/dev-console` skill.
 
 ## Restarting the app
 
-Use `~/.config/payaus-native-dev/restart slot-1`. This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
+Use `~/.config/payaus-native-dev/restart my-feature`. This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
 
 **Never pipe `restart` through `tail`/`head`.** On boot failure, the script already surfaces the Rails exception by parsing the dev-mode error page — the exception class and message print first, the middleware stack last. `tail -N` chops off the cause and leaves you staring at middleware noise. If output is too long, redirect to a file and read it with the Read tool. The `(no log file at … — can't surface diagnostics)` line is normal on first boot of an ephemeral worktree and not the error.
 

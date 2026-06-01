@@ -35,12 +35,21 @@ end
 
 # 5xx means Rails is either still booting (502 from puma-dev) or serving
 # errors (500 from a crashed worker). Neither counts as "ready".
+#
+# Sustained 5xx is a separate failure: puma is up but wedged — workers stuck
+# mid-request ignore the graceful restart from tmp/restart.txt. After
+# WEDGE_THRESHOLD consecutive 5xx polls (~10s) we force-kill the app's puma
+# processes once, then keep polling while puma-dev cold-boots.
+WEDGE_THRESHOLD = 5
+
 def wait_for_boot(name, app_dir, timeout: 60)
   url = URI("https://#{name}.test/users/sign_in")
   print "Waiting for #{name}.test to boot"
 
   deadline = Time.now + timeout
   last_response = nil
+  consecutive_5xx = 0
+  force_killed = false
   loop do
     http = Net::HTTP.new(url.host, url.port)
     http.use_ssl = true
@@ -53,8 +62,16 @@ def wait_for_boot(name, app_dir, timeout: 60)
       puts " ready! (HTTP #{last_response.code})"
       return true
     end
+
+    consecutive_5xx += 1
+    if consecutive_5xx >= WEDGE_THRESHOLD && !force_killed
+      print " [wedged at HTTP #{last_response.code}, force-killing puma]"
+      force_kill_app_puma(name)
+      force_killed = true
+    end
   rescue Errno::ECONNREFUSED, Errno::ECONNRESET, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError
-    # App still booting
+    # App still booting / cold-booting after force-kill — not wedged
+    consecutive_5xx = 0
   ensure
     if Time.now > deadline
       puts " timed out after #{timeout}s"
@@ -65,6 +82,27 @@ def wait_for_boot(name, app_dir, timeout: 60)
     print "."
     sleep 2
   end
+end
+
+# Puma-dev tags its puma children as "puma X.Y.Z (...) [puma-dev:<name>-<hash>]".
+# We match that exact shape to scope kills strictly to this app's puma processes
+# (won't touch puma-dev itself or other apps' workers).
+def find_app_puma_pids(name)
+  tag = /\[puma-dev:#{Regexp.escape(name)}-[0-9a-f]+\]/
+  output = `ps -axww -o pid=,command= 2>/dev/null`
+  output.each_line.filter_map do |line|
+    pid_str, _, cmd = line.strip.partition(" ")
+    next unless cmd.start_with?("puma ") && cmd.match?(tag)
+    pid_str.to_i
+  end - [Process.pid]
+end
+
+def force_kill_app_puma(name)
+  pids = find_app_puma_pids(name)
+  return if pids.empty?
+  pids.each { |pid| Process.kill("TERM", pid) rescue nil }
+  sleep 2
+  find_app_puma_pids(name).each { |pid| Process.kill("KILL", pid) rescue nil }
 end
 
 # Rails' dev-mode rescue template embeds the exception text in
