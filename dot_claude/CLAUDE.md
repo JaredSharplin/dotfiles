@@ -51,6 +51,12 @@ When rubocop or Sorbet complains, restructure the code until it passes. Disable-
 
 A linter complaint is a real signal. Silencing it without fixing the cause hides the issue for later.
 
+## Sorbet sigil for new Ruby files
+
+New Ruby files in app code must start with `# typed: strict`. Not `true`, not `false`, not `ignore` — `strict`. This is non-negotiable for app code. (Tests, scripts, and other non-app files are not covered by this rule.)
+
+Under `strict`, every method needs a `sig`, every constant and instance variable needs a declared type, and there are no implicit `T.untyped` escapes. Write the `sig`s as you write the methods — don't defer them. If `srb tc` complains, fix the types; don't downgrade the sigil.
+
 ## User-facing strings
 
 All user-facing strings must go through translation. Don't embed plain English directly.
@@ -396,9 +402,9 @@ Shape Up planning lives at `~/notes/shaping/<project>/`. Standard files:
 - `shaping.md` — current state, outcome-framed requirements (R0..Rn), rabbit holes, fat-marker sketch
 - `slices.md` — vertical slices (V1..Vn), each ending in a concrete demo
 - `spike-*.md` — focused technical investigations referenced from the above
-- `V<n>-pr-stack.md` — per-slice PR stack mapping (added when a slice goes into flight)
+- `pr-stack.md` — PR stack mapping (added when work goes into flight)
 
-When picking up work on a slice, read at least `frame.md`, `slices.md`, and the relevant `V<n>-pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Spikes are background — read the ones a slice or stack explicitly cites.
+When picking up work on a slice, read at least `frame.md`, `slices.md`, and `pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Spikes are background — read the ones a slice or stack explicitly cites.
 
 Frontmatter `shaping: true` marks these files so tooling can find them.
 
@@ -407,4 +413,8 @@ Frontmatter `shaping: true` marks these files so tooling can find them.
 - When I reference a documentation file, read the entire file in one pass — don't chunk for token savings. Thoroughness beats token efficiency for technical docs.
 - When you think I'm wrong or asking for the wrong thing, say so before acting on it.
 - If a rule here doesn't fit the current context, flag it — these are guidelines for the common case, not traps.
-- **Use the AskUserQuestion tool to ask questions.** Don't present options as prose menus.
+- **Use the AskUserQuestion tool to ask questions.** Don't present options as prose menus. But the tool is not a substitute for thinking:
+  - Frame every question before asking it. In the text *before* the tool call, say what you're trying to accomplish, what you found while investigating, and why this choice matters. A question dropped in cold dumps the framing work onto me — I shouldn't have to reconstruct the problem space from the option labels. This applies *per question* — if you're batching multiple questions (e.g. presenting code-review findings as actionable items), each one needs its own introduction. Don't collapse five different decisions into a single shared preamble.
+  - If you mark an option `(Recommended)`, justify it. Say briefly *why* you prefer it and what the main tradeoff is against the next-best alternative. An unjustified recommendation is just a tag — it tells me nothing about your reasoning and I can't agree or push back on it.
+  - Keep options few and concrete. If you're reaching for four options with subtle distinctions, the problem is under-framed — do another pass yourself and ask a narrower question. Two well-chosen options beat four mushy ones.
+  - Code review is a primary use case. When reviewing a diff or PR, surface each finding as its own question with concrete action options (e.g. "fix now", "leave as-is", "defer to follow-up") rather than dumping a prose list of issues for me to triage. This turns review into a sequence of decisions I can actually act on. Same per-question framing rule applies: each finding needs its own explanation of *what* you found, *why* it matters, and *why* you're recommending the action you are.
