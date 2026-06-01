@@ -2,17 +2,17 @@ prSections:
 - title: My Pull Requests
   filters: is:open author:@me
   type: null
-- title: Is Open
-  filters: is:open repo:TandaHQ/payaus
-  type: null
-- title: All
-  filters: repo:TandaHQ/payaus
-  type: null
 - title: Needs My Review
   filters: is:open review-requested:@me
   type: null
 - title: Involved
   filters: is:open involves:@me -author:@me
+  type: null
+- title: Is Open
+  filters: is:open repo:TandaHQ/payaus
+  type: null
+- title: All
+  filters: repo:TandaHQ/payaus
   type: null
 issuesSections:
 - title: My Issues
@@ -70,7 +70,14 @@ defaults:
 keybindings:
   universal: []
   issues: []
-  prs: []
+  prs:
+    # Request myself as a reviewer on the selected PR so it shows up under
+    # "Needs My Review" (review-requested:@me). Uses my literal login: gh only
+    # expands "@me" for --add-assignee, not --add-reviewer. No-op-with-error on
+    # my own PRs (GitHub blocks requesting review from the author).
+    - key: R
+      name: request-my-review
+      command: gh pr edit {{.PrNumber}} --repo {{.RepoName}} --add-reviewer JaredSharplin
   branches: []
 repoPaths:
   TandaHQ/*: ~/programming/*
