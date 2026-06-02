@@ -68,6 +68,14 @@ Rule of thumb: sync freely to stay up to date; push only when you actually want 
 - `git town sync` - Syncs current branch only. Use only for a lone branch off master with no children.
 **Warning:** Don't use `--stack` on master - it will sync all branches
 
+## ⛔ Suspended Command State — STOP, Don't Blind-Answer
+
+A previous git town command (usually `sync`) that hit a conflict or was interrupted leaves **suspended runstate**. The next git town command then tries to prompt about it before doing anything — in an agent shell with no TTY this surfaces as `Error: could not open a new TTY: open /dev/tty: device not configured`.
+
+**This is the suspended state, not an environment/TTY problem.** Don't misdiagnose it, and don't try to force the prompt through (`script`, `unbuffer`, `expect`) — git town reads `/dev/tty` directly, so `--non-interactive`, piping stdin, and `--dry-run` all fail identically.
+
+Diagnose read-only (safe, won't prompt): `git town status`. Then **STOP and ask the user how to recover** — the options (`continue`, `skip`, `undo`, or `git town status reset`) include destructive ones, so the choice is theirs ([[feedback_no_unilateral_decisions]]).
+
 ### `git town append <branch-name>`
 **Purpose:** Create a child branch from current branch
 **When to use:** When you need to build on top of current work
