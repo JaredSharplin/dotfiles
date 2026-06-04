@@ -31,9 +31,12 @@ webpack_config = File.join(project_root, "config", "webpack", "development.babel
 abort "ERROR: webpack config not found at #{webpack_config}" unless File.exist?(webpack_config)
 
 Dir.chdir(project_root)
+PayausNativeDev.ensure_toolchain!(project_root)
 PayausNativeDev.ensure_yarn_install!(project_root, skip: skip_install)
 
 webpack_args = ["--config", webpack_config]
 webpack_args << "--watch" unless once
 
-exec("npx", "webpack", *webpack_args, *ARGV)
+# `mise exec` so node/webpack resolve to the repo's pinned versions even
+# if the toolchain was just installed this run (see lib.rb ensure_toolchain!).
+exec("mise", "exec", "--", "npx", "webpack", *webpack_args, *ARGV)

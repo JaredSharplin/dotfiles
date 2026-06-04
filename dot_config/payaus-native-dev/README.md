@@ -56,7 +56,7 @@ No nginx. puma-dev handles DNS, TLS, static files, and Rails proxying.
 | `restart` | (run directly) | Cleanly restart puma-dev apps + remove stale sockets |
 | `watch` | (run directly) | Compile assets (`--once` to exit after one compile) |
 | `rails` | (run directly) | `bin/rails` with .pumaenv + local-DB safety checks |
-| `lib.rb` | (required by wrappers) | Shared .pumaenv loader + yarn-install skip logic |
+| `lib.rb` | (required by wrappers) | Shared .pumaenv loader + mise toolchain provisioning + yarn-install skip logic |
 | `puppet/` | (used by ensure-services.sh) | Puppet manifests for service management |
 
 Deployed files are gitignored in payaus via `~/.global_gitignore`.
@@ -134,6 +134,17 @@ Per-worktree databases were considered but add seeding complexity (DemoAccountCr
 Rhys' PR used 9280/9283 because nginx proxied from 443. Without nginx, the app URL must match `APP_HOST_URL=payaus.test` (no port). Rails redirects, CSRF tokens, and cookies all reference the host without a port.
 
 `puma-dev -install` defaults to 80/443. launchd handles privileged port binding on macOS — no root needed. Using non-default ports was a mistake in initial setup that caused `https://payaus.test` (port 443) to not connect.
+
+### Toolchain: node + yarn via mise (not corepack)
+
+Payaus pins its toolchain in `mise.toml` (e.g. `node="24"`, `yarn="4.16.0"` as of #53678). Since mise already manages node and ruby on this machine, mise is also the yarn provider — `watch` runs `mise install` to provision whatever the repo declares, then invokes tools via `mise exec`. No corepack involved (payaus's own `bin/yarn` shells out to `corepack yarn`, but that's for CI/Docker; on a mise machine the `mise.toml` yarn pin is the intended path).
+
+Two non-obvious reasons the wrapper invokes tools through `mise exec` rather than a bare `yarn`/`npx`:
+
+1. **`mise activate`, not shims.** The shell computes PATH at `cd` time. A yarn version that wasn't installed when the shell entered the worktree won't be on PATH after `watch` installs it mid-run — a bare `yarn` would fall through to Homebrew's classic yarn (1.x) and choke on the Yarn-4 `.yarnrc.yml`/lockfile. `mise exec` re-resolves against the freshly-installed versions. This was the exact failure when master bumped 1.22.22 → 4.16.0.
+2. **Self-healing on sync.** Provisioning lives in the `watch` path (`lib.rb`), not just `setup-worktree.rb`, so a `git town sync` that pulls a future toolchain bump is picked up on the next `watch` without re-running setup.
+
+Yarn 4 note: the install command is `yarn install --immutable` (`--frozen-lockfile` was removed in Yarn 4). The `.yarnrc.yml` uses `nodeLinker: node-modules`, so `node_modules/` still exists and the `npx webpack` + yarn.lock-mtime stamp logic are unaffected.
 
 ### Why webpack --watch (not webpack-dev-server)
 
