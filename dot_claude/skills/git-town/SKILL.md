@@ -240,7 +240,7 @@ These two rules override the urge to be thorough. PR bodies here are short and h
 
 - **Short by default.** A reviewer should be able to read the whole body in under ~30 seconds. When in doubt, cut. The diff carries the detail — the body just frames it.
 - **Plain English, like you'd explain it to a teammate out loud** — not architecture documentation. No engineering jargon or implementation vocabulary ("refactored", "extracted", "wired up", "leverages", "abstraction", "encapsulates"), and no class / method / file names in the body. Those belong in the diff or as inline review comments.
-- **No padding.** Don't restate the title. Don't open with "This PR…". Don't walk through the changes file-by-file or commit-by-commit.
+- **No padding.** Don't restate the title. Don't walk through the changes file-by-file or commit-by-commit. (Opening with "This PR adds…" / "This PR fixes…" is fine — leading with what it does beats easing in with context.)
 
 If the body reads like a changelog of code edits, rewrite it as a couple of plain sentences about what changed for the user or the system.
 
@@ -272,11 +272,47 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 ...
 ```
 
+### A full body, before and after
+
+The rules above are easy to nod along to and still miss. This is the target to match — same PR, written the wrong way then the right way.
+
+**Wrong** — jargon, file-by-file walkthrough, lede buried under context:
+
+```markdown
+### Background
+This is the fourth slice of the Manage Data Streams reshape. The previous slice
+left a slot on the edit page. This PR wires up the chart component and refactors
+the values table to read from the new `DataStream::Series` aggregation, extracting
+the rendering logic into a shared presenter.
+<br/>
+### Features / Changes
+- Refactored `DataStreamsController#edit` to instantiate the presenter
+- Added `ChartComponent` and passed the series data through as a prop
+- Extracted `values_table` partial to share markup with the show page
+```
+
+**Right** — leads with what it does, plain English, no code names:
+
+```markdown
+### Background
+This PR adds a chart and a values table to the data stream edit page, so you can
+see what a stream is actually producing without leaving the page. It's the fourth
+slice of the Manage Data Streams reshape — the previous slice left a slot for it.
+<br/>
+### Features / Changes
+- The edit page now shows a chart of the stream's recent values
+- A values table sits below the chart so you can read the exact numbers
+<br/>
+### Manual Browser QA Tasks
+- [ ] Open any data stream's edit page and confirm the chart renders with its recent values
+- [ ] Check the values table below the chart matches what the chart is plotting
+```
+
 ### Background
 
-- **2–4 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the motivation and the outcome.
-- Start from the motivation: the reported problem (bug) or the product need (feature)
-- Briefly: what was observed or requested → what this PR does about it
+- **Lead with what the PR does.** The first sentence states the change in plain terms ("This PR adds a chart and values table to the data stream edit page…"). Motivation and context come *after*, not before — never make the reader wait for the lede.
+- **2–4 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the outcome and the motivation.
+- After the lede: one or two sentences of context — the reported problem (bug), the product need (feature), or where this sits in a larger effort
 - Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
 - Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
 - Prose, not bullet points
