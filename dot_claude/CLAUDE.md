@@ -345,12 +345,15 @@ When running `git town sync`, it will sometimes edit **unrelated PRs** to update
 
 ## When a test fails on your branch
 
-Tests pass on master — CI enforces this. If a test is red on your branch, your diff caused it.
+Master is always green — CI enforces it on every merge. So a red test on your branch was caused by your diff. "Master must be broken" is never the explanation.
 
-- Use `git diff master -- <file>` to see what you changed
-- Don't check out master or stash to "verify" — it's a dead end and leaves the repo in a messy state
-- Re-run the test once before debugging; fixtures can be transient. If it fails a second time, it's your code.
-- There's no such thing as a "pre-existing failure" on your branch — fix forward
+**The gate (no exceptions):** any red run → re-run it once → *only then* reason about the cause. You may not state or act on any conclusion about why it failed — "flaky", "not my diff", "pre-existing", "environmental", "too big to be mine" — until the re-run has completed.
+
+A failure count larger or weirder than your diff is the *strongest* reason to re-run, never grounds to skip it. A surprising shape (22 failures from a 4-test change) means you don't yet understand the situation — it is never evidence the cause is environmental or on master.
+
+**Checking out or stashing to master "to verify" is off the table — no exceptions.** The premise (that master might be the problem) is already known to be false, so there is nothing to verify there.
+
+After the re-run, if it's still red it's your code: use `git diff master -- <file>` to see what you changed, and fix forward. There's no such thing as a "pre-existing failure" on your branch.
 
 # GitHub PRs
 
@@ -413,6 +416,9 @@ Frontmatter `shaping: true` marks these files so tooling can find them.
 - When I reference a documentation file, read the entire file in one pass — don't chunk for token savings. Thoroughness beats token efficiency for technical docs.
 - When you think I'm wrong or asking for the wrong thing, say so before acting on it.
 - If a rule here doesn't fit the current context, flag it — these are guidelines for the common case, not traps.
+- **Stay within the approved scope on destructive or multi-step tasks.** Do exactly what I approved, and treat anything beyond it as a fresh decision to surface. When the ground differs from the plan — an unexpected file or branch, a worktree with a live session — stop and report what you found so I can decide. Surface a discovered item even when it looks "obviously in the same category" as an approved one. Recovery and undo actions (restore, re-create, kill a process, move uncommitted work) each need their own go-ahead. Read-only investigation needs none of this — the bar is only on actions that change state.
+- **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one.
+- **When I ask a question, the answer is the deliverable — give it its own turn and end with no tool call.** Don't bundle an answer with the tool calls it prompts. Prose emitted in a turn that then fires tools gets buried in the activity stream — it scrolls out of view behind the tool output, so for practical purposes the answer never reaches me (and on AskUserQuestion turns the harness hides it outright — see below). Write the answer, stop, end the turn; pick the tool work back up in the *next* turn, once I've read it and responded. This is about genuine questions — "why did X happen?", "which approach is better?", "what's the cause?" — where my reply is the thing you asked for. It is *not* a license to fragment ordinary task execution, where doing the work and reporting the result in the same turn is exactly right. The litmus test: if I'd want to read your reasoning and possibly redirect before you act on it, isolate the answer. The AskUserQuestion convention below is the strict instance of this same rule.
 - **Use the AskUserQuestion tool to ask questions.** Don't present options as prose menus. But the tool is not a substitute for thinking:
   - **Framing must be its own turn. Never put it in the same turn as the tool call.** Mechanically: the harness hides any prose I emit in the turn that calls AskUserQuestion — I see *only* the forced-choice modal (the question text and the option labels), never the surrounding text. So framing bundled with the call does not reach me at all, however good it is. "Frame in the text before the tool call" is therefore the wrong instruction — the only framing I can actually read is framing delivered in a turn that **ends with no tool call**. So: write the framing, stop, end the turn. Then, in a *later* turn — after I've read it and responded — call AskUserQuestion. This is unconditional, not only when I ask to be "walked through first." If a question needs any context beyond what fits in the question text and the option labels themselves, that context must go in a prior turn or I will never see it. The bonus: a separate framing turn is also where I get to push on the premise or redirect before being forced to pick — the modal has no "wait, back up" (that's just "Other," a workaround).
   - What the framing turn must contain. Say what's being decided, what each option concretely does, and what the tradeoff is — *per question* if you're batching several (e.g. code-review findings), never one shared preamble for five decisions. A project-state recap is *not* framing: it summarizes where we are, not what this specific question controls or how the options differ. The bar is self-containment: someone who hasn't read the conversation could answer from that turn alone. If they'd need to scroll up or ask me anything, it isn't done — keep writing. Me having to ask "why?" or "more context?" is the failure this prevents; assume I won't ask, so if the framing doesn't stand on its own, I'm simply stuck.
