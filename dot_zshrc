@@ -31,25 +31,6 @@ alias vim='nvim'
 alias lg='lazygit'
 
 # =================
-# Functions
-# =================
-
-workspace() {
-  if [[ -n "$ZELLIJ" ]]; then
-    echo "Already inside a Zellij session."
-    return 1
-  fi
-  local session="${PWD##*/}"
-  local layout=~/.config/zellij/layouts/workspace.kdl
-  if zellij list-sessions --no-formatting 2>/dev/null | grep "^${session} " | grep -qv EXITED; then
-    zellij attach "$session"
-    return
-  fi
-  zellij delete-session "$session" 2>/dev/null
-  zellij -s "$session" -n "$layout"
-}
-
-# =================
 # Project-specific
 # =================
 
@@ -71,10 +52,16 @@ if command -v zoxide &> /dev/null; then
   eval "$(zoxide init zsh)"
 fi
 
-if command -v mise &> /dev/null; then
-  eval "$(mise activate zsh)"
-fi
-
 if command -v mcfly &> /dev/null; then
   eval "$(mcfly init zsh)"
 fi
+
+# mise: resolution is via shims only (also prepended in .zshenv for
+# non-interactive shells). Deliberately NOT using `mise activate` — it removes
+# the shims dir from PATH and prepends version-specific dirs, so child
+# processes (git hooks, agents, IDEs) inherit a PATH that only resolves
+# correctly for the directory the shell happened to be in. Shims resolve
+# per-directory at exec time instead. See https://mise.jdx.dev/dev-tools/shims.html
+# This re-prepend must stay LAST: macOS /etc/zprofile (path_helper) and rc-file
+# PATH edits above would otherwise put Homebrew's node ahead of the shims.
+export PATH="$HOME/.local/share/mise/shims:$PATH"
