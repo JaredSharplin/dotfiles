@@ -12,9 +12,44 @@
             "command": "~/.claude/hooks/block-forbidden-git.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/model-wrappers-nudge.rb",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit:*)",
+            "command": "~/.claude/hooks/exhale-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/inject-domain-map.sh",
+            "timeout": 30
+          }
+        ]
       }
     ]
   },
+  "enabledMcpjsonServers": ["chrome-devtools"],
   "enabledPlugins": {
     "cc-zjstatus@claude-code-zellij-status": true,
     "ruby-lsp@claude-plugins-official": true

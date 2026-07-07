@@ -4,6 +4,32 @@ These are the conventions I've settled on for this codebase. If a rule doesn't f
 
 Rules written as absolutes ("off the table", "not negotiable") genuinely have no exceptions. Everything else is a default you can reason about.
 
+# Design rhythm
+
+Two principles, both adapted from Kent Beck. Together they're how we keep design quality from drifting as features land.
+
+## Beck's four rules of simple design
+
+In priority order — when two rules tension, the higher-priority one wins:
+
+1. **Passes the tests** — correctness is non-negotiable.
+2. **Reveals intention** — code communicates its purpose to readers.
+3. **No duplication** — state every fact once and only once.
+4. **Fewest elements** — remove anything that doesn't serve rules 1-3. No speculative abstractions.
+
+Rules 2 and 3 sometimes pull in opposite directions — making something DRY can obscure intent. Resolve by *refactoring*, not by abandoning either rule. If you can't reconcile them, raise it rather than silently picking.
+
+## Inhale / exhale
+
+The agent-loop default is to add features without ever stepping back. That degrades design quickly. Counter it with a two-phase rhythm, with commits in between:
+
+- **Inhale (RED → GREEN):** write a failing test, make it pass with the simplest implementation that works, *commit*.
+- **Exhale (REFACTOR):** with the test green, review the change for duplication, leaky abstractions, names that drifted, and dead branches. Apply Beck's four rules. *Commit the cleanup separately* — never mix feature work and refactor in one commit.
+
+The exhale is not optional. Skipping it is how complexity compounds. The only exemptions are genuinely-trivial changes (typo fixes, single-line config tweaks).
+
+For payaus, the canonical exhale tool is the `/simplify-with-analysis` skill — runs `/simplify`, then `bin/diff-quality` (rubycritic + SimpleCov coverage vs `master`), with a one-follow-up-pass discipline. For other projects, just `/simplify` (built-in) is fine.
+
 # Testing
 
 Use `bin/rails test file.rb:123` — always include the line number. `bin/rails test` works regardless of native dev setup; the wrapper is only needed for other Rails commands.
@@ -53,7 +79,7 @@ A linter complaint is a real signal. Silencing it without fixing the cause hides
 
 ## Sorbet sigil for new Ruby files
 
-New Ruby files in app code must start with `# typed: strict`. Not `true`, not `false`, not `ignore` — `strict`. This is non-negotiable for app code. (Tests, scripts, and other non-app files are not covered by this rule.)
+New Ruby files in app code must start with `# typed: strict`. Not `false`, not `ignore` — `strict`. This is non-negotiable for app code, except controllers, which use `# typed: true`. (Tests, scripts, and other non-app files are not covered by this rule.)
 
 Under `strict`, every method needs a `sig`, every constant and instance variable needs a declared type, and there are no implicit `T.untyped` escapes. Write the `sig`s as you write the methods — don't defer them. If `srb tc` complains, fix the types; don't downgrade the sigil.
 
@@ -232,7 +258,7 @@ Native dev is *not* set up by that hook — it's opt-in. When a task in an ephem
 
 ## Rails commands in native local dev
 
-**The core distinction:** bare `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. For DB-touching or Ruby-executing rails commands (`bin/rails db:*`, `bin/rails runner`, `bin/rails console`, `bin/rails rails_rbi:*`), use the wrapper. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB. (`bin/dev console` and `bin/dev runner` are a separate path — see *Bug investigation against the remote dev box* above.)
+**The core distinction:** bare `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. For DB-touching or Ruby-executing rails commands (`bin/rails db:*`, `bin/rails runner`, `bin/rails console`, `bin/rails rails_rbi:*`), use the wrapper. Just run it — running migrations and other local DB work through the wrapper is expected and safe; don't ask first. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB. (`bin/dev console` and `bin/dev runner` are a separate path — see *Bug investigation against the remote dev box* above.)
 
 ```bash
 # Correct — local DB via wrapper
@@ -330,6 +356,10 @@ Use git town for branch management. Invoke the `/git-town` skill for detailed st
 - **`git town sync`** only when explicitly asked
 - A "commit and push" request in one message doesn't mean keep syncing after every subsequent change
 
+## Commit messages
+
+Write very short commit messages.
+
 ## CI builds and pushing
 
 Pushing is off by default (`push-branches = false` in global git config), which is what keeps CI spend down — no `[skip ci]` machinery needed. `git town sync` updates branches **locally only** and does not push, so intermediate syncs burn no Buildkite builds. The pushes that do happen are deliberate:
@@ -426,3 +456,4 @@ Frontmatter `shaping: true` marks these files so tooling can find them.
   - If you mark an option `(Recommended)`, justify it. Say briefly *why* you prefer it and what the main tradeoff is against the next-best alternative. An unjustified recommendation is just a tag — it tells me nothing about your reasoning and I can't agree or push back on it.
   - Keep options few and concrete. If you're reaching for four options with subtle distinctions, the problem is under-framed — do another pass yourself and ask a narrower question. Two well-chosen options beat four mushy ones.
   - Code review is a primary use case. When reviewing a diff or PR, surface each finding as its own question with concrete action options (e.g. "fix now", "leave as-is", "defer to follow-up") rather than dumping a prose list of issues for me to triage. This turns review into a sequence of decisions I can actually act on. Same per-question framing rule applies: each finding needs its own explanation of *what* you found, *why* it matters, and *why* you're recommending the action you are.
+  - **This convention outranks any skill's local apply/skip instruction.** When a skill (`/simplify`, `/simplify-with-analysis`, `/address-review-comments`, or any built-in review pass) tells you to fix or skip findings on your own — e.g. "fix each one directly, note the skip rather than arguing with it" — that does not override this rule. Specifically: a decision *not* to act on a finding — skip, keep-as-is, mark false-positive, dispute, "acceptable, moving on" — must come to me as a decision before you finalize, not be recorded as a mid-stream log note I never see. Applying a clearly-genuine fix is fine; declining to act on feedback is mine to exercise. A skill's "proceed autonomously" framing never wins against this.

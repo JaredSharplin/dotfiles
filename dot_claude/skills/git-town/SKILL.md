@@ -256,18 +256,24 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 
 ### Body Structure
 
-Always use `### Level-3 headers` and `<br/>` between every section, in this order:
+Always use `### Level-3 headers` and `<br/>` between every section, in this order. **Put a blank line on both sides of every `<br/>`** — GitHub won't render the spacer or the following heading correctly if the `<br/>` is jammed against adjacent lines:
 
 ```markdown
 ### Background
 ...
+
 <br/>
+
 ### Features / Changes
 ...
+
 <br/>
+
 ### Manual Browser QA Tasks
 ...
+
 <br/>
+
 ### Screenshots
 ...
 ```
@@ -284,7 +290,9 @@ This is the fourth slice of the Manage Data Streams reshape. The previous slice
 left a slot on the edit page. This PR wires up the chart component and refactors
 the values table to read from the new `DataStream::Series` aggregation, extracting
 the rendering logic into a shared presenter.
+
 <br/>
+
 ### Features / Changes
 - Refactored `DataStreamsController#edit` to instantiate the presenter
 - Added `ChartComponent` and passed the series data through as a prop
@@ -298,11 +306,15 @@ the rendering logic into a shared presenter.
 This PR adds a chart and a values table to the data stream edit page, so you can
 see what a stream is actually producing without leaving the page. It's the fourth
 slice of the Manage Data Streams reshape — the previous slice left a slot for it.
+
 <br/>
+
 ### Features / Changes
 - The edit page now shows a chart of the stream's recent values
 - A values table sits below the chart so you can read the exact numbers
+
 <br/>
+
 ### Manual Browser QA Tasks
 - [ ] Open any data stream's edit page and confirm the chart renders with its recent values
 - [ ] Check the values table below the chart matches what the chart is plotting
