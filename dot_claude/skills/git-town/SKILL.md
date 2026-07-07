@@ -358,7 +358,7 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 
 ### Screenshots
 
-Leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. The author replaces each with `![image](...)` after browser QA. Use "None." only for pure internal changes.
+Leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. After browser QA, capture the screenshots (see *Capturing during final QA*) and replace the placeholders with the uploaded images (see *Uploading to the PR*). Use "None." only for pure internal changes.
 
 #### Capturing during final QA
 
@@ -395,6 +395,19 @@ mv /var/folders/zz/abc.../T/edit-this-week-daily.png \
 **Never `cd` to do the move.** `cd` mutates persistent cwd, and downstream `git` / `gh` commands then silently target the wrong repo. `mv` with absolute paths doesn't need a cwd change.
 
 Don't use any repo's `tmp/` directory as an intermediate — it leaves stray files in the repo and forces a later move anyway. System temp → final destination, one move.
+
+#### Uploading to the PR
+
+Upload the captured screenshots with the `gh image` extension — it prints paste-ready markdown, one line per file:
+
+```bash
+gh image ~/Desktop/<branch-slug>-screenshots/*.png
+# → ![edit-this-week-daily.png](https://github.com/user-attachments/assets/<uuid>)
+```
+
+Drop those lines as a single block under the `### Screenshots` heading, replacing the placeholder(s), via the surgical body edit in *⛔ Editing PR Bodies* below.
+
+`gh image` authenticates from your browser's `github.com` session (no PAT). If it reports being logged out, sign into GitHub in the browser and retry.
 
 ### Tone
 

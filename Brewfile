@@ -2,6 +2,7 @@
 # Install with: brew bundle
 
 # Essential tools
+brew "gh"             # GitHub CLI (extensions declared in .chezmoiscripts/run_onchange_after_install-gh-extensions.sh)
 brew "git-delta"      # Syntax-highlighting pager for git
 brew "diffnav"        # GitHub-style file-tree diff pager (used by lazygit PR-diff commands)
 brew "git-town"       # Git workflow automation
