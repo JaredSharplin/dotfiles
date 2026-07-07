@@ -2,12 +2,12 @@
 
 # Local native development overrides (puma-dev).
 # This file is gitignored and only exists on machines using native local dev.
+#
+# Host allowlisting (config.hosts << /.*\.test/) and config.assume_ssl are NOT
+# set here: master's config/environments/development.rb does both under the same
+# RUNNING_LOCAL_NATIVE_ENV gate (since PR #45524). This file only carries what
+# master does not replicate — the MigrationTimings suppression below.
 if ENV["RUNNING_LOCAL_NATIVE_ENV"] == "true"
-  Rails.application.configure do
-    config.hosts << /.*\.test/
-    config.assume_ssl = true
-  end
-
   # Suppress MigrationTimings file mutations on native dev.
   #
   # config/initializers/02_configuration/migration_timings.rb prepends

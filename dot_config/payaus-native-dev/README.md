@@ -50,16 +50,16 @@ No nginx. puma-dev handles DNS, TLS, static files, and Rails proxying.
 | File | Deployed to | Purpose |
 |------|-------------|---------|
 | `env.template` | `<worktree>/.pumaenv` | Environment variables for native dev |
-| `initializer.rb` | `<worktree>/config/initializers/99_local_native_dev.rb` | Adds .test to Rails allowed hosts |
+| `initializer.rb` | `<worktree>/config/initializers/99_local_native_dev.rb` | Suppresses MigrationTimings file mutations (host allowlisting + assume_ssl now live in master's development.rb) |
 | `setup-worktree.rb` | (run directly) | Deploys .pumaenv + initializer + puma-dev symlink |
-| `ensure-services.sh` | (run directly) | Starts postgres/memcached/minio via Puppet |
+| `ensure-services.sh` | (run directly) | Starts postgres/memcached/minio/puma-dev via Puppet |
 | `restart` | (run directly) | Cleanly restart puma-dev apps + remove stale sockets |
 | `watch` | (run directly) | Compile assets (`--once` to exit after one compile) |
 | `rails` | (run directly) | `bin/rails` with .pumaenv + local-DB safety checks |
 | `lib.rb` | (required by wrappers) | Shared .pumaenv loader + mise toolchain provisioning + yarn-install skip logic |
 | `puppet/` | (used by ensure-services.sh) | Puppet manifests for service management |
 
-Deployed files are gitignored in payaus via `~/.global_gitignore`.
+Deployed files are gitignored in payaus: `.pumaenv` via both master's own `.gitignore` (added by #45524) and `~/.global_gitignore`; `99_local_native_dev.rb` via `~/.global_gitignore` only (master does not ignore it).
 
 ## Decision log
 
@@ -69,11 +69,11 @@ Docker local (`bin/docker-local/`) works but uses ~8GB RAM. Running multiple ins
 
 puma-dev runs as a lightweight LaunchAgent, auto-boots Rails per domain via symlinks, handles TLS and DNS, and supports unlimited concurrent `.test` domains with minimal overhead.
 
-Based on rhys117's unmerged PR #45524 and GitHub discussion #46237. The PR was closed (not merged) because the team chose to support Docker as the official local path. Native dev is unsupported/opt-in.
+Based on rhys117's PR #45524 and GitHub discussion #46237. That PR **merged on 2026-06-29** in trimmed form — an opt-in, unsupported ("as-is", not maintained by the PIT team) native path; Docker / `bin/dev` remains the officially supported workflow. This chezmoi setup predates the merge and intentionally diverges from it (see [Relationship to the merged upstream](#relationship-to-the-merged-upstream-45524) below).
 
 ### Why no nginx
 
-Rhys' original PR used nginx to proxy `/assets/webpack/` to webpack-dev-server and everything else to puma-dev. We use `webpack --watch` instead of `webpack-dev-server`, which writes assets to disk (`public/assets/webpack/`, enabled by `writeToDisk: true` in webpack config). puma-dev serves static files from `public/` directly, so nginx is unnecessary.
+Rhys' original (pre-merge) PR used nginx to proxy `/assets/webpack/` to webpack-dev-server and everything else to puma-dev; the merged #45524 dropped nginx too. We use `webpack --watch` instead of `webpack-dev-server`, which writes assets to disk (`public/assets/webpack/`, enabled by `writeToDisk: true` in webpack config). puma-dev serves static files from `public/` directly, so nginx is unnecessary.
 
 Trade-off: no hot module replacement (HMR). Changes require a browser refresh. Fine for Claude QA.
 
@@ -87,7 +87,7 @@ The vault loader (`config/variables/vault/loader.rb`) runs at boot via `config/b
 DEV_DATABASE_HOST: payaus.writer.tt-dev-apac.payaus.adnat.co  # SHARED REMOTE DB
 ```
 
-It uses `ENV[var] = value` (unconditional overwrite), meaning any local env vars set via `.pumaenv` get replaced with remote database credentials.
+Its `assign_env_var` uses `ENV[var] = value` (overwrite) in development **unless `IN_CONTAINER=true`**, in which case it uses `ENV[var] ||= value` (existing env wins). We don't set `IN_CONTAINER`, so without a guard the overwrite branch would replace the local env vars set via `.pumaenv` with remote database credentials. (Master's merged native setup takes the `IN_CONTAINER` branch instead; we skip the vault entirely — see the chosen approach below.)
 
 **Approaches evaluated and rejected:**
 
@@ -108,17 +108,19 @@ It uses `ENV[var] = value` (unconditional overwrite), meaning any local env vars
 - All required env vars are in `.pumaenv`
 - The only plaintext vars from the vault we'd miss are external service URLs that don't work locally
 
-This is the safest option — the vault never loads, never touches env vars, no risk of connecting to remote databases.
+This is the safest option — the vault never loads, never touches env vars, no risk of the vault pointing Rails at a remote database. (One non-vault path can still inject env — see the caveat below.)
 
 The `setup-worktree.rb` script verifies `BOOT_WITHOUT_SECRETS=true` is present in every deployed `.pumaenv`.
 
+**Caveat introduced by the #45524 merge.** Master's `config/boot.rb` now runs `Dotenv.overload(".env.local")` whenever `RUNNING_LOCAL_NATIVE_ENV=true` (which every `.pumaenv` sets) and `RAILS_ENV != production`. This runs **before** the vault and is **not** gated by `BOOT_WITHOUT_SECRETS`, so a stray `.env.local` in a worktree would override `.pumaenv` values — including `DEV_DATABASE_HOST` — and `BOOT_WITHOUT_SECRETS` would not stop it. We use `.pumaenv`, not `.env.local`; keep worktrees free of any `.env.local` file.
+
 ### Why chezmoi (not in the payaus repo)
 
-Setup files can't be committed to payaus master (not permitted). They can't be gitignored in the repo because:
+Setup files (wrappers, Puppet manifests) can't be committed to payaus master (not permitted), and committing the deployed artifacts isn't viable either:
 - Gitignored files aren't recoverable from git
-- Other branches don't have the `.gitignore` entries
+- The initializer (`99_local_native_dev.rb`) isn't ignored by master's `.gitignore`, so it would otherwise show as untracked on every branch
 
-Chezmoi provides version control, cross-machine sync, and recoverability without touching the payaus repo. Deployed files (`.pumaenv`, initializer) are gitignored via `~/.global_gitignore` (also tracked by chezmoi).
+Chezmoi provides version control, cross-machine sync, and recoverability without touching the payaus repo. Deployed files are gitignored via `~/.global_gitignore` (also tracked by chezmoi); master additionally ignores `.pumaenv` in its own `.gitignore` since #45524.
 
 ### Why shared database (not per-worktree)
 
@@ -131,7 +133,7 @@ Per-worktree databases were considered but add seeding complexity (DemoAccountCr
 
 ### Why puma-dev on ports 80/443 (not 9280/9283)
 
-Rhys' PR used 9280/9283 because nginx proxied from 443. Without nginx, the app URL must match `APP_HOST_URL=payaus.test` (no port). Rails redirects, CSRF tokens, and cookies all reference the host without a port.
+Rhys' original (pre-merge) PR used 9280/9283 because nginx proxied from 443; the merged #45524, having dropped nginx, uses 80/443 as here. Without nginx, the app URL must match `APP_HOST_URL=payaus.test` (no port). Rails redirects, CSRF tokens, and cookies all reference the host without a port.
 
 `puma-dev -install` defaults to 80/443. launchd handles privileged port binding on macOS — no root needed. Using non-default ports was a mistake in initial setup that caused `https://payaus.test` (port 443) to not connect.
 
@@ -148,20 +150,30 @@ Yarn 4 note: the install command is `yarn install --immutable` (`--frozen-lockfi
 
 ### Why webpack --watch (not webpack-dev-server)
 
-`webpack-dev-server` (`yarn serve`) runs on port 8081. Multiple worktrees would need separate ports, and nginx/puma-dev would need to route each domain's assets to the right port.
+`webpack-dev-server` (`yarn serve`) runs on port 8081 — one instance per machine. Multiple worktrees would contend for that port, and puma-dev can't route each domain's assets to a per-worktree dev-server.
 
-`webpack --watch` writes compiled assets to `public/assets/webpack/` (enabled by `writeToDisk: true` in `config/webpack/development.babel.js`). puma-dev serves these as static files. Each worktree has its own `public/` directory, so no port conflicts.
+`webpack --watch` instead writes compiled assets to each worktree's own `public/assets/webpack/` (via `writeToDisk: true` in `config/webpack/development.babel.js`); puma-dev serves them as static files, so every worktree builds independently with no shared port. The `watch` wrapper invokes `npx webpack --watch` directly through `mise exec` — no `package.json` script is involved.
 
-The `yarn watch` script was added to `package.json` on the `feature/native-local-dev` branch.
+This is a deliberate divergence from the merged #45524, which uses `yarn serve` (the 8081 singleton) and so supports only one active app at a time.
 
-## Payaus branch: feature/native-local-dev
+## Relationship to the merged upstream (#45524)
 
-Contains:
-- `.gitignore` entries for deployed files
-- `package.json` `yarn watch` script
-- `docs/local-native-setup.md` — user-facing setup documentation
+PR #45524 merged on 2026-06-29 (trimmed, opt-in, unsupported). Master now ships the following, all gated behind `RUNNING_LOCAL_NATIVE_ENV` / `IN_CONTAINER` / `DEV_CATCH_EMAIL` and inert in CI/staging/production:
 
-This branch is documentation/reference only. The actual setup lives here in chezmoi.
+- `docs/local-native-setup.md`, `.env.template`, the `dotenv` gem, and `.pumaenv` in `.gitignore`
+- app-code touchpoints: `.env.local` loading (`config/boot.rb`), `.test` host allowlisting + `assume_ssl` (`config/environments/development.rb`), and mailpit email catching (`config/initializers/02_configuration/mail.rb`)
+- Puppet manifests under `useful_scripts/puppet/`
+
+This chezmoi setup predates the merge and intentionally diverges:
+
+- **`BOOT_WITHOUT_SECRETS`**, not `IN_CONTAINER` — skips the vault entirely rather than feeding it env vars (see the safety decision above)
+- **mise**, not nvm + global yarn — correct for the repo's Yarn-4 pin
+- **multi-worktree orchestration** (`setup-worktree.rb`, per-domain symlinks) — master is single-app
+- **`webpack --watch`**, not `yarn serve` — independent per-worktree builds
+
+The two coexist cleanly: because master's touchpoints key off the same `RUNNING_LOCAL_NATIVE_ENV` marker this setup already sets, the deployed initializer now carries only the `MigrationTimings` no-op (master's `development.rb` owns the host/`assume_ssl` half).
+
+The old `feature/native-local-dev` branch (last touched 2026-04-07) is abandoned and superseded by the above — nothing here depends on it.
 
 ## Database seeding
 
