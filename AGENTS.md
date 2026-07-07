@@ -10,18 +10,6 @@ persistent slot setup. Worktrees land under `~/programming/worktrees/<name>/`; t
 at `~/programming/payaus` keeps `master` checked out as a clean baseline (and is where shared-dev-DB
 rails console and exploratory sessions run).
 
-### Session Startup
-
-The `workspace` shell function (in `dot_zshrc`) launches or reattaches a Zellij session using
-`workspace.kdl`. That layout defines:
-
-- **Main tab** — Claude + nvim/lazygit stack
-- **Dotfiles tab** — Claude session for this repo
-- **zjstatus bar** — tabs on left, session + datetime on right
-
-Zellij is now a lightweight local session shell; parallel agent orchestration lives in agent view,
-not in per-slot Zellij tabs.
-
 ### PR Workflow
 
 All PRs start as drafts. GitHub is the source of truth for PR status:
@@ -32,10 +20,6 @@ All PRs start as drafts. GitHub is the source of truth for PR status:
 
 1. `gh pr merge <number> --squash --delete-branch`
 2. `git town sync` (cleans up local branch)
-
-### zjstatus (Zellij Status Bar)
-
-Configured in `workspace.kdl`. Uses the [zjstatus](https://github.com/dj95/zjstatus) WASM plugin with gruvbox-dark colors. Tab dividers use dim gray (`#665c54`). Claude Code session status is piped via `pipe_status`.
 
 ## Chezmoi Naming Conventions
 
@@ -88,4 +72,4 @@ chezmoi source-path ~/.claude/skills/foo/SKILL.md
 
 Edit the source path, then apply:
 
-**After editing any source file, always run `chezmoi apply` to deploy the changes to `$HOME`.**
+**After editing any source file, always run bare `chezmoi apply` to deploy the changes to `$HOME`.** Don't target individual files (`chezmoi apply <path>`) — everything in this repo is meant to be applied, and a bare apply walks the whole tree, which correctly creates any brand-new directories (e.g. a new skill folder). A leaf-file target skips the directory entry and fails with `stat ... no such file or directory` on first deploy.

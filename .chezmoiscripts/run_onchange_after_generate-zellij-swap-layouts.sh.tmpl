@@ -1,7 +1,0 @@
-{{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# {{ output "zellij" "--version" }}
-set -e
-dir="$HOME/.config/zellij/layouts"
-zellij setup --dump-swap-layout default > "$dir/workspace.swap.kdl"
-{{ end -}}

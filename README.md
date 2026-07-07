@@ -27,12 +27,6 @@ chezmoi init --apply https://github.com/jaredsharplin/dotfiles.git
 | Hyprland (Linux) | `dot_config/hypr/` |
 | keyd (Linux) | `etc/keyd/` |
 
-## Zellij Layouts
-
-- **`workspace.kdl`** — Main + Dotfiles tabs
-
-Parallel dev work runs through Claude Code's agent view (`claude agents`), not per-slot Zellij tabs.
-
 ## Repo Structure
 
 Chezmoi naming conventions:
