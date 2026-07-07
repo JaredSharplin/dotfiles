@@ -64,6 +64,29 @@ module PayausNativeDev
     end
   end
 
+  # Ensure the bundle satisfies the current Gemfile.lock, healing the most
+  # common native-dev breakage: a `git town sync` merges master and advances
+  # the git-sourced gem revisions (rails itself is a git gem here), but the
+  # worktree's bundle is never reinstalled. Every Rails boot then dies on a
+  # Bundler::PathError — including the `./bin/rails runner` that
+  # rails-erb-loader spawns to render routes.js.erb, which webpack surfaces
+  # only as the opaque "rails-erb-loader failed with code: 1". `bundle check`
+  # is a ~1s no-op when the bundle is satisfied, so running it on every boot
+  # is cheap and self-heals the drift the way ensure_toolchain! does for the
+  # node/yarn pins. Invoked via `mise exec` for the same reason yarn is — to
+  # resolve ruby/bundler against the repo's pinned toolchain.
+  def ensure_bundle!(project_root)
+    Dir.chdir(project_root) do
+      return :current if system("mise", "exec", "--", "bundle", "check",
+                                 out: File::NULL, err: File::NULL)
+
+      warn "native-dev: bundle out of date (a sync likely advanced a gem " \
+           "revision) — running bundle install"
+      system("mise", "exec", "--", "bundle", "install", exception: true)
+      :installed
+    end
+  end
+
   # Run `yarn install` only when yarn.lock is newer than the stamp from our
   # last install (or the stamp is missing). Lets watch and build skip the
   # ~10s install when nothing has changed.

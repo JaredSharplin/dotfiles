@@ -32,6 +32,9 @@ abort "ERROR: webpack config not found at #{webpack_config}" unless File.exist?(
 
 Dir.chdir(project_root)
 PayausNativeDev.ensure_toolchain!(project_root)
+# rails-erb-loader boots Rails to render routes.js.erb during the compile; a
+# stale bundle makes that fail as an opaque "failed with code: 1". Heal first.
+PayausNativeDev.ensure_bundle!(project_root)
 PayausNativeDev.ensure_yarn_install!(project_root, skip: skip_install)
 
 webpack_args = ["--config", webpack_config]

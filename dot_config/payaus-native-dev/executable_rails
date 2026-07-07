@@ -47,7 +47,12 @@ ENV["DISABLE_DATABASE_ENVIRONMENT_CHECK"] = "1"
 # DISABLE_ACTIVERECORD_LOGS is set for remote dev but blocks migrations locally.
 ENV.delete("DISABLE_ACTIVERECORD_LOGS")
 
-bin_rails = File.join(File.dirname(pumaenv), "bin", "rails")
+project_root = File.dirname(pumaenv)
+# Heal a stale bundle (e.g. a sync advanced a git-gem revision) before boot,
+# so Rails commands don't die on a cryptic Bundler::PathError.
+PayausNativeDev.ensure_bundle!(project_root)
+
+bin_rails = File.join(project_root, "bin", "rails")
 abort "ERROR: bin/rails not found at #{bin_rails}" unless File.exist?(bin_rails)
 
 exec(bin_rails, *ARGV)
