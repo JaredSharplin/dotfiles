@@ -19,7 +19,26 @@
 require "json"
 require "open3"
 
-REAL = "/opt/homebrew/bin/chezmoi"
+# The real chezmoi: first `chezmoi` on PATH that isn't this wrapper. Resolved
+# dynamically (not hardcoded) so it works wherever chezmoi is installed —
+# Homebrew on macOS, elsewhere on Linux.
+def resolve_real_chezmoi
+  self_path = File.realpath(__FILE__)
+  ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |dir|
+    candidate = File.join(dir, "chezmoi")
+    next unless File.file?(candidate) && File.executable?(candidate)
+
+    resolved = begin
+      File.realpath(candidate)
+    rescue StandardError
+      nil
+    end
+    return candidate if resolved && resolved != self_path
+  end
+  abort "chezmoi(wrapper): could not find the real chezmoi on PATH"
+end
+
+REAL = resolve_real_chezmoi
 
 def real_chezmoi(*args)
   out, _err, status = Open3.capture3(REAL, *args)
