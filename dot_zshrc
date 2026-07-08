@@ -1,5 +1,9 @@
 # ~/.zshrc - Minimal setup for macOS
 
+# payaus native dev — before the interactive guard so non-interactive shells (scripts, agents) get it too
+export RUNNING_LOCAL_NATIVE_ENV=true
+export DEV_CATCH_EMAIL=true
+
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
@@ -39,10 +43,6 @@ export DISABLE_DEV_NOTIFICATIONS=true
 export PROSOPITE_RAISE=true
 export DISABLE_ACTIVERECORD_LOGS=true
 export DISABLE_SKILL_HOOK=1
-
-# payaus native dev
-export RUNNING_LOCAL_NATIVE_ENV=true
-export DEV_CATCH_EMAIL=true
 
 # =================
 # Tool initialisation
