@@ -55,7 +55,7 @@ When choosing between block and warn: block when the wrong action is genuinely u
 Write the rule in the voice of the destination. CLAUDE.md prose is direct and second-person. Write-rules `context` blocks are imperative and explain *why*. The wording should make the *reason* clear so Claude can reason about edge cases, not just pattern-match.
 
 Bad: "Don't use `bin/dev console`."
-Good: "Don't use `bin/dev console` for code exploration — it hits the shared remote dev DB. Use the native-dev wrapper (`~/.config/payaus-native-dev/rails console`) for local DB work, or Grep/Read for code reading."
+Good: "Don't use `bin/dev console` for code exploration — it hits the shared remote dev DB. Use `bin/rails console` for local DB work (native dev), or Grep/Read for code reading."
 
 ## Step 5: Propose via AskUserQuestion
 

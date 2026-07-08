@@ -32,7 +32,7 @@ For payaus, the canonical exhale tool is the `/simplify-with-analysis` skill —
 
 # Testing
 
-Use `bin/rails test file.rb:123` — always include the line number. `bin/rails test` works regardless of native dev setup; the wrapper is only needed for other Rails commands.
+Use `bin/rails test file.rb:123` — always include the line number.
 
 Don't use `bin/dev test`.
 
@@ -208,8 +208,7 @@ For everything else, use the alternative — these aren't judgment calls:
 
 | Don't use                                   | Use instead                                    | Why                                                             |
 |---------------------------------------------|------------------------------------------------|-----------------------------------------------------------------|
-| `bin/dev` for app dev (server, migrate, watch) | Native dev setup (`~/.config/payaus-native-dev/`) | Native dev is the default path for this developer; see below |
-| `bin/rails runner`, `bin/rails console`, `bin/rails c`, `bin/rails db:*` | Native dev wrapper (`~/.config/payaus-native-dev/rails ...`) for local DB work; Grep/Read for code exploration; write a test for verification | **Hits the shared remote dev DB.** Hook-enforced — see `dot_claude/hooks/` |
+| `bin/dev` for app dev (server, migrate, watch) | Native dev (`bin/native/ensure_running.sh`, then bare `bin/rails`) | Native dev is the default path for this developer; see below |
 | `sed -i`, `awk -i`, `perl -i`, `ruby -i`    | Read + Edit tools                              | Inline edits frequently introduce syntax errors, hard to reverse |
 | `rm`                                        | `trash`                                        | Recoverable                                                      |
 | `chezmoi apply --force`                     | `chezmoi apply` with review                    | Silently overwrites uncommitted edits                            |
@@ -225,11 +224,13 @@ For read-only investigation, the project ships a `/dev-console` skill in `payaus
 - `bin/dev console --sandbox` — interactive REPL; `--sandbox` rolls back any accidental DB writes on exit
 - Strict banned-methods list (no `save`, `update`, `create`, `destroy`, etc.) enumerated in the skill
 
-These commands are allowed for read-only use. They are *not* in the same risk class as `bin/rails runner`/`console`, which connect to the shared DB without sandbox protection and are hook-enforced as forbidden.
+These `bin/dev` commands target the remote shared DB and are allowed for read-only use only. (Bare `bin/rails` is the *local* native-dev path — see below — not a remote-DB command.)
 
 # Native local development (puma-dev)
 
-This developer has native local dev set up using puma-dev. It can be used in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native local dev is active.
+This developer runs the app natively via payaus's shipped native dev setup (puma-dev; PR #45524 + follow-ups), in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native dev is active.
+
+Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshrc`, so `config/boot.rb` loads the worktree's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` runs against the **local** DB. No wrapper.
 
 ## When to use native local dev
 
@@ -240,40 +241,31 @@ This developer has native local dev set up using puma-dev. It can be used in the
 ## Setup a directory for native dev
 
 ```bash
-~/.config/payaus-native-dev/setup-worktree.rb            # from inside a worktree, infers name from basename
-~/.config/payaus-native-dev/setup-worktree.rb my-feature # explicit name
+bin/native/ensure_running.sh   # from inside the repo or worktree
 ```
 
-Deploys `.pumaenv` + initializer + puma-dev symlink, then runs `watch --once` to compile assets. After it finishes, the worktree is browser-ready at `https://<name>.test`.
+Installs/starts services (puma-dev, Postgres, MinIO, memcached, mailpit), writes a domain-templated `.env.local` (`APP_HOST_URL=<dirname>.test`), and creates the puma-dev symlink. After it finishes, the directory is browser-ready at `https://<dirname>.test`. It leaves a dotfiles-managed `~/.zshrc` untouched (it detects the existing `RUNNING_LOCAL_NATIVE_ENV`).
 
-The main repo uses `payaus` → `https://payaus.test`. Worktrees use their directory name (e.g. `my-feature` → `https://my-feature.test`).
+The main repo → `https://payaus.test`. Worktrees use their directory name (e.g. `my-feature` → `https://my-feature.test`).
 
 ## Ephemeral worktrees from agent view
 
 When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolation: "worktree")`, and `claude --worktree`), the new worktree lands at `~/programming/worktrees/<name>/` — same path as manually-created worktrees. Payaus's `WorktreeCreate` hook (`.claude/hooks/worktree-create.rb`) routes through `bin/manage-worktrees`, so dependencies and a per-worktree test database are installed automatically. `bin/rails test` works inside immediately.
 
-Native dev is *not* set up by that hook — it's opt-in. When a task in an ephemeral worktree needs browser verification, run `setup-worktree.rb` (no args) from inside the worktree.
+Native dev is *not* set up by that hook — it's opt-in. When a task in an ephemeral worktree needs browser verification, run `bin/native/ensure_running.sh` from inside the worktree.
 
 **Shared dev DB caveat:** all worktrees share `payaus_development` and `payaus_jobsdb_development`. Per-worktree isolation only applies to the *test* DB (via `TEST_ENV_NUMBER`). Two parallel browser-verifying sessions on branches with incompatible migrations will clash on the dev DB — uncommon but worth knowing.
 
 ## Rails commands in native local dev
 
-**The core distinction:** bare `bin/rails` connects to the **shared remote developer database**. `~/.config/payaus-native-dev/rails` connects to your **local DB**. For DB-touching or Ruby-executing rails commands (`bin/rails db:*`, `bin/rails runner`, `bin/rails console`, `bin/rails rails_rbi:*`), use the wrapper. Just run it — running migrations and other local DB work through the wrapper is expected and safe; don't ask first. `bin/rails test` is the only safe bare invocation — the test suite doesn't hit the shared DB. (`bin/dev console` and `bin/dev runner` are a separate path — see *Bug investigation against the remote dev box* above.)
+Bare `bin/rails ...` runs against the **local** DB — the `~/.zshrc` marker plus the worktree's `.env.local` make it local. Just run it; migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB. If the marker or `.env.local` is missing, `bin/rails` **fails closed** (crashes at boot on missing env / undecryptable vault secrets) rather than reaching a remote DB — it does not silently hit the shared dev DB. (`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
 
 ```bash
-# Correct — local DB via wrapper
-~/.config/payaus-native-dev/rails db:reset
-~/.config/payaus-native-dev/rails db:migrate
-~/.config/payaus-native-dev/rails runner '...'
-~/.config/payaus-native-dev/rails console
-~/.config/payaus-native-dev/rails rails_rbi:helpers   # regenerate sorbet/rails-rbi/*.rbi
-
-# Wrong — shared remote dev DB
-bin/rails db:reset      # would drop the shared developer database
-bin/rails db:migrate    # migrates against shared DB
-bin/rails runner '...'  # arbitrary code against shared DB
-bin/rails console       # interactive session against shared DB
-bin/rails rails_rbi:*   # boots Rails against shared DB to introspect helpers/models
+bin/rails db:reset
+bin/rails db:migrate
+bin/rails runner '...'
+bin/rails console
+bin/rails rails_rbi:helpers   # regenerate sorbet/rails-rbi/*.rbi
 ```
 
 **RBI regeneration is surgical, not bulk.** When Sorbet complains about a missing method on a new helper/model/route (e.g. `_()` not resolving on a new helper because `include Kernel` isn't injected yet), the fix is to update the relevant `sorbet/rails-rbi/*.rbi` file — *not* to add `include Kernel`, a `T.unsafe`, or any inline workaround.
@@ -281,8 +273,8 @@ bin/rails rails_rbi:*   # boots Rails against shared DB to introspect helpers/mo
 For models, **always pass the model name(s)** as task args. Bare `rails_rbi:models` regenerates every model RBI and produces a huge noisy diff. The task accepts a comma-separated list:
 
 ```bash
-~/.config/payaus-native-dev/rails 'rails_rbi:models[DataStream::Join]'
-~/.config/payaus-native-dev/rails 'rails_rbi:models[Foo,Bar::Baz]'
+bin/rails 'rails_rbi:models[DataStream::Join]'
+bin/rails 'rails_rbi:models[Foo,Bar::Baz]'
 ```
 
 (Quote the whole task arg — zsh interprets `[...]` as a glob.)
@@ -299,25 +291,20 @@ The other `rails_rbi:*` tasks don't take per-item args, but each only touches it
 
 If a regen still touches an RBI file you didn't expect, revert that file: `git checkout -- sorbet/rails-rbi/<file>.rbi`. A noisy multi-file RBI churn in a PR diff is a bug, not normal — if you can't articulate why an RBI was touched, revert it.
 
-**Migration file mutations are suppressed on native dev.** Upstream, `config/initializers/02_configuration/migration_timings.rb` prepends `MigrationTimings` to `ActiveRecord::Migration` and writes debug timing comments back into each migration `.rb` file on every `:up` run in development. That's signal on a prod-shaped dev box but pure noise on a tiny seeded local DB. The native-dev initializer (`~/.config/payaus-native-dev/initializer.rb`, deployed as `config/initializers/99_local_native_dev.rb` by `setup-worktree.rb`) no-ops `MigrationTimings#log_migration_timings` and `#clear_migration_timings` when `RUNNING_LOCAL_NATIVE_ENV=true`, so migrations run normally but never touch their own files. If you ever see migration-file diffs after `db:migrate`, the override isn't loaded — check that the worktree has `config/initializers/99_local_native_dev.rb` and `.pumaenv` exports `RUNNING_LOCAL_NATIVE_ENV=true`.
-
-The wrapper sources `.pumaenv` which sets `BOOT_WITHOUT_SECRETS=true`. Without this, the vault loader overwrites local env vars with remote dev server credentials. Bare `bin/rails runner` / `console` / `c` / `db:*` are blocked by `dot_claude/hooks/executable_block-forbidden-git.sh` — the hook exists precisely because this failure mode is so destructive. The hook does **not** block `bin/dev console` / `bin/dev runner`, which are sandboxed/read-only and used for bug investigation against prod-shaped data via the project's `/dev-console` skill.
+**Migrations don't rewrite their own timing comments on native dev.** Payaus no-ops `MigrationTimings` file mutations when `RUNNING_LOCAL_NATIVE_ENV=true` (shipped in the native setup), so `db:migrate`/`db:reset` run normally but never touch the migration `.rb` files. If you ever see migration-file diffs after `db:migrate`, the marker isn't set in that shell.
 
 ## Restarting the app
 
-Use `~/.config/payaus-native-dev/restart my-feature`. This touches `tmp/restart.txt` (puma-dev's documented restart mechanism) then polls until the app finishes booting, since puma-dev returns 502 during the boot window. Without the wait, the next browser request may hit the 502 window and appear broken.
+Use `bin/native/restart`. It touches `tmp/restart.txt` (puma-dev's restart mechanism) then polls until the app finishes booting (puma-dev returns 502 during the boot window) and recovers a wedged app. Without the wait, the next browser request may hit the 502 window and appear broken.
 
-**Never pipe `restart` through `tail`/`head`.** On boot failure, the script already surfaces the Rails exception by parsing the dev-mode error page — the exception class and message print first, the middleware stack last. `tail -N` chops off the cause and leaves you staring at middleware noise. If output is too long, redirect to a file and read it with the Read tool. The `(no log file at … — can't surface diagnostics)` line is normal on first boot of an ephemeral worktree and not the error.
-
-To stop all apps: `~/.config/payaus-native-dev/restart` with no argument — runs `puma-dev -stop`.
+**Never pipe `bin/native/restart` through `tail`/`head`.** On boot failure it surfaces the Rails exception by parsing the dev-mode error page — the exception class and message print first, the middleware stack last. `tail -N` chops off the cause and leaves you staring at middleware noise. If output is too long, redirect to a file and read it with the Read tool.
 
 ## Assets
 
-`~/.config/payaus-native-dev/watch` compiles assets (writes to `public/assets/webpack/`, puma-dev serves them).
+`yarn watch` compiles assets with `webpack --watch` (writes to `public/assets/webpack/`, puma-dev serves them). No port, so multiple worktrees can build in parallel — unlike `yarn serve` (webpack-dev-server, port 8081, one per machine, HMR).
 
-- Default: long-running `webpack --watch`. Use for iteration. **Never** launch in `run_in_background` with a piped `tail`/`head`/`grep` — pipe buffering hides the output. If you must stream it, grep `--line-buffered` for webpack's own `compiled .* in \d+ ms` marker.
-- `watch --once`: compile once and exit. Use this before browser verification in a single-session flow (e.g. an agent about to run Chrome MCP).
-- `watch --skip-install`: skip the `yarn install` check when you know the lockfile hasn't changed. (The wrapper already skips automatically when `yarn.lock` mtime hasn't moved since the last install — the flag is for short-circuiting that check itself.)
+- **Never** launch `yarn watch` in `run_in_background` with a piped `tail`/`head`/`grep` — pipe buffering hides the output. If you must stream it, grep `--line-buffered` for webpack's own `compiled .* in \d+ ms` marker.
+- For a one-shot compile before browser verification (e.g. an agent about to run Chrome MCP), use `yarn build` (compiles once and exits).
 
 After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrome MCP) to avoid stale cached bundles.
 
@@ -329,7 +316,7 @@ Use the **Local Dev Cafe** org for browser verification, not Team Tanda (sysadmi
 
 ## Full documentation
 
-See `~/.config/payaus-native-dev/README.md` for architecture, design decisions, and troubleshooting.
+See `docs/local-native-setup.md` in payaus for setup, architecture, and troubleshooting.
 
 # Modifying config files
 

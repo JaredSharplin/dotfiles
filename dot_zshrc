@@ -40,6 +40,9 @@ export PROSOPITE_RAISE=true
 export DISABLE_ACTIVERECORD_LOGS=true
 export DISABLE_SKILL_HOOK=1
 
+# payaus native dev
+export RUNNING_LOCAL_NATIVE_ENV=true
+
 # =================
 # Tool initialisation
 # =================
