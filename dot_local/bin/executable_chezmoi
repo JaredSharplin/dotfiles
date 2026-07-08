@@ -1,0 +1,57 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# chezmoi wrapper — shadows the real binary on PATH (~/.local/bin is ahead of
+# Homebrew). Its only job: on `apply`, auto-reconcile *benign* JSON drift before
+# handing off to the real chezmoi. Every other subcommand passes straight
+# through untouched.
+#
+# Why: some apps (Claude Code among them) rewrite their own JSON config,
+# reordering keys and reformatting without changing content. chezmoi then sees
+# the DEPLOYED file as "modified since chezmoi last wrote it", and a bare
+# `chezmoi apply` stops to prompt — which fails in a non-interactive shell and
+# blocks the whole apply. For each managed JSON file whose deployed copy
+# drifted, if it parses EQUAL to the chezmoi target (pure reformatting) it's
+# re-added so source adopts the new formatting and the drift clears. Files that
+# differ SEMANTICALLY are left untouched and reported, never silently changed.
+# Templated sources (*.tmpl) are skipped — re-add would clobber the template.
+
+require "json"
+require "open3"
+
+REAL = "/opt/homebrew/bin/chezmoi"
+
+def real_chezmoi(*args)
+  out, _err, status = Open3.capture3(REAL, *args)
+  status.success? ? out : nil
+end
+
+def reconcile_benign_json_drift
+  status = real_chezmoi("status") or return
+  status.each_line do |line|
+    next unless line[0] == "M" # first column: deployed modified since chezmoi last wrote it
+    path = line[3..].to_s.strip
+    next unless path.end_with?(".json")
+
+    dest = File.join(Dir.home, path)
+    src = real_chezmoi("source-path", dest)&.strip
+    next if src.nil? || src.end_with?(".tmpl") # skip templated sources
+    target = real_chezmoi("cat", dest) or next
+
+    begin
+      benign = JSON.parse(File.read(dest)) == JSON.parse(target)
+    rescue JSON::ParserError
+      next
+    end
+
+    if benign
+      real_chezmoi("re-add", dest)
+      warn "chezmoi(wrapper): adopted benign reformatting of #{path}"
+    else
+      warn "chezmoi(wrapper): #{path} drifted semantically — left for review"
+    end
+  end
+end
+
+reconcile_benign_json_drift if ARGV.first == "apply"
+exec(REAL, *ARGV)
