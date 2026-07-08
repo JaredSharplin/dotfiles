@@ -254,11 +254,13 @@ When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolati
 
 Native dev is *not* set up by that hook — it's opt-in. When a task in an ephemeral worktree needs browser verification, run `bin/native/ensure_running.sh` from inside the worktree.
 
-**Shared dev DB caveat:** all worktrees share `payaus_development` and `payaus_jobsdb_development`. Per-worktree isolation only applies to the *test* DB (via `TEST_ENV_NUMBER`). Two parallel browser-verifying sessions on branches with incompatible migrations will clash on the dev DB — uncommon but worth knowing.
+**Shared dev DB caveat:** all worktrees share `payaus_development` and `payaus_jobsdb_development`. Per-worktree isolation only applies to the *test* DB (via `TEST_ENV_NUMBER`). Two parallel browser-verifying sessions on branches with incompatible migrations will clash on the dev DB — uncommon but worth knowing. This is awareness only — **never** a reason to hesitate on, ask about, or propose isolating the DB for a pending migration (see *Pending migrations are not a decision point* below).
 
 ## Rails commands in native local dev
 
 Bare `bin/rails ...` runs against the **local** DB — the `~/.zshrc` marker plus the worktree's `.env.local` make it local. Just run it; migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB. If the marker or `.env.local` is missing, `bin/rails` **fails closed** (crashes at boot on missing env / undecryptable vault secrets) rather than reaching a remote DB — it does not silently hit the shared dev DB. (`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
+
+**Pending migrations are not a decision point.** A `PendingMigrationError`, or pending migrations blocking boot/QA, means: run `bin/rails db:migrate` — however many are pending, don't ask, don't propose isolating the worktree's DB, don't skip QA over it. The shared-DB caveat above is awareness, not a veto. (`db:reset`/`db:drop` discard data — those are the only local DB commands worth confirming first.)
 
 ```bash
 bin/rails db:reset
