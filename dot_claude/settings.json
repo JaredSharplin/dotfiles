@@ -2,6 +2,9 @@
   "permissions": {
     "defaultMode": "auto"
   },
+  "enabledMcpjsonServers": [
+    "chrome-devtools"
+  ],
   "hooks": {
     "PreToolUse": [
       {
@@ -30,8 +33,8 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git commit:*)",
             "command": "~/.claude/hooks/exhale-reminder.sh",
+            "if": "Bash(git commit:*)",
             "timeout": 5
           }
         ]
@@ -49,13 +52,12 @@
       }
     ]
   },
-  "enabledMcpjsonServers": ["chrome-devtools"],
   "enabledPlugins": {
     "cc-zjstatus@claude-code-zellij-status": true,
     "ruby-lsp@claude-plugins-official": true
   },
   "effortLevel": "high",
+  "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true,
-  "autoMemoryEnabled": false
+  "skipAutoPermissionPrompt": true
 }

@@ -73,3 +73,11 @@ chezmoi source-path ~/.claude/skills/foo/SKILL.md
 Edit the source path, then apply:
 
 **After editing any source file, always run bare `chezmoi apply` to deploy the changes to `$HOME`.** Don't target individual files (`chezmoi apply <path>`) — everything in this repo is meant to be applied, and a bare apply walks the whole tree, which correctly creates any brand-new directories (e.g. a new skill folder). A leaf-file target skips the directory entry and fails with `stat ... no such file or directory` on first deploy.
+
+**If a bare `chezmoi apply` reports drift, fix the drift immediately — never ignore it or route around it.** A message like `<file> has changed since chezmoi last wrote it` (often followed by a `could not open a new TTY` error in a non-interactive shell) means the *deployed* file was edited outside chezmoi, so the destination no longer matches source. Do NOT downgrade to a targeted `chezmoi apply <path>` to skip the drifted file — that leaves the tree permanently out of sync, which is the exact failure this rule exists to prevent. Instead:
+
+1. `chezmoi diff <file>` to see what actually differs.
+2. Reconcile it: if the on-disk change should be kept, fold it back into source with `chezmoi re-add <file>`; if source is authoritative, let `chezmoi apply` overwrite it.
+3. Re-run bare `chezmoi apply` and confirm it completes clean.
+
+The tree is only "done" when a bare `chezmoi apply` runs with no drift and no leftover targeted applies. Reconciling drift can mean choosing between the deployed edit and the source — if it's ambiguous which should win, surface the diff and ask rather than guessing.
