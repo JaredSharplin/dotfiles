@@ -28,6 +28,7 @@ defaults:
   preview:
     open: true
     width: 80
+    position: bottom
   prsLimit: 20
   prApproveComment: LGTM
   issuesLimit: 20
