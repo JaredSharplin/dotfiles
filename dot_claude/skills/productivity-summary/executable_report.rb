@@ -14,13 +14,14 @@ abort "No productivity log for #{date}" unless File.exist?(path)
 records = File.readlines(path).filter_map { JSON.parse(it) rescue nil }
 abort "Empty productivity log for #{date}" if records.empty?
 
-hours = Hash.new { |hash, key| hash[key] = { shipped: 0, commits: 0, turns: 0 } }
+hours = Hash.new { |hash, key| hash[key] = { shipped: 0, qa: 0, commits: 0, turns: 0 } }
 worktrees = Hash.new(0)
 
 records.each do |record|
   hour = Time.iso8601(record["ts"]).localtime.hour
   hours[hour][:commits] += record.dig("git", "total_commits").to_i
   hours[hour][:shipped] += Array(record.dig("github", "shipped")).count { it["customer_facing"] }
+  hours[hour][:qa] += Array(record.dig("github", "qa_completed")).size
   Array(record["sessions"]).each do |session|
     turns = session["assistant_turns"].to_i
     hours[hour][:turns] += turns
@@ -34,12 +35,13 @@ def bar(value, max, width = 30)
   "█" * ((value.to_f / max) * width).round
 end
 
-# A customer-facing ship dominates the score — it's the metric that matters.
-scores = hours.transform_values { it[:shipped] * 10 + it[:commits] * 3 + it[:turns] }
+# Pipeline outcomes dominate the score: a customer ship most, then clearing the QA gate.
+scores = hours.transform_values { it[:shipped] * 10 + it[:qa] * 5 + it[:commits] * 3 + it[:turns] }
 max_score = scores.values.max || 0
 total_commits = records.sum { it.dig("git", "total_commits").to_i }
 shipped = records.flat_map { Array(it.dig("github", "shipped")) }.uniq { it["number"] }
 customer_shipped = shipped.count { it["customer_facing"] }
+qa_cleared = records.flat_map { Array(it.dig("github", "qa_completed")) }.uniq { it["number"] }
 reviews = records.flat_map { Array(it.dig("github", "reviews_given")) }.uniq { it["number"] }.size
 peak_hour, = scores.max_by { |_hour, score| score }
 
@@ -47,17 +49,19 @@ puts "Productivity report — #{date}"
 puts "=" * 46
 puts "Ticks recorded : #{records.size}"
 puts "Shipped        : #{shipped.size} (#{customer_shipped} customer-facing)"
+puts "QA'd ready     : #{qa_cleared.size}"
 puts "Commits        : #{total_commits}"
 puts "Reviews given  : #{reviews}"
 puts "Peak window    : #{format('%02d:00', peak_hour)}" if peak_hour
 puts
 shipped.each { puts "  🚢 ##{it['number']} #{it['title']}" if it["customer_facing"] }
-puts unless customer_shipped.zero?
-puts "Activity by hour (customer ship×10 + commits×3 + assistant turns):"
+qa_cleared.each { puts "  ✅ ##{it['number']} #{it['title']}" }
+puts unless customer_shipped.zero? && qa_cleared.empty?
+puts "Activity by hour (ship×10 + QA×5 + commits×3 + turns):"
 scores.keys.min.upto(scores.keys.max) do |hour|
   score = scores[hour] || 0
   detail = hours[hour]
-  puts format("  %02d:00 %-30s %d  (%ds %dc %dt)", hour, bar(score, max_score), score, detail[:shipped], detail[:commits], detail[:turns])
+  puts format("  %02d:00 %-30s %d  (%ds %dq %dc %dt)", hour, bar(score, max_score), score, detail[:shipped], detail[:qa], detail[:commits], detail[:turns])
 end
 puts
 puts "Focus by worktree (assistant turns):"

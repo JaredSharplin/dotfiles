@@ -136,21 +136,28 @@ now = Time.now
 today = now.strftime("%Y-%m-%d")
 FileUtils.mkdir_p(DATA_DIR)
 
+previous = File.exist?(log_path(today)) ? File.readlines(log_path(today)).last&.then { JSON.parse(it) } : nil
 checkpoint =
-  if File.exist?(log_path(today)) && (last = File.readlines(log_path(today)).last)
-    Time.iso8601(JSON.parse(last)["ts"])
+  if previous
+    Time.iso8601(previous["ts"])
   else
     Time.new(now.year, now.month, now.day, 0, 0, 0, now.utc_offset)
   end
 
 commits = REPOS.filter_map { git_activity(it, checkpoint) }
+github = github_activity(checkpoint)
+
+# A PR that flipped draft -> ready since last tick has cleared the developer's
+# manual QA gate — the visible outcome of otherwise-invisible QA work.
+previously_draft = Array(previous&.dig("github", "in_flight")).select { it["isDraft"] }.map { it["number"] }
+github[:qa_completed] = github[:in_flight].reject { it["isDraft"] }.select { previously_draft.include?(it["number"]) }
 
 record = {
   ts: now.utc.iso8601,
   since: checkpoint.utc.iso8601,
   window: "#{checkpoint.localtime.strftime('%H:%M')}–#{now.localtime.strftime('%H:%M')}",
   git: { commits:, total_commits: commits.sum { it[:count] } },
-  github: github_activity(checkpoint),
+  github:,
   sessions: session_activity(checkpoint)
 }
 
