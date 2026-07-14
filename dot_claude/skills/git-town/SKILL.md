@@ -18,7 +18,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Update stacked branches with latest changes | `git town sync -s` | Syncs entire stack safely |
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
-| Create PR for current branch | `git town propose --title ... --body ...` | Then `gh pr edit` to add assignee + labels |
+| Create PR for current branch | `git town propose --title ... --body ...` | Then `gh pr edit` for assignee + labels, then `gh pr ready --undo` to start as draft |
 | Push branch/stack to remote | `git town sync --push` | Pushing is off by default — see "Pushing (off by default)" |
 | Switch to parent branch | `git town down` | Move down the stack |
 | Switch to child branch | `git town up` | Move up the stack |
@@ -152,9 +152,12 @@ This is the **one exception** to the "never manually stash" rule — `git town d
 ```bash
 git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
+gh pr ready --undo   # start as draft (QA gate — see below)
 ```
 
 `git town propose` syncs the branch (pushing it) and opens the PR in one step. It also automatically adds stack navigation links to the PR body (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically.
+
+**Every PR starts as a draft.** Git Town 23 has no `--draft` flag and `gh pr edit` has no draft option, so flip it with `gh pr ready --undo` immediately after proposing (no argument = the current branch's PR). Draft means *not yet self-reviewed or manually QA'd*. Flipping to ready-for-review (`gh pr ready`) is the developer's manual QA gate — **Claude never marks a PR ready**, and never pushes a draft toward review or merge. A draft's next step is QA, not review.
 
 ## Working on Someone Else's Branch
 
@@ -554,14 +557,16 @@ git town append feature/follow-up
 ### After Organizing: Create PRs
 
 ```bash
-# Create a PR for each branch in stack
+# Create a PR for each branch in stack (each starts as draft — see "Creating a PR")
 git checkout migration/foundation
 git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
+gh pr ready --undo
 
 git checkout feature/implementation
 git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
+gh pr ready --undo
 ```
 
 ## ⛔ NEVER Manually Stash (With One Exception)

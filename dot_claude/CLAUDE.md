@@ -389,9 +389,12 @@ Don't use `--patch` — it shows individual commit patches, not the net diff.
 ```bash
 git town propose --title "..." --body "..."
 gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
+gh pr ready --undo   # start as draft — see below
 ```
 
 `git town propose` syncs the branch, pushes it, and opens the PR in one step — no separate `git town sync` needed before propose, and its push is what triggers CI on the PR.
+
+**Every PR starts as a draft.** Git Town has no `--draft` flag, so flip it right after proposing with `gh pr ready --undo` (`gh pr edit` has no draft option). Draft means *not yet self-reviewed or manually QA'd* — it's the QA gate. Only *I* flip a PR to ready-for-review (`gh pr ready`), by hand, once I've QA'd it. Don't mark a PR ready for me, and don't push toward review/merge on a draft — a draft's next step is QA, not review.
 
 Every PR must have (set via `gh pr edit` after create):
 
