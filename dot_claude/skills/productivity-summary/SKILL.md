@@ -30,7 +30,8 @@ and the nudge. Do NOT gather data yourself; read the collector's JSON.
 ```
 
 Appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the same record as JSON.
-Everything below describes **this interval** (`since` → `ts`). Parse the JSON — `github.shipped`
+Everything below describes **this interval**. Parse the JSON — `window` (local-time `HH:MM–HH:MM`
+label for this interval; use it verbatim, don't reformat `since`/`ts`, which are UTC), `github.shipped`
 (merged PRs, each with `customer_facing`), `github.in_flight`, `github.reviews_given`, `git.commits`,
 `sessions`.
 
@@ -63,9 +64,9 @@ If a customer-facing PR shipped, say so and move on — don't manufacture a conc
 One macOS notification, headline led by shipping. Body under ~120 chars, escape double quotes:
 
 ```bash
-osascript -e 'display notification "🚢 1 customer-facing shipped · 2 PRs in flight" with title "Productivity check-in" subtitle "10:00–10:30"'
+osascript -e 'display notification "🚢 1 customer-facing shipped · 2 PRs in flight" with title "Productivity check-in" subtitle "<window>"'
 # nothing shipped:
-osascript -e 'display notification "Nothing shipped · 3 WIP commits, 1 review" with title "Productivity check-in" subtitle "10:00–10:30"'
+osascript -e 'display notification "Nothing shipped · 3 WIP commits, 1 review" with title "Productivity check-in" subtitle "<window>"'
 ```
 
 That's the whole tick. End the turn — under `/loop`, the next tick fires on schedule.

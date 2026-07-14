@@ -148,6 +148,7 @@ commits = REPOS.filter_map { git_activity(it, checkpoint) }
 record = {
   ts: now.utc.iso8601,
   since: checkpoint.utc.iso8601,
+  window: "#{checkpoint.localtime.strftime('%H:%M')}–#{now.localtime.strftime('%H:%M')}",
   git: { commits:, total_commits: commits.sum { it[:count] } },
   github: github_activity(checkpoint),
   sessions: session_activity(checkpoint)
