@@ -12,31 +12,34 @@ description: >
 
 # Productivity check-in
 
-A **momentum check on the last ~30 minutes only** — nothing cumulative. Fires under `/loop`. Your
-job is to keep the developer moving through the pipeline: call the period as it is, then point at the
-one thing that advances a PR to its next stage. Be blunt. This is a coach, not a diary.
+A check-in on the last ~30 minutes only — not the whole day. Runs under `/loop`. Your job: say
+plainly what happened, then say the one next thing worth doing.
 
-**The finish line is shipping to customers** — a merged PR labelled `feature` or `bug`. But shipping
-runs through a pipeline, and skipping a stage isn't speed:
+**Write like a person talking.** Short, plain sentences. No metaphors, no invented phrases, no
+jargon. Do not say "gate", "stage", "pipeline", "momentum", "drive it", "land it", "the finish
+line", "motion vs progress", "under your hands", "scatter". Say the plain thing instead: "merge it",
+"review it", "finish testing it", "you didn't finish anything". If a sentence needs decoding,
+rewrite it.
 
-```
-draft (WIP)  →  QA  →  ready-for-review  →  review  →  merged / shipped
-```
+What actually counts as work finished:
 
-Two things count as real progress, and both are wins:
+- **A PR merged for customers** — a merged PR labelled `feature` or `bug`. This is the main thing.
+- **A PR you finished and marked ready for review** — a PR that went from draft to ready this period
+  (`github.qa_completed`). Testing a PR takes real time and doesn't show up in commit data, so
+  marking it ready is how we see that work happened. It counts — say so.
 
-- **Shipped** (`github.shipped`, `customer_facing: true`) — a customer-facing PR merged. The finish line.
-- **QA cleared** (`github.qa_completed`) — a PR that flipped draft→ready this period. QA is
-  time-consuming, invisible in raw git data, and mandatory; going ready is its visible outcome, so
-  bank it like a win, not a footnote.
+Everything else — commits on unfinished work, reviews you left on other PRs, internal or refactor
+merges, Claude session activity — is work in progress, not finished. Say that plainly, without
+putting it down.
 
-Everything else — WIP commits, reviews given, internal/refactor merges, session churn — is motion,
-not progress. **The enemy is a PR stuck in a stage, not a PR that isn't merged yet.** Never push a
-draft toward review or merge — a draft's next step is QA, full stop. And *only the developer* flips a
-PR to ready-for-review, by hand, after QA — you never mark a PR ready and never offer to.
+Two rules about drafts:
 
-Keep it fast and cheap — the collector does all gathering and recording; your job is the verdict and
-the push. Do NOT gather data yourself; read the collector's JSON.
+- A draft PR is not finished being tested. Its next step is testing, then marking it ready. Never
+  tell the developer to get a draft reviewed or merged.
+- Only the developer marks a PR ready for review, by hand, after testing it. Never do it for them,
+  never offer to.
+
+The collector does all the data gathering; you just read its JSON and talk. Don't gather data yourself.
 
 ## Step 1 — collect
 
@@ -45,57 +48,53 @@ the push. Do NOT gather data yourself; read the collector's JSON.
 ```
 
 Appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the same record as JSON.
-Everything below describes **this interval**. Parse the JSON — `window` (local-time `HH:MM–HH:MM`
-label; use it verbatim, don't reformat `since`/`ts`, which are UTC), `github.shipped` (merged PRs,
-each with `customer_facing`), `github.qa_completed` (flipped draft→ready this period),
-`github.in_flight` (open PRs, each with `isDraft`), `github.reviews_given`, `git.commits`, `sessions`.
+Everything below is about **this period only**. Read the JSON — `window` (local-time `HH:MM–HH:MM`
+label; use it as-is, don't reformat `since`/`ts`, which are UTC), `github.shipped` (merged PRs, each
+with `customer_facing`), `github.qa_completed` (marked ready this period), `github.in_flight` (open
+PRs, each with `isDraft`), `github.reviews_given`, `git.commits`, `sessions`.
 
-## Step 2 — the verdict (this period only)
+## Step 2 — what happened
 
-No day totals, no "so far today" — only what moved this interval. Lead with the scoreboard, ordered
-by what matters:
+Only this period. No day totals. Put the most important first:
 
-1. **Shipped** — the finish line. Customer-facing merges first (`customer_facing: true`):
-   `🚢 SHIPPED: #N <title>`. Non-customer-facing merges after, one line, flagged internal.
-2. **QA cleared** — `qa_completed`: `✅ QA'd & ready: #N <title>`. A real win; the gate is passed.
-3. **In flight** — `in_flight` PRs by stage (`isDraft`): a draft is `#N <title> (draft — in QA)`, a
-   non-draft is `#N <title> (ready — awaiting review)`. A ready PR sitting unmerged is a target; a
-   draft is legitimately mid-pipeline, not a failure.
-4. **Motion** — brief, clearly subordinate: reviews given, commits per repo/branch with `count > 0`,
-   active worktrees (`<worktree>: N turns, advancing|STALLED`). Effort, not progress.
+1. **Merged for customers** — `Shipped: #N <title>`. Any internal (non-customer-facing) merges
+   after, one line, marked internal.
+2. **Marked ready for review** — from `qa_completed`: `Ready for review: #N <title>`. Real progress.
+3. **Open PRs that changed** — a draft: `#N <title> — still a draft, being tested`; a ready one:
+   `#N <title> — ready, waiting for review`.
+4. **Other activity** — short: reviews you left, commits per branch (`count > 0`), which worktrees
+   were active (`<worktree>: N turns, active` or `no code changed`).
 
-If nothing shipped and nothing cleared QA, open with it and don't dress it up —
-`⛔ Nothing shipped or QA'd in <window>.` Scannable — a dozen lines at most. Omit empty sections.
+If nothing was merged and nothing was marked ready, say it in one plain line: `Nothing merged or
+marked ready in <window>.` A dozen lines at most. Skip empty sections.
 
-## Step 3 — the push
+## Step 3 — the one next thing
 
-End every tick with a verdict and exactly one directive — the single highest-leverage move to
-advance a PR one stage in the next 30 minutes. Match the directive to the stage; **never tell the
-developer to get a draft reviewed or to skip QA:**
+End with a single clear next action — the most useful thing to do next. Match it to the PR's status.
+Never suggest reviewing or merging a draft.
 
-- A **ready** (non-draft) PR unmerged → review/merge is the move: `#N passed QA — get eyes on it and land it.`
-- A **draft** being actively worked → respect the QA: `#N is in QA. Finish it and flip it to ready when it passes.`
-- A **draft** sitting untouched → `#N has stalled in draft — QA it and get it ready, or it'll rot.`
-- Sprawl across worktrees, nothing advancing → `3 worktrees touched, nothing moved a stage. Pick one — <branch> is closest — and drive it.`
-- Effort sunk into internal/refactor while customer work sits → `That's polish, not shipping. <feature-branch> is what customers are waiting on.`
-- A worktree `advancing: false` → `<worktree> has stalled — N turns, no edits. Unblock it or drop it.`
+- A ready PR waiting → `#N is ready — ask someone to review it, or merge it if it's approved.`
+- A draft you're working on → `You're testing #N. Finish testing it and mark it ready when it passes.`
+- A draft untouched for a while → `#N has been a draft for a while. Test it and mark it ready.`
+- Several branches touched, none finished → `You worked on 3 branches but didn't finish any. Pick one — #N is closest — and finish it.`
+- Time went to internal or refactor work while customer work waits → `This period was internal cleanup. #N is the customer feature that's waiting.`
+- A worktree active but no code changed → `#N was active but no code changed — it might be stuck. Unblock it or set it aside.`
 
-If a PR shipped or cleared QA this period, bank it in one line (`That's the win. Next: …`) and still
-point at what's next. Don't invent a crisis — but never end on a shrug. Always leave one clear next
-action, and never one that skips a pipeline stage.
+If a PR was merged or marked ready, say so in one line and still give the next thing. Don't invent a
+problem, but always end with one concrete action.
 
 ## Step 4 — notify
 
-One macOS notification, headline led by the verdict and carrying the directive. Punchy, under ~120
-chars, escape double quotes:
+One macOS notification: one plain line saying what happened and what to do next. Under ~120 chars,
+escape double quotes:
 
 ```bash
-# shipped:
-osascript -e 'display notification "🚢 Shipped #4821. Next: land #4830, it'\''s ready." with title "Productivity check-in" subtitle "<window>"'
-# QA cleared:
-osascript -e 'display notification "✅ #4830 cleared QA. Next: get it reviewed." with title "Productivity check-in" subtitle "<window>"'
-# stuck in draft:
-osascript -e 'display notification "⛔ 0 shipped. #4830 in QA — finish it and mark ready." with title "Productivity check-in" subtitle "<window>"'
+# merged something:
+osascript -e 'display notification "Shipped #4821. Next: #4830 is ready — ask for a review." with title "Productivity check-in" subtitle "<window>"'
+# marked a PR ready:
+osascript -e 'display notification "Marked #4830 ready for review. Next: get it reviewed." with title "Productivity check-in" subtitle "<window>"'
+# nothing finished:
+osascript -e 'display notification "Nothing merged. #4830 is a draft — finish testing it and mark it ready." with title "Productivity check-in" subtitle "<window>"'
 ```
 
 That's the whole tick. End the turn — under `/loop`, the next tick fires on schedule.
