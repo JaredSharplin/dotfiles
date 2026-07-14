@@ -1,0 +1,8 @@
+# Re-prepend mise shims AFTER macOS /etc/zprofile has run path_helper — path_helper shoves /usr/bin etc.
+# to the front of PATH for every LOGIN shell, including non-interactive ones (`zsh -l -c`) that skip
+# .zshrc. .zshenv covers non-login shells; this covers login shells once path_helper has reordered PATH.
+#
+# Shims (not `mise activate`) on purpose: activate strips the shims dir and prepends version-specific
+# dirs, so child processes (git hooks, agents, IDEs) inherit a PATH that only resolves for the directory
+# the shell was in. Shims resolve per-directory at exec time. See https://mise.jdx.dev/dev-tools/shims.html
+export PATH="$HOME/.local/share/mise/shims:$PATH"

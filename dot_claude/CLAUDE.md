@@ -233,7 +233,7 @@ These `bin/dev` commands target the remote shared DB and are allowed for read-on
 
 This developer runs the app natively via payaus's shipped native dev setup (puma-dev; PR #45524 + follow-ups), in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native dev is active.
 
-Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshrc`, so `config/boot.rb` loads the worktree's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB. No wrapper.
+Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshenv` (not `~/.zshrc` — `.zshenv` is read by *every* shell, including the non-interactive ones agents and hooks run in), so `config/boot.rb` loads the repo's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB. No wrapper. `config/boot.rb` skips `.env.local` in the test env, so tests stay clean.
 
 ## When to use native local dev
 
@@ -247,7 +247,7 @@ Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported fro
 bin/native/ensure_running.sh   # from inside the repo or worktree
 ```
 
-Installs/starts services (puma-dev, Postgres, MinIO, memcached, mailpit), writes a domain-templated `.env.local` (`APP_HOST_URL=<dirname>.test`), and creates the puma-dev symlink. After it finishes, the directory is browser-ready at `https://<dirname>.test`. It leaves a dotfiles-managed `~/.zshrc` untouched (it detects the existing `RUNNING_LOCAL_NATIVE_ENV`).
+Installs/starts services (puma-dev, Postgres, MinIO, memcached, mailpit), writes a domain-templated `.env.local` (`APP_HOST_URL=<dirname>.test`), and creates the puma-dev symlink. After it finishes, the directory is browser-ready at `https://<dirname>.test`. It leaves a dotfiles-managed `~/.zshenv` untouched (it detects the existing `RUNNING_LOCAL_NATIVE_ENV`).
 
 The main repo → `https://payaus.test`. Worktrees use their directory name (e.g. `my-feature` → `https://my-feature.test`).
 
@@ -261,7 +261,7 @@ Native dev is *not* set up by that hook — it's opt-in. When a task in an ephem
 
 ## Rails commands in native local dev
 
-Bare `bin/rails ...` runs against the **local** DB — the `~/.zshrc` marker plus the worktree's `.env.local` make it local. Just run it; migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB. If the marker or `.env.local` is missing, `bin/rails` **fails closed** (crashes at boot on missing env / undecryptable vault secrets) rather than reaching a remote DB — it does not silently hit the shared dev DB. (`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
+Bare `bin/rails ...` runs against the **local** DB — the `~/.zshenv` marker plus the repo's `.env.local` make it local. Just run it; migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB. If `.env.local` is missing, dev `bin/rails` won't reach the shared remote DB in practice — the vault can't decrypt secrets locally and the remote DB host isn't reachable from your machine, so it errors rather than connecting; run `bin/native/ensure_running.sh` to (re)create `.env.local`. (`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
 
 **Pending migrations are not a decision point.** A `PendingMigrationError`, or pending migrations blocking boot/QA, means: run `bin/rails db:migrate` — however many are pending, don't ask, don't propose isolating the worktree's DB, don't skip QA over it. The shared-DB caveat above is awareness, not a veto. (`db:reset`/`db:drop` discard data — those are the only local DB commands worth confirming first.)
 

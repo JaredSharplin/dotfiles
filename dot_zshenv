@@ -1,3 +1,10 @@
+# mise shims for non-login shells (login shells re-prepend in .zprofile, after macOS path_helper).
 export PATH="$HOME/.local/share/mise/shims:$PATH"
 
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+
+# payaus native dev. In .zshenv (not .zshrc) so non-interactive shells — scripts, git hooks, agents —
+# see it, not just interactive terminals. config/boot.rb loads .env.local when set (skipped in tests);
+# DEV_CATCH_EMAIL routes dev mail to the local mailpit catcher.
+export RUNNING_LOCAL_NATIVE_ENV=true
+export DEV_CATCH_EMAIL=true

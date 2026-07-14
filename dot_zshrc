@@ -1,9 +1,5 @@
 # ~/.zshrc - Minimal setup for macOS
 
-# payaus native dev — before the interactive guard so non-interactive shells (scripts, agents) get it too
-export RUNNING_LOCAL_NATIVE_ENV=true
-export DEV_CATCH_EMAIL=true
-
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
@@ -60,12 +56,5 @@ if command -v mcfly &> /dev/null; then
   eval "$(mcfly init zsh)"
 fi
 
-# mise: resolution is via shims only (also prepended in .zshenv for
-# non-interactive shells). Deliberately NOT using `mise activate` — it removes
-# the shims dir from PATH and prepends version-specific dirs, so child
-# processes (git hooks, agents, IDEs) inherit a PATH that only resolves
-# correctly for the directory the shell happened to be in. Shims resolve
-# per-directory at exec time instead. See https://mise.jdx.dev/dev-tools/shims.html
-# This re-prepend must stay LAST: macOS /etc/zprofile (path_helper) and rc-file
-# PATH edits above would otherwise put Homebrew's node ahead of the shims.
-export PATH="$HOME/.local/share/mise/shims:$PATH"
+# mise shims: PATH ordering is handled in .zshenv (non-login shells) and .zprofile (login shells, after
+# macOS path_helper runs). Kept out of .zshrc so non-interactive login shells get it too.
