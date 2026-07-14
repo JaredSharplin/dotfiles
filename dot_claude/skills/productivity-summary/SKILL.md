@@ -12,12 +12,16 @@ description: >
 
 # Productivity check-in
 
-A tick of a running work log. Meant to fire every ~30 min under `/loop`. Each tick: gather a
-snapshot, narrate what moved, nudge if something's drifting, notify.
+A check-in on the **most recent period only** — what happened since the last tick, nothing
+cumulative. Meant to fire every ~30 min under `/loop`.
+
+**The metric that matters is shipping to customers.** A merged PR labelled `feature` or `bug` is the
+signal; everything else (WIP commits, reviews, internal/refactor merges, session churn) is
+supporting work and ranks below it. Lead with what shipped; if nothing shipped, that's itself the
+headline, not a gap to paper over with busywork stats.
 
 Keep it fast and cheap — the collector does all gathering and recording; your job is the narration
-and the nudge, nothing else. Do NOT gather git/GitHub/session data yourself; read it from the
-collector's JSON.
+and the nudge. Do NOT gather data yourself; read the collector's JSON.
 
 ## Step 1 — collect
 
@@ -25,41 +29,43 @@ collector's JSON.
 ~/.claude/skills/productivity-summary/collect.rb
 ```
 
-This appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the same record as
-JSON on stdout. Parse that JSON — it has `since` (start of this interval), `git`, `github`, and
+Appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the same record as JSON.
+Everything below describes **this interval** (`since` → `ts`). Parse the JSON — `github.shipped`
+(merged PRs, each with `customer_facing`), `github.in_flight`, `github.reviews_given`, `git.commits`,
 `sessions`.
 
-## Step 2 — summarize (terminal)
+## Step 2 — summarize (this period only)
 
-Print a short summary, in this shape:
+No day totals, no "so far today" — only what moved this interval. Order by importance:
 
-- One line: interval window (`since` → now) and headline totals — commits this interval, PRs
-  authored/merged today, reviews given today.
-- Git: per-repo commit lines that have `count > 0` (`repo/branch: N commits, +ins/-del`).
-- Sessions: one line per worktree from `sessions`, newest/most-active first —
-  `<worktree> (<branch>): N turns, tools…, advancing|idle`. Use the `advancing` flag and `titles`.
+1. **Shipped** — lead here. Customer-facing merges first (`customer_facing: true`):
+   `🚢 Shipped: #N <title>`. Any non-customer-facing merges after, one line, labelled internal.
+   If `shipped` is empty, say so plainly in one line — "Nothing shipped this period."
+2. **In flight** — `in_flight` PRs that moved (draft vs ready via `isDraft`): `#N <title> (draft|ready)`.
+3. **Supporting** — brief, subordinate: reviews given (`reviews_given`), commits per repo/branch
+   with `count > 0`, and active worktrees from `sessions` (`<worktree>: N turns, advancing|idle`).
 
-Keep the whole thing scannable — a dozen lines at most. Omit empty sections rather than printing
-"nothing".
+Keep it scannable — a dozen lines at most. Omit empty sections.
 
 ## Step 3 — nudge
 
-Add one or two short "on track?" observations grounded in the data:
+One or two short observations, judged against shipping:
 
-- A worktree/branch with a session active but `advancing: false` (turns but no edits/commits) — may
-  be stuck or exploring.
-- Focus scatter — many worktrees touched in one interval.
-- A day total that's flat across several ticks (compare to earlier records in today's log if useful).
+- Nothing shipped while lots of activity piled up (commits, turns, open PRs) — flag it.
+- Effort concentrated on non-customer-facing work (internal/refactor) — note it's not moving the
+  main needle, without judgement.
+- A worktree active but `advancing: false` — may be stuck or exploring.
 
-If everything looks healthy, say so in one line. Don't invent problems.
+If a customer-facing PR shipped, say so and move on — don't manufacture a concern.
 
 ## Step 4 — notify
 
-Fire one macOS notification with a one-line headline and the top nudge. Keep the body under ~120
-chars and escape any double quotes:
+One macOS notification, headline led by shipping. Body under ~120 chars, escape double quotes:
 
 ```bash
-osascript -e 'display notification "3 commits · 1 PR merged · mds-feedback advancing" with title "Productivity check-in" subtitle "10:00–10:30"'
+osascript -e 'display notification "🚢 1 customer-facing shipped · 2 PRs in flight" with title "Productivity check-in" subtitle "10:00–10:30"'
+# nothing shipped:
+osascript -e 'display notification "Nothing shipped · 3 WIP commits, 1 review" with title "Productivity check-in" subtitle "10:00–10:30"'
 ```
 
 That's the whole tick. End the turn — under `/loop`, the next tick fires on schedule.

@@ -2,8 +2,8 @@
 name: productivity-report
 description: >
   End-of-day reflection over the productivity log written by /productivity-summary.
-  Renders a plain-text activity-by-hour view, peak window, day totals (commits, PRs
-  merged, reviews given), and focus split across worktrees. Use when the user invokes
+  Renders a plain-text activity-by-hour view, peak window, day totals (shipped /
+  customer-facing, commits, reviews given), and focus split across worktrees. Use when the user invokes
   /productivity-report, asks "how did my day go", "when was I most productive", or
   wants to reflect on the day's work. Pass a date (YYYY-MM-DD) to report on a past day.
 ---

@@ -50,14 +50,26 @@ def git_activity(dir, since)
   }
 end
 
-def github_activity(today)
-  authored = gh_json("search", "prs", "--author=@me", "--updated=>=#{today}", "--limit", "40",
-                     "--json", "number,title,state,url,isDraft")
-  reviewed = gh_json("search", "prs", "--reviewed-by=@me", "--updated=>=#{today}", "--limit", "40",
+# Labels that mean the PR ships something to customers. Everything else
+# (not-user-facing, refactor, api-only, security tooling) is supporting work.
+CUSTOMER_LABELS = %w[feature bug].freeze
+
+def github_activity(since)
+  since_arg = since.utc.iso8601
+  merged = gh_json("search", "prs", "--author=@me", "--merged-at", ">=#{since_arg}", "--limit", "40",
+                   "--json", "number,title,url,labels")
+  in_flight = gh_json("search", "prs", "--author=@me", "--state", "open", "--updated", ">=#{since_arg}",
+                      "--limit", "40", "--json", "number,title,url,isDraft")
+  reviewed = gh_json("search", "prs", "--reviewed-by=@me", "--updated", ">=#{since_arg}", "--limit", "40",
                      "--json", "number,title,url,repository")
   {
-    authored:,
-    reviewed_by_me: reviewed.map { { number: it["number"], title: it["title"], url: it["url"], repo: it.dig("repository", "name") } }
+    shipped: merged.map do |pr|
+      labels = Array(pr["labels"]).map { it["name"] }
+      { number: pr["number"], title: pr["title"], url: pr["url"], labels:,
+        customer_facing: labels.intersect?(CUSTOMER_LABELS) }
+    end,
+    in_flight: in_flight.map { it.slice("number", "title", "url", "isDraft") },
+    reviews_given: reviewed.map { { number: it["number"], title: it["title"], repo: it.dig("repository", "name") } }
   }
 end
 
@@ -137,7 +149,7 @@ record = {
   ts: now.utc.iso8601,
   since: checkpoint.utc.iso8601,
   git: { commits:, total_commits: commits.sum { it[:count] } },
-  github: github_activity(today),
+  github: github_activity(checkpoint),
   sessions: session_activity(checkpoint)
 }
 
