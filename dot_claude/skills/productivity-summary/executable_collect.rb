@@ -64,13 +64,13 @@ REVIEW_EVENTS = %w[PullRequestReviewEvent PullRequestReviewCommentEvent].freeze
 # PRs I reviewed during the window, from my GitHub event feed. The feed carries
 # each event's real timestamp (when I actually reviewed), unlike a PR search on
 # --updated, which resurfaces any old review the moment someone else touches the PR.
-def reviews_given(since, now)
+def reviews_given(since)
   login = gh_text("api", "user", "--jq", ".login")
   return [] if login.empty?
 
-  window = since.utc..now.utc
+  since_utc = since.utc
   events = gh_json("api", "/users/#{login}/events?per_page=100").select do |event|
-    REVIEW_EVENTS.include?(event["type"]) && window.cover?(Time.iso8601(event["created_at"]))
+    REVIEW_EVENTS.include?(event["type"]) && Time.iso8601(event["created_at"]) >= since_utc
   end
 
   events.group_by { it.dig("payload", "pull_request", "number") }.filter_map do |number, grouped|
@@ -81,7 +81,7 @@ def reviews_given(since, now)
   end
 end
 
-def github_activity(since, now)
+def github_activity(since)
   merged = gh_json("search", "prs", "--author=@me", "--merged-at", ">=#{since.utc.iso8601}", "--limit", "40",
                    "--json", "number,title,url,labels")
   open_prs = gh_json("search", "prs", "--author=@me", "--state", "open", "--limit", "40",
@@ -93,7 +93,7 @@ def github_activity(since, now)
         customer_facing: labels.intersect?(CUSTOMER_LABELS) }
     end,
     in_flight: open_prs.map { it.slice("number", "title", "url", "isDraft") },
-    reviews_given: reviews_given(since, now)
+    reviews_given: reviews_given(since)
   }
 end
 
@@ -169,7 +169,7 @@ checkpoint =
   end
 
 commits = REPOS.filter_map { git_activity(it, checkpoint) }
-github = github_activity(checkpoint, now)
+github = github_activity(checkpoint)
 
 # A PR that flipped draft -> ready since last tick has cleared the developer's
 # manual QA gate — the visible outcome of otherwise-invisible QA work.
