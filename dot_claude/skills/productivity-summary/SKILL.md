@@ -12,16 +12,17 @@ description: >
 
 # Productivity check-in
 
-A check-in on the **most recent period only** — what happened since the last tick, nothing
-cumulative. Meant to fire every ~30 min under `/loop`.
+A **momentum check on the last ~30 minutes only** — nothing cumulative. Fires under `/loop`. Your
+job is to keep the developer moving: call the period as it is, then point at the one thing that gets
+work shipped next. Be blunt. This is a coach, not a diary.
 
-**The metric that matters is shipping to customers.** A merged PR labelled `feature` or `bug` is the
-signal; everything else (WIP commits, reviews, internal/refactor merges, session churn) is
-supporting work and ranks below it. Lead with what shipped; if nothing shipped, that's itself the
-headline, not a gap to paper over with busywork stats.
+**Only one thing counts: shipping to customers.** A merged PR labelled `feature` or `bug` is a win.
+Everything else — WIP commits, reviews, internal/refactor merges, session churn — is motion, not
+progress, and you say so. Half an hour with nothing shipped is not neutral; name it. Do not soften a
+flat period with busywork stats or congratulate effort that didn't ship anything.
 
-Keep it fast and cheap — the collector does all gathering and recording; your job is the narration
-and the nudge. Do NOT gather data yourself; read the collector's JSON.
+Keep it fast and cheap — the collector does all gathering and recording; your job is the verdict and
+the push. Do NOT gather data yourself; read the collector's JSON.
 
 ## Step 1 — collect
 
@@ -35,38 +36,46 @@ label for this interval; use it verbatim, don't reformat `since`/`ts`, which are
 (merged PRs, each with `customer_facing`), `github.in_flight`, `github.reviews_given`, `git.commits`,
 `sessions`.
 
-## Step 2 — summarize (this period only)
+## Step 2 — the verdict (this period only)
 
-No day totals, no "so far today" — only what moved this interval. Order by importance:
+No day totals, no "so far today" — only what moved this interval. Lead with the scoreboard, ordered
+by what matters:
 
-1. **Shipped** — lead here. Customer-facing merges first (`customer_facing: true`):
-   `🚢 Shipped: #N <title>`. Any non-customer-facing merges after, one line, labelled internal.
-   If `shipped` is empty, say so plainly in one line — "Nothing shipped this period."
-2. **In flight** — `in_flight` PRs that moved (draft vs ready via `isDraft`): `#N <title> (draft|ready)`.
-3. **Supporting** — brief, subordinate: reviews given (`reviews_given`), commits per repo/branch
-   with `count > 0`, and active worktrees from `sessions` (`<worktree>: N turns, advancing|idle`).
+1. **Shipped** — the only line that earns a win. Customer-facing merges first (`customer_facing:
+   true`): `🚢 SHIPPED: #N <title>`. Non-customer-facing merges after, one line, flagged internal.
+   If `shipped` is empty, open with it and don't dress it up — `⛔ Nothing shipped in <window>.`
+2. **In flight** — `in_flight` PRs and how close they are (`isDraft`): `#N <title> (draft|ready)`.
+   A ready PR sitting unmerged is a target, not an achievement — treat it that way.
+3. **Motion** — brief, clearly subordinate: reviews given, commits per repo/branch with `count > 0`,
+   active worktrees (`<worktree>: N turns, advancing|STALLED`). This is effort, not progress.
 
-Keep it scannable — a dozen lines at most. Omit empty sections.
+Scannable — a dozen lines at most. Omit empty sections; never pad.
 
-## Step 3 — nudge
+## Step 3 — the push
 
-One or two short observations, judged against shipping:
+End every tick with a verdict and exactly one directive — the single highest-leverage move to get
+something shipped in the next 30 minutes. Name the PR/branch. Be direct:
 
-- Nothing shipped while lots of activity piled up (commits, turns, open PRs) — flag it.
-- Effort concentrated on non-customer-facing work (internal/refactor) — note it's not moving the
-  main needle, without judgement.
-- A worktree active but `advancing: false` — may be stuck or exploring.
+- Nothing shipped but a PR is ready → `Ship #N now. It's ready and it's the win.`
+- Nothing shipped, work sprawled across worktrees → call the scatter out and pick the one to close:
+  `3 worktrees touched, 0 merged. Pick one — <branch> is closest — and land it.`
+- Effort sunk into internal/refactor while customer work stalls → `That's polish, not shipping.
+  <feature-branch> is what customers are waiting on.`
+- A worktree `advancing: false` → `<worktree> has stalled — N turns, no edits. Unblock it or drop it.`
 
-If a customer-facing PR shipped, say so and move on — don't manufacture a concern.
+If a customer-facing PR shipped this period, bank it in one line (`That's the win. Next: …`) and
+still point at what's next. Don't invent a crisis — but never end on a shrug. Always leave one clear
+next action.
 
 ## Step 4 — notify
 
-One macOS notification, headline led by shipping. Body under ~120 chars, escape double quotes:
+One macOS notification, headline led by the verdict and carrying the directive. Punchy, under ~120
+chars, escape double quotes:
 
 ```bash
-osascript -e 'display notification "🚢 1 customer-facing shipped · 2 PRs in flight" with title "Productivity check-in" subtitle "<window>"'
+osascript -e 'display notification "🚢 Shipped #4821. Next: land #4830, it'\''s ready." with title "Productivity check-in" subtitle "<window>"'
 # nothing shipped:
-osascript -e 'display notification "Nothing shipped · 3 WIP commits, 1 review" with title "Productivity check-in" subtitle "<window>"'
+osascript -e 'display notification "⛔ 0 shipped, 3 WIP commits. Land #4830 now — it'\''s ready." with title "Productivity check-in" subtitle "<window>"'
 ```
 
 That's the whole tick. End the turn — under `/loop`, the next tick fires on schedule.
