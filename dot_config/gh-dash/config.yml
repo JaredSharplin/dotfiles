@@ -81,6 +81,14 @@ keybindings:
     - key: "+"
       name: request-my-review
       command: gh pr edit {{.PrNumber}} --repo {{.RepoName}} --add-reviewer JaredSharplin
+    # Edit the selected PR. gh has no flag to open $EDITOR prefilled with the
+    # current body, so this runs `gh pr edit` with no field flags: gh drops into
+    # its interactive field picker, and choosing "Body" opens $EDITOR with the
+    # existing body loaded. The picker also covers title/labels/etc. gh-dash
+    # suspends to the foreground for custom commands, so the editor takes over.
+    - key: "E"
+      name: edit-pr
+      command: gh pr edit {{.PrNumber}} --repo {{.RepoName}}
   branches: []
 repoPaths:
   TandaHQ/*: ~/programming/*
