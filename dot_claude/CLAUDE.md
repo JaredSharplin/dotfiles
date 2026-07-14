@@ -1,55 +1,60 @@
 # Working together
 
-These are the conventions I've settled on for this codebase. If a rule doesn't fit the situation, say so and explain — I'd rather revisit a rule than have you work around it silently. Push back if you see a better approach than what I've asked for.
+Conventions I've settled on. If a rule doesn't fit the situation, say so — I'd rather revisit a rule than have you work around it silently. Push back if you see a better approach.
 
-Rules written as absolutes ("off the table", "not negotiable") genuinely have no exceptions. Everything else is a default you can reason about.
+Absolutes ("off the table", "not negotiable") have no exceptions. Everything else is a default you can reason about.
 
 # Design rhythm
 
-Two principles, both adapted from Kent Beck. Together they're how we keep design quality from drifting as features land.
+Two principles from Kent Beck — how we keep design quality from drifting as features land.
 
 ## Beck's four rules of simple design
 
-In priority order — when two rules tension, the higher-priority one wins:
+Priority order — when two tension, the higher wins:
 
 1. **Passes the tests** — correctness is non-negotiable.
-2. **Reveals intention** — code communicates its purpose to readers.
-3. **No duplication** — state every fact once and only once.
-4. **Fewest elements** — remove anything that doesn't serve rules 1-3. No speculative abstractions.
+2. **Reveals intention** — code communicates its purpose.
+3. **No duplication** — state every fact once.
+4. **Fewest elements** — remove anything not serving 1-3. No speculative abstractions.
 
-Rules 2 and 3 sometimes pull in opposite directions — making something DRY can obscure intent. Resolve by *refactoring*, not by abandoning either rule. If you can't reconcile them, raise it rather than silently picking.
+Rules 2 and 3 can pull apart — making something DRY can obscure intent. Resolve by refactoring, not by abandoning either. If you can't reconcile them, raise it.
+
+Two duplication blind spots the agent loop misses while writing — they're global properties, invisible mid-generation, so catch them on the exhale:
+
+- **Derived state stored as a field** — an ivar/attribute/flag that's a pure function of state already held. Make it a method.
+- **Reinvented mechanism** — hand-rolled code duplicating what the framework or codebase already provides. Reuse it.
+
+Naming (rule 2) applies continuously, not just on the exhale: optimise for correctness and clarity, never brevity. Use the domain's own word (schema and associations are the dictionary), spelled out however verbose. Never a name that's *false* about what the code does — `will_create` on a class that only fills existing records is a lie; so is `token` for a value that isn't one.
 
 ## Inhale / exhale
 
-The agent-loop default is to add features without ever stepping back. That degrades design quickly. Counter it with a two-phase rhythm, with commits in between:
+The agent-loop default is to add features without stepping back, which degrades design fast. Counter it with two phases, commits in between:
 
-- **Inhale (RED → GREEN):** write a failing test, make it pass with the simplest implementation that works, *commit*.
-- **Exhale (REFACTOR):** with the test green, review the change for duplication, leaky abstractions, names that drifted, and dead branches. Apply Beck's four rules. *Commit the cleanup separately* — never mix feature work and refactor in one commit.
+- **Inhale (RED → GREEN):** failing test, simplest implementation that passes, *commit*.
+- **Exhale (REFACTOR):** with the test green, review for duplication (derived state, reinvented mechanism), leaky abstractions, drifted names, dead branches. Apply Beck's four rules. *Commit the cleanup separately* — never mix feature and refactor.
 
-The exhale is not optional. Skipping it is how complexity compounds. The only exemptions are genuinely-trivial changes (typo fixes, single-line config tweaks).
+The exhale isn't optional; skipping it compounds complexity. Only exemption: genuinely-trivial changes (typos, single-line config).
 
-For payaus, the canonical exhale tool is the `/simplify-with-analysis` skill — runs `/simplify`, then `bin/diff-quality` (rubycritic + SimpleCov coverage vs `master`), with a one-follow-up-pass discipline. For other projects, just `/simplify` (built-in) is fine.
+For payaus, the canonical exhale tool is `/simplify-with-analysis` — gathers findings report-only (a `/code-review` pass, a cold Beck-rules subagent, and `bin/diff-quality`: rubycritic + SimpleCov coverage vs `master`), posts one consolidated summary before editing, then applies one follow-up pass. Other projects: `/simplify` (built-in) is fine.
 
 # Testing
 
-Use `bin/rails test file.rb:123` — always include the line number.
-
-Don't use `bin/dev test`.
+Use `bin/rails test file.rb:123` — always with the line number. Don't use `bin/dev test`.
 
 ## Writing tests
 
-Good tests here look like:
+Good tests here:
 
-- Deterministic — one execution path, no if/else branches
-- Exact values — calculate expected results up front, assert against them directly
+- Deterministic — one execution path, no if/else
+- Exact values — calculate expected up front, assert directly
 - `assert_in_delta expected, actual` with defaults, no extra arguments
 - No comments or assertion messages
-- Coverage is thorough — exercise the behavior, not just the happy path
+- Thorough coverage — exercise the behavior, not just the happy path
 
 Two absolutes:
 
 - **Don't skip tests.** If the environment is blocking, fix the environment first.
-- **Don't weaken an assertion to turn red green.** If a test fails, the cause is in the code or the test's logic. Matching the assertion to broken behavior defeats the point of the test.
+- **Don't weaken an assertion to turn red green.** A failure means the code or the test's logic is wrong. Matching the assertion to broken behavior defeats the point.
 
 ```ruby
 # Wrong
@@ -67,25 +72,23 @@ assert_in_delta expected, result
 
 ## Linting commands
 
-- `bundle exec rubocop` for Ruby linting
-- `srb tc` for Sorbet type checking
-- If either fails due to missing gems, run `bundle install` first
+- `bundle exec rubocop` — Ruby
+- `srb tc` — Sorbet
+- If either fails on missing gems, `bundle install` first.
 
 ## Lints are not negotiable
 
-When rubocop or Sorbet complains, restructure the code until it passes. Disable-comments (`# rubocop:disable`, `# T.unsafe`, `# typed: ignore`, weakening `# typed:` strictness, or any inline disable) are off the table — no exceptions.
-
-A linter complaint is a real signal. Silencing it without fixing the cause hides the issue for later.
+When rubocop or Sorbet complains, restructure the code until it passes. Disable-comments (`# rubocop:disable`, `# T.unsafe`, `# typed: ignore`, weakening `# typed:` strictness, or any inline disable) are off the table — no exceptions. A complaint is a real signal; silencing it without fixing the cause hides the issue.
 
 ## Sorbet sigil for new Ruby files
 
-New Ruby files in app code must start with `# typed: strict`. Not `false`, not `ignore` — `strict`. This is non-negotiable for app code, except controllers, which use `# typed: true`. (Tests, scripts, and other non-app files are not covered by this rule.)
+New app-code Ruby files must start `# typed: strict` — not `false`, not `ignore`. Non-negotiable for app code, except controllers (`# typed: true`). (Tests, scripts, and other non-app files are exempt.)
 
-Under `strict`, every method needs a `sig`, every constant and instance variable needs a declared type, and there are no implicit `T.untyped` escapes. Write the `sig`s as you write the methods — don't defer them. If `srb tc` complains, fix the types; don't downgrade the sigil.
+Under `strict`: every method needs a `sig`, every constant and instance variable a declared type, no implicit `T.untyped` escapes. Write the `sig`s as you write the methods. If `srb tc` complains, fix the types — don't downgrade the sigil.
 
 ## User-facing strings
 
-All user-facing strings must go through translation. Don't embed plain English directly.
+All go through translation. Don't embed plain English directly.
 
 ## Use Enumerable, not C-style loops
 
@@ -215,9 +218,9 @@ For everything else, use the alternative — these aren't judgment calls:
 
 ## Bug investigation against the remote dev box
 
-Most dev work for this developer is **local** (native dev or Docker, with isolated local DBs). The remote dev box is only used for **bug investigation** that requires the shared, prod-scrubbed dataset — typically reproducing a customer-reported issue.
+Most dev work here is **local** (native dev or Docker, isolated local DBs). The remote dev box is only for **bug investigation** needing the shared, prod-scrubbed dataset — typically reproducing a customer issue.
 
-The remote dev box is wired to the **main repo only** (`~/programming/payaus`). It does **not** work in worktrees. If a bug-investigation step needs `bin/dev`, switch to the main repo first.
+The remote dev box is wired to the **main repo only** (`~/programming/payaus`), not worktrees. If a bug-investigation step needs `bin/dev`, switch to the main repo first.
 
 For read-only investigation, the project ships a `/dev-console` skill in `payaus/.claude/skills/dev-console/`. That skill is the canonical contract:
 - `bin/dev runner "..."` — preferred for one-shot reads (no interactive session)
@@ -230,7 +233,7 @@ These `bin/dev` commands target the remote shared DB and are allowed for read-on
 
 This developer runs the app natively via payaus's shipped native dev setup (puma-dev; PR #45524 + follow-ups), in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native dev is active.
 
-Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshrc`, so `config/boot.rb` loads the worktree's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` runs against the **local** DB. No wrapper.
+Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshrc`, so `config/boot.rb` loads the worktree's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB. No wrapper.
 
 ## When to use native local dev
 
@@ -324,12 +327,9 @@ See `docs/local-native-setup.md` in payaus for setup, architecture, and troubles
 
 For any config file (gitignore, dotfiles, rc files):
 
-1. **Investigate existing setup first.** Check what's already configured before making changes.
-   - `git config --global core.excludesfile` to see the current gitignore
-   - `ls -la ~/.*` for existing dotfiles
-   - The solution may already exist
-2. **Read, then Edit.** Use the Read tool first, then Edit for targeted changes. Don't use `echo >>` (appends blindly) or Write on an existing file (overwrites everything).
-3. **Global gitignore:** check `git config --global core.excludesfile` first. User's global gitignore is at `~/.global_gitignore`.
+1. **Investigate first.** Check what's already configured — the solution may already exist. `git config --global core.excludesfile` for the current gitignore, `ls -la ~/.*` for existing dotfiles.
+2. **Read, then Edit.** Never `echo >>` (appends blindly) or Write on an existing file (overwrites everything).
+3. **Global gitignore** lives at `~/.global_gitignore`.
 
 # Git workflow
 
@@ -341,9 +341,8 @@ Use git town for branch management. Invoke the `/git-town` skill for detailed st
 
 ## Commit and push cadence
 
-- **Commit** when a logical unit of work is complete — not after every individual file edit
-- **`git town sync`** only when explicitly asked
-- A "commit and push" request in one message doesn't mean keep syncing after every subsequent change
+- **Commit** when a logical unit of work is complete — not after every file edit
+- **`git town sync`** only when explicitly asked; a one-time "commit and push" doesn't mean keep syncing after every later change
 
 ## Commit messages
 
@@ -351,12 +350,12 @@ Write very short commit messages.
 
 ## CI builds and pushing
 
-Pushing is off by default (`push-branches = false` in global git config), which is what keeps CI spend down — no `[skip ci]` machinery needed. `git town sync` updates branches **locally only** and does not push, so intermediate syncs burn no Buildkite builds. The pushes that do happen are deliberate:
+Pushing is off by default (`push-branches = false`), which keeps CI spend down — no `[skip ci]` machinery needed. `git town sync` updates branches **locally only**, so intermediate syncs burn no Buildkite builds. The deliberate pushes:
 
 - `git town propose` pushes once when opening the PR — that's the build you want.
-- `git town sync --push` pushes on purpose (e.g. to update an open PR with newly-synced changes).
+- `git town sync --push` pushes on purpose (e.g. to update an open PR).
 
-The feature sync strategy is `merge` (not compress/rebase), so syncs never rewrite history — a later push is always a clean fast-forward. There is no `[skip ci]` hook.
+Feature sync strategy is `merge` (not compress/rebase), so syncs never rewrite history — a later push is always a clean fast-forward.
 
 ## Git town behavior
 
@@ -364,30 +363,26 @@ When running `git town sync`, it will sometimes edit **unrelated PRs** to update
 
 ## When a test fails on your branch
 
-Master is always green — CI enforces it on every merge. So a red test on your branch was caused by your diff. "Master must be broken" is never the explanation.
+Master is always green — CI enforces it on every merge. So a red test on your branch was caused by your diff; "master must be broken" is never the explanation.
 
-**The gate (no exceptions):** any red run → re-run it once → *only then* reason about the cause. You may not state or act on any conclusion about why it failed — "flaky", "not my diff", "pre-existing", "environmental", "too big to be mine" — until the re-run has completed.
+**The gate (no exceptions):** any red run → re-run it once → *only then* reason about the cause. You may not state or act on any conclusion — "flaky", "not my diff", "pre-existing", "environmental", "too big to be mine" — until the re-run completes. A failure count larger or weirder than your diff (22 failures from a 4-test change) is the *strongest* reason to re-run, never grounds to skip it — it means you don't understand the situation yet, not that the cause is environmental.
 
-A failure count larger or weirder than your diff is the *strongest* reason to re-run, never grounds to skip it. A surprising shape (22 failures from a 4-test change) means you don't yet understand the situation — it is never evidence the cause is environmental or on master.
+**Checking out or stashing to master "to verify" is off the table — no exceptions.** The premise (that master might be the problem) is known false, so there's nothing to verify there.
 
-**Checking out or stashing to master "to verify" is off the table — no exceptions.** The premise (that master might be the problem) is already known to be false, so there is nothing to verify there.
-
-After the re-run, if it's still red it's your code: use `git diff master -- <file>` to see what you changed, and fix forward. There's no such thing as a "pre-existing failure" on your branch.
+After the re-run, if it's still red it's your code: `git diff master -- <file>` to see what you changed, and fix forward. There's no "pre-existing failure" on your branch.
 
 # GitHub PRs
 
 ## Analyzing PR changes
 
-**For PR review, `git diff master` is off the table in every form** — including `git diff master -- <path>`, `git diff origin/master`, and any equivalent. Use `gh pr diff <number>`.
-
-Why: local master is often stale, which silently injects unrelated changes into the diff and leads to wrong conclusions. `git diff` also includes merge commit artifacts that distort the file list. Only `gh pr diff` shows the true PR diff that reviewers see.
+**For PR review, `git diff master` is off the table in every form** — including `git diff master -- <path>`, `git diff origin/master`, any equivalent. Use `gh pr diff <number>`. Local master is often stale (injects unrelated changes) and `git diff` includes merge-commit artifacts that distort the file list; only `gh pr diff` shows the true PR diff reviewers see.
 
 Workflow:
-1. Check PR size: `gh pr view <number> --json additions,deletions`
-2. Small (<1000 lines): `gh pr diff <number>` with no flags
+1. Check size: `gh pr view <number> --json additions,deletions`
+2. Small (<1000 lines): `gh pr diff <number>`, no flags
 3. Large: `gh pr diff <number> --name-only` first, then read specific files
 
-Don't use `--patch` — it shows individual commit patches, not the net PR diff.
+Don't use `--patch` — it shows individual commit patches, not the net diff.
 
 ## Creating PRs
 
@@ -408,13 +403,11 @@ Choose the type label based on the nature of the change. If unsure, ask before c
 
 ## Editing PR bodies
 
-Don't replace a PR body wholesale — the user may have made manual edits (checked boxes, added notes) that would be lost.
-
-Before editing:
+Don't replace a PR body wholesale — I may have made manual edits (checked boxes, notes) that would be lost. Before editing:
 
 1. Fetch the current body: `gh pr view <number> --json body -q '.body'`
-2. Make incremental changes — modify only the specific section you need to change
-3. If adding a new section, append rather than rewriting everything
+2. Change only the section you need
+3. Adding a section? Append, don't rewrite.
 
 # Shape docs
 
@@ -426,23 +419,23 @@ Shape Up planning lives at `~/notes/shaping/<project>/`. Standard files:
 - `spike-*.md` — focused technical investigations referenced from the above
 - `pr-stack.md` — PR stack mapping (added when work goes into flight)
 
-When picking up work on a slice, read at least `frame.md`, `slices.md`, and `pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Spikes are background — read the ones a slice or stack explicitly cites.
+Picking up a slice: read `frame.md`, `slices.md`, `pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Read the spikes a slice or stack explicitly cites.
 
 Frontmatter `shaping: true` marks these files so tooling can find them.
 
 # Working style
 
-- When I reference a documentation file, read the entire file in one pass — don't chunk for token savings. Thoroughness beats token efficiency for technical docs.
+- When I reference a documentation file, read all of it in one pass — don't chunk it or skip sections to save tokens. (This is about *reading* input, not about output length.)
 - When you think I'm wrong or asking for the wrong thing, say so before acting on it.
 - If a rule here doesn't fit the current context, flag it — these are guidelines for the common case, not traps.
-- **Stay within the approved scope on destructive or multi-step tasks.** Do exactly what I approved, and treat anything beyond it as a fresh decision to surface. When the ground differs from the plan — an unexpected file or branch, a worktree with a live session — stop and report what you found so I can decide. Surface a discovered item even when it looks "obviously in the same category" as an approved one. Recovery and undo actions (restore, re-create, kill a process, move uncommitted work) each need their own go-ahead. Read-only investigation needs none of this — the bar is only on actions that change state.
-- **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one.
-- **When I ask a question, the answer is the deliverable — give it its own turn and end with no tool call.** Don't bundle an answer with the tool calls it prompts. Prose emitted in a turn that then fires tools gets buried in the activity stream — it scrolls out of view behind the tool output, so for practical purposes the answer never reaches me (and on AskUserQuestion turns the harness hides it outright — see below). Write the answer, stop, end the turn; pick the tool work back up in the *next* turn, once I've read it and responded. This is about genuine questions — "why did X happen?", "which approach is better?", "what's the cause?" — where my reply is the thing you asked for. It is *not* a license to fragment ordinary task execution, where doing the work and reporting the result in the same turn is exactly right. The litmus test: if I'd want to read your reasoning and possibly redirect before you act on it, isolate the answer. The AskUserQuestion convention below is the strict instance of this same rule.
-- **Use the AskUserQuestion tool to ask questions.** Don't present options as prose menus. But the tool is not a substitute for thinking:
-  - **Framing must be its own turn. Never put it in the same turn as the tool call.** Mechanically: the harness hides any prose I emit in the turn that calls AskUserQuestion — I see *only* the forced-choice modal (the question text and the option labels), never the surrounding text. So framing bundled with the call does not reach me at all, however good it is. "Frame in the text before the tool call" is therefore the wrong instruction — the only framing I can actually read is framing delivered in a turn that **ends with no tool call**. So: write the framing, stop, end the turn. Then, in a *later* turn — after I've read it and responded — call AskUserQuestion. This is unconditional, not only when I ask to be "walked through first." If a question needs any context beyond what fits in the question text and the option labels themselves, that context must go in a prior turn or I will never see it. The bonus: a separate framing turn is also where I get to push on the premise or redirect before being forced to pick — the modal has no "wait, back up" (that's just "Other," a workaround).
-  - What the framing turn must contain. Say what's being decided, what each option concretely does, and what the tradeoff is — *per question* if you're batching several (e.g. code-review findings), never one shared preamble for five decisions. A project-state recap is *not* framing: it summarizes where we are, not what this specific question controls or how the options differ. The bar is self-containment: someone who hasn't read the conversation could answer from that turn alone. If they'd need to scroll up or ask me anything, it isn't done — keep writing. Me having to ask "why?" or "more context?" is the failure this prevents; assume I won't ask, so if the framing doesn't stand on its own, I'm simply stuck.
-  - When I ask for context on a pending question ("give me more context", "why are you asking this", "explain that"), treat it as a standalone writing deliverable, not a prompt to re-ask. The correct response is to *explain the question* — what it decides, what each option does differently, what the tradeoff is — using what you already know. Do **not** re-fire the decision, re-emit the same question, or re-call AskUserQuestion at the end. Do **not** reflexively go run more tool calls; answer from what's already in context, and only investigate if a *specific* fact is genuinely missing — in which case name that fact and explain why it's needed. A context request is evidence I under-framed the question: the fix is to explain it, never to repeat it.
-  - If you mark an option `(Recommended)`, justify it. Say briefly *why* you prefer it and what the main tradeoff is against the next-best alternative. An unjustified recommendation is just a tag — it tells me nothing about your reasoning and I can't agree or push back on it.
-  - Keep options few and concrete. If you're reaching for four options with subtle distinctions, the problem is under-framed — do another pass yourself and ask a narrower question. Two well-chosen options beat four mushy ones.
-  - Code review is a primary use case. When reviewing a diff or PR, surface each finding as its own question with concrete action options (e.g. "fix now", "leave as-is", "defer to follow-up") rather than dumping a prose list of issues for me to triage. This turns review into a sequence of decisions I can actually act on. Same per-question framing rule applies: each finding needs its own explanation of *what* you found, *why* it matters, and *why* you're recommending the action you are.
-  - **This convention outranks any skill's local apply/skip instruction.** When a skill (`/simplify`, `/simplify-with-analysis`, `/address-review-comments`, or any built-in review pass) tells you to fix or skip findings on your own — e.g. "fix each one directly, note the skip rather than arguing with it" — that does not override this rule. Specifically: a decision *not* to act on a finding — skip, keep-as-is, mark false-positive, dispute, "acceptable, moving on" — must come to me as a decision before you finalize, not be recorded as a mid-stream log note I never see. Applying a clearly-genuine fix is fine; declining to act on feedback is mine to exercise. A skill's "proceed autonomously" framing never wins against this.
+- **Stay within the approved scope on destructive or multi-step tasks.** Do exactly what I approved; treat anything beyond it as a fresh decision to surface — even an item that looks "obviously in the same category." When the ground differs from the plan (unexpected file, branch, a worktree with a live session), stop and report. Recovery and undo actions (restore, re-create, kill a process, move uncommitted work) each need their own go-ahead. Read-only investigation needs none of this — the bar is only on state changes.
+- **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one. (This is about effort and rigor, not word count — a terse answer can be fully rigorous.)
+- **When I ask a question, the answer is the deliverable — give it its own turn, ending with no tool call.** Prose in a turn that then fires tools scrolls out of view behind the tool output and never reaches me. Write the answer, stop, end the turn; resume tool work next turn. This is for genuine questions ("why did X?", "which approach is better?") where my reply is what you asked for — not a license to fragment ordinary task execution, where doing the work and reporting in one turn is right. Litmus: if I'd want to read your reasoning and maybe redirect before you act, isolate it.
+- **Use the AskUserQuestion tool to ask questions** — not prose menus. But the tool isn't a substitute for thinking:
+  - **Framing goes in its own turn, ending with no tool call.** The harness hides any prose in the turn that calls AskUserQuestion — I see only the modal (question text + option labels). So write the framing, end the turn, and call the tool in a *later* turn after I've responded. Unconditional, not just when I ask to be "walked through." The separate turn is also where I can push on the premise before being forced to pick — the modal has no "back up" button.
+  - **Framing must be self-contained:** what's being decided, what each option concretely does, the tradeoff. Per-question when batching several, never one shared preamble. Test: someone who hasn't read the conversation could answer from that turn alone. A project-state recap isn't framing.
+  - **When I ask for context on a pending question** ("why are you asking", "explain that"), explain the question — don't re-fire it or re-call the tool. Answer from context; investigate only if a specific fact is genuinely missing, and name it. A context request means I under-framed it.
+  - **Justify any `(Recommended)` tag** — why you prefer it, and the tradeoff against the next-best. An unjustified tag gives me nothing to push back on.
+  - **Few concrete options.** Two well-chosen beat four mushy. Reaching for four subtle variants means it's under-framed — narrow it.
+  - **Code review is a primary use case:** surface each finding as its own question with action options ("fix now" / "leave as-is" / "defer"), each with its own what/why/recommendation — not a prose list to triage.
+  - **This outranks any skill's apply/skip instruction.** A decision *not* to act on a finding — skip, keep-as-is, false-positive, dispute — comes to me as a decision before you finalize, never a mid-stream log note. Applying a clearly-genuine fix is fine; declining to act on feedback is mine.
