@@ -27,6 +27,12 @@ rescue Errno::ENOENT, JSON::ParserError
   []
 end
 
+def gh_text(*args)
+  IO.popen(["gh", *args], err: File::NULL, &:read).strip
+rescue Errno::ENOENT
+  ""
+end
+
 def git_activity(dir, since)
   return nil unless File.exist?(File.join(dir, ".git"))
 
@@ -53,23 +59,41 @@ end
 # Labels that mean the PR ships something to customers. Everything else
 # (not-user-facing, refactor, api-only, security tooling) is supporting work.
 CUSTOMER_LABELS = %w[feature bug].freeze
+REVIEW_EVENTS = %w[PullRequestReviewEvent PullRequestReviewCommentEvent].freeze
 
-def github_activity(since)
-  since_arg = since.utc.iso8601
-  merged = gh_json("search", "prs", "--author=@me", "--merged-at", ">=#{since_arg}", "--limit", "40",
+# PRs I reviewed during the window, from my GitHub event feed. The feed carries
+# each event's real timestamp (when I actually reviewed), unlike a PR search on
+# --updated, which resurfaces any old review the moment someone else touches the PR.
+def reviews_given(since, now)
+  login = gh_text("api", "user", "--jq", ".login")
+  return [] if login.empty?
+
+  window = since.utc..now.utc
+  events = gh_json("api", "/users/#{login}/events?per_page=100").select do |event|
+    REVIEW_EVENTS.include?(event["type"]) && window.cover?(Time.iso8601(event["created_at"]))
+  end
+
+  events.group_by { it.dig("payload", "pull_request", "number") }.filter_map do |number, grouped|
+    next unless number
+
+    { number:, repo: grouped.first.dig("repo", "name"),
+      comments: grouped.count { it["type"] == "PullRequestReviewCommentEvent" } }
+  end
+end
+
+def github_activity(since, now)
+  merged = gh_json("search", "prs", "--author=@me", "--merged-at", ">=#{since.utc.iso8601}", "--limit", "40",
                    "--json", "number,title,url,labels")
-  in_flight = gh_json("search", "prs", "--author=@me", "--state", "open", "--updated", ">=#{since_arg}",
-                      "--limit", "40", "--json", "number,title,url,isDraft")
-  reviewed = gh_json("search", "prs", "--reviewed-by=@me", "--updated", ">=#{since_arg}", "--limit", "40",
-                     "--json", "number,title,url,repository")
+  open_prs = gh_json("search", "prs", "--author=@me", "--state", "open", "--limit", "40",
+                     "--json", "number,title,url,isDraft")
   {
     shipped: merged.map do |pr|
       labels = Array(pr["labels"]).map { it["name"] }
       { number: pr["number"], title: pr["title"], url: pr["url"], labels:,
         customer_facing: labels.intersect?(CUSTOMER_LABELS) }
     end,
-    in_flight: in_flight.map { it.slice("number", "title", "url", "isDraft") },
-    reviews_given: reviewed.map { { number: it["number"], title: it["title"], repo: it.dig("repository", "name") } }
+    in_flight: open_prs.map { it.slice("number", "title", "url", "isDraft") },
+    reviews_given: reviews_given(since, now)
   }
 end
 
@@ -145,7 +169,7 @@ checkpoint =
   end
 
 commits = REPOS.filter_map { git_activity(it, checkpoint) }
-github = github_activity(checkpoint)
+github = github_activity(checkpoint, now)
 
 # A PR that flipped draft -> ready since last tick has cleared the developer's
 # manual QA gate — the visible outcome of otherwise-invisible QA work.

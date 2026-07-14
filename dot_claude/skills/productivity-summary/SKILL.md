@@ -50,8 +50,9 @@ The collector does all the data gathering; you just read its JSON and talk. Don'
 Appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the same record as JSON.
 Everything below is about **this period only**. Read the JSON — `window` (local-time `HH:MM–HH:MM`
 label; use it as-is, don't reformat `since`/`ts`, which are UTC), `github.shipped` (merged PRs, each
-with `customer_facing`), `github.qa_completed` (marked ready this period), `github.in_flight` (open
-PRs, each with `isDraft`), `github.reviews_given`, `git.commits`, `sessions`.
+with `customer_facing`), `github.qa_completed` (marked ready this period), `github.in_flight` (all
+your open PRs, each with `isDraft` — a status list, not "changed this period"), `github.reviews_given`
+(PRs you reviewed this period, each with a `comments` count), `git.commits`, `sessions`.
 
 ## Step 2 — what happened
 
@@ -60,10 +61,10 @@ Only this period. No day totals. Put the most important first:
 1. **Merged for customers** — `Shipped: #N <title>`. Any internal (non-customer-facing) merges
    after, one line, marked internal.
 2. **Marked ready for review** — from `qa_completed`: `Ready for review: #N <title>`. Real progress.
-3. **Open PRs that changed** — a draft: `#N <title> — still a draft, being tested`; a ready one:
-   `#N <title> — ready, waiting for review`.
-4. **Other activity** — short: reviews you left, commits per branch (`count > 0`), which worktrees
-   were active (`<worktree>: N turns, active` or `no code changed`).
+3. **Your open PRs** — current status of each, not a claim you touched it this period. A draft:
+   `#N <title> — still a draft, being tested`; a ready one: `#N <title> — ready, waiting for review`.
+4. **Other activity** — short: PRs you reviewed this period (`#N (N comments)`), commits per branch
+   (`count > 0`), which worktrees were active (`<worktree>: N turns, active` or `no code changed`).
 
 If nothing was merged and nothing was marked ready, say it in one plain line: `Nothing merged or
 marked ready in <window>.` A dozen lines at most. Skip empty sections.
