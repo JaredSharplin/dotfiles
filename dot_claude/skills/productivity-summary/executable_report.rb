@@ -35,14 +35,16 @@ def bar(value, max, width = 30)
   "█" * ((value.to_f / max) * width).round
 end
 
+def unique_prs(records, key) = records.flat_map { Array(it.dig("github", key)) }.uniq { it["number"] }
+
 # Pipeline outcomes dominate the score: a customer ship most, then clearing the QA gate.
 scores = hours.transform_values { it[:shipped] * 10 + it[:qa] * 5 + it[:commits] * 3 + it[:turns] }
 max_score = scores.values.max || 0
 total_commits = records.sum { it.dig("git", "total_commits").to_i }
-shipped = records.flat_map { Array(it.dig("github", "shipped")) }.uniq { it["number"] }
+shipped = unique_prs(records, "shipped")
 customer_shipped = shipped.count { it["customer_facing"] }
-qa_cleared = records.flat_map { Array(it.dig("github", "qa_completed")) }.uniq { it["number"] }
-reviews = records.flat_map { Array(it.dig("github", "reviews_given")) }.uniq { it["number"] }.size
+qa_cleared = unique_prs(records, "qa_completed")
+reviews = unique_prs(records, "reviews_given").size
 peak_hour, = scores.max_by { |_hour, score| score }
 
 puts "Productivity report — #{date}"
