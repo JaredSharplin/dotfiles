@@ -102,7 +102,6 @@ def draft_card(pr, untouched_days, planted_days, target)
   saturate = [1 - (untouched_days * 0.15), 0.3].max.round(2)
   sepia = [untouched_days * 0.12, 0.6].min.round(2)
   hue = [100 - (untouched_days * 14), 30].max.round
-  age_px = (13 + [untouched_days * 3, 10].min).round
 
   card(pr,
        plant:,
@@ -110,18 +109,16 @@ def draft_card(pr, untouched_days, planted_days, target)
        classes: pr["number"] == target ? "target" : "",
        style: "background: hsl(#{hue}, 22%, 16%)",
        plant_style: "transform: rotate(#{rotate}deg); filter: saturate(#{saturate}) sepia(#{sepia})",
-       meta: "<span class=\"age\" style=\"font-size: #{age_px}px\">untouched #{age_label(untouched_days)}</span>" \
-             "<span class=\"planted\">planted #{age_label(planted_days)} ago</span>")
+       meta: "planted #{age_label(planted_days)} ago")
 end
 
-def ready_card(pr, untouched_days, planted_days, target)
+def ready_card(pr, planted_days, target)
   card(pr,
        plant: "🌸",
        state: "ready — waiting for review",
        classes: "ready #{'target' if pr['number'] == target}",
        plant_style: "animation: sway 3s ease-in-out infinite",
-       meta: "<span class=\"age\">waiting #{age_label(untouched_days)}</span>" \
-             "<span class=\"planted\">planted #{age_label(planted_days)} ago</span>")
+       meta: "planted #{age_label(planted_days)} ago")
 end
 
 def harvest_card(pr)
@@ -142,7 +139,7 @@ beds = drafts
   .sort_by { -days_since.call(it["updatedAt"]) }
   .map { draft_card(it, days_since.call(it["updatedAt"]), days_since.call(it["createdAt"]), target) }
   .join
-beds += ready.map { ready_card(it, days_since.call(it["updatedAt"]), days_since.call(it["createdAt"]), target) }.join
+beds += ready.map { ready_card(it, days_since.call(it["createdAt"]), target) }.join
 
 html = <<~HTML
   <!DOCTYPE html>
@@ -167,9 +164,7 @@ html = <<~HTML
     .plant { font-size: 64px; line-height: 1.2; }
     .plant.tap { cursor: pointer; }
     @keyframes sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-    .meta { min-height: 40px; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
-    .age { font-weight: 700; color: #fe8019; font-size: 13px; }
-    .planted { font-size: 11px; color: #a89984; }
+    .meta { min-height: 18px; margin-top: 6px; font-size: 13px; color: #a89984; }
     .prlink { text-decoration: none; color: inherit; display: block; }
     .prlink:hover .title { text-decoration: underline; }
     .num { font-weight: 600; margin-top: 4px; color: #83a598; }
