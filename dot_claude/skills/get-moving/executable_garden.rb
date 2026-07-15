@@ -43,7 +43,7 @@ def draft_card(pr, days)
   age_px = (14 + [days * 3, 18].min).round
 
   <<~HTML
-    <a class="card" href="#{pr['url']}" style="background: hsl(#{hue}, 30%, 92%)">
+    <a class="card" href="#{pr['url']}" style="background: hsl(#{hue}, 22%, 16%)">
       <div class="plant" style="transform: rotate(#{rotate}deg); filter: saturate(#{saturate}) sepia(#{sepia})">#{emoji}</div>
       <div class="age" style="font-size: #{age_px}px">#{age_label(days)}</div>
       <div class="num">##{pr['number']}</div>
@@ -97,27 +97,27 @@ html = <<~HTML
   <title>PR Garden</title>
   <style>
     body { margin: 0; font-family: -apple-system, sans-serif;
-           background: linear-gradient(#bde3ff 0%, #e8f6e8 70%, #c9a875 70.5%, #a9885a 100%);
+           background: linear-gradient(#141821 0%, #1d2021 70%, #2a2118 70.5%, #241c14 100%);
            min-height: 100vh; }
-    h1 { text-align: center; padding-top: 24px; color: #3a5a40; font-weight: 600; }
+    h1 { text-align: center; padding-top: 24px; color: #b8bb26; font-weight: 600; }
     .bed { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
            padding: 30px 40px 60px; align-items: flex-end; }
     .card { width: 170px; border-radius: 12px; padding: 16px 12px; text-align: center;
-            text-decoration: none; color: #333; box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+            text-decoration: none; color: #ebdbb2; box-shadow: 0 3px 12px rgba(0,0,0,0.5);
             transition: transform 0.15s; }
     .card:hover { transform: translateY(-4px); }
-    .card.ready { background: #f8f0fa; }
-    .card.harvest { background: #fdf6e3; opacity: 0.9; }
+    .card.ready { background: #32302f; }
+    .card.harvest { background: #2c2a24; opacity: 0.9; }
     .plant { font-size: 64px; line-height: 1.2; }
     .sway { display: inline-block; animation: sway 3s ease-in-out infinite; }
     @keyframes sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-    .age { font-weight: 700; color: #8a4b08; }
+    .age { font-weight: 700; color: #fe8019; }
     .num { font-weight: 600; margin-top: 4px; }
     .title { font-size: 12px; margin-top: 4px; min-height: 30px; }
-    .state { font-size: 11px; color: #777; margin-top: 6px; }
-    .harvest-row { border-top: 2px dashed #a9885a; margin: 0 40px; }
-    h2 { text-align: center; color: #6b4f2a; font-weight: 600; margin-top: 24px; }
-    .empty { text-align: center; color: #555; padding: 40px; font-size: 18px; }
+    .state { font-size: 11px; color: #928374; margin-top: 6px; }
+    .harvest-row { border-top: 2px dashed #504945; margin: 0 40px; }
+    h2 { text-align: center; color: #d79921; font-weight: 600; margin-top: 24px; }
+    .empty { text-align: center; color: #a89984; padding: 40px; font-size: 18px; }
   </style>
   </head>
   <body>
