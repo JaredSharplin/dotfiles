@@ -64,7 +64,30 @@ this contract verbatim:
 > Do NOT summarize the PR, describe what the code does, or add any other prose. If you write a
 > paragraph, you have failed the task.
 
-## Step 4 — print and stop
+## Step 4 — save the care card and refresh the garden
+
+Write the subagent's output to `~/.local/share/productivity/jumplists/<number>.json`:
+
+```json
+{
+  "number": 56263,
+  "title": "<PR title>",
+  "repo": "owner/name",
+  "first_step": "<the FIRST STEP line>",
+  "read": ["file:line — label", "..."],
+  "answer": ["question", "..."],
+  "generated_at": "<ISO8601 now>"
+}
+```
+
+Then re-render the garden without opening a second tab (the page refreshes itself every 30s and
+will pick this up, highlighting the plant and showing its care card):
+
+```bash
+~/.claude/skills/get-moving/garden.rb --target <number> --no-open
+```
+
+## Step 5 — print and stop
 
 Print, in order: the pick line, `FIRST STEP`, `READ`, `ANSWER WHILE READING`. Nothing else — no
 motivation, no closing advice. End the turn.
