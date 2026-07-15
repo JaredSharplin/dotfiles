@@ -28,6 +28,8 @@ SESSION_PREFIX = 'qa-'
 REGION = 'apac'
 ENTANGLER_PGREP = "entangler.*payaus_dev_config_#{REGION}".freeze
 SSH_CONFIG = File.expand_path("~/.ssh/payaus_dev_config_#{REGION}")
+# This developer's fixed dev box — the tunnel, ssh, and app all target the same one.
+APP_URL = "https://jaredsharplin.dev.#{REGION}.adnat.co".freeze
 ROLES = %w[tunnel server worker webpack].freeze
 # The app containers bin/dev server/worker/webpack start on the box. They outlive
 # their ssh ttys, so teardown and switching must stop them explicitly.
@@ -175,12 +177,6 @@ def previous_run_failed?
   ROLES.any? { File.exist?(exit_path(it)) }
 end
 
-def developer_instance
-  env_file = File.join(PAYAUS, '.env')
-  File.read(env_file)[/^DEVELOPER_INSTANCE=(\w+)/, 1] ||
-    abort("No DEVELOPER_INSTANCE in #{env_file} — run bin/tunnel once by hand to set it up.")
-end
-
 def prepare_state(worktree_dir)
   FileUtils.mkdir_p(CACHE)
   ROLES.each do |role|
@@ -188,10 +184,7 @@ def prepare_state(worktree_dir)
     FileUtils.rm_f(exit_path(role))
   end
 
-  File.write(STATE_FILE, JSON.pretty_generate(
-                           worktree: File.basename(worktree_dir),
-                           app_url: "https://#{developer_instance}.dev.#{REGION}.adnat.co"
-                         ))
+  File.write(STATE_FILE, JSON.pretty_generate(worktree: File.basename(worktree_dir)))
 end
 
 def write_layout
@@ -273,7 +266,7 @@ def run_role(role)
       # "Running server at" prints before the server's docker compose run pulls the
       # app image, and concurrent pulls of a missing image corrupt containerd's ingest.
       gate(role, 'server to respond', timeout: BRINGUP_TIMEOUT) do
-        http_ready?(state[:app_url])
+        http_ready?(APP_URL)
       end
       "bin/dev #{role}"
     else
@@ -357,18 +350,17 @@ puts "Launched #{session} (tabs: #{ROLES.join(', ')} + scratch shell)"
 wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel],
                         hint: 'check the tunnel tab in case it needs AWS SSO auth') { sync_ready? }
 puts 'Tunnel synced — waiting for the server to boot (remote deps can take a few minutes).'
-app_url = state[:app_url]
-wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(app_url) }
+wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
 
 branch = run('git', '-C', worktree_dir, 'rev-parse', '--abbrev-ref', 'HEAD')
 puts
 puts "Worktree: #{worktree} (#{branch})"
 puts freshness_warning if freshness_warning
-puts "App:      #{app_url}"
+puts "App:      #{APP_URL}"
 puts "Session:  #{session} (zellij attach #{session})"
 puts 'Teardown: qa-up --down'
 puts '(webpack may still be compiling — check the webpack tab if assets 404)'
 puts
-puts "QA_READY url=#{app_url} session=#{session}"
+puts "QA_READY url=#{APP_URL} session=#{session}"
 
 exec('zellij', 'attach', session) if options[:attach] && ENV['ZELLIJ'].nil?
