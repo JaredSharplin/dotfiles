@@ -165,8 +165,7 @@ html = <<~HTML
     .card.harvest { background: #2c2a24; opacity: 0.9; }
     .card.target { outline: 2px solid #b8bb26; box-shadow: 0 0 18px rgba(184,187,38,0.35); }
     .plant { font-size: 64px; line-height: 1.2; }
-    .plant.tap { cursor: pointer; transition: transform 0.15s; }
-    .plant.tap:hover { transform: scale(1.15); }
+    .plant.tap { cursor: pointer; }
     @keyframes sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
     .meta { min-height: 40px; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
     .age { font-weight: 700; color: #fe8019; font-size: 13px; }
