@@ -62,19 +62,30 @@ end
 
 # Uniform card shell so every plant sits at the same height regardless of
 # state or title length. `meta` is the two dated lines under the plant.
-def card(pr, plant:, state:, classes: "", style: "", plant_style: "", meta: "")
+# Merged PRs have no care card, so `panel: false` drops the click and template.
+def card(pr, plant:, state:, classes: "", style: "", plant_style: "", meta: "", panel: true)
+  onclick = panel ? " onclick=\"show(#{pr['number']})\"" : ""
+  template =
+    if panel
+      <<~TPL
+        <template id="panel-#{pr['number']}">
+          <h2>#{plant} ##{pr['number']} — #{CGI.escapeHTML(pr['title'][0, 80])}</h2>
+          #{care_card(pr['number'])}
+        </template>
+      TPL
+    else
+      ""
+    end
+
   <<~HTML
-    <div class="card #{classes}" style="#{style}" onclick="show(#{pr['number']})">
+    <div class="card #{classes}" style="#{style}"#{onclick}>
       <div class="plant" style="#{plant_style}">#{plant}</div>
       <div class="meta">#{meta}</div>
       <div class="num">##{pr['number']} <a class="gh" href="#{pr['url']}" onclick="event.stopPropagation()">↗</a></div>
       <div class="title">#{CGI.escapeHTML(pr['title'][0, 80])}</div>
       <div class="state">#{state}</div>
     </div>
-    <template id="panel-#{pr['number']}">
-      <h2>#{plant} ##{pr['number']} — #{CGI.escapeHTML(pr['title'][0, 80])}</h2>
-      #{care_card(pr['number'])}
-    </template>
+    #{template}
   HTML
 end
 
@@ -111,7 +122,7 @@ def ready_card(pr, untouched_days, planted_days, target)
 end
 
 def harvest_card(pr)
-  card(pr, plant: "🧺", state: "merged today", classes: "harvest")
+  card(pr, plant: "🧺", state: "merged today", classes: "harvest", panel: false)
 end
 
 target = ARGV.include?("--target") ? ARGV[ARGV.index("--target") + 1].to_i : nil
