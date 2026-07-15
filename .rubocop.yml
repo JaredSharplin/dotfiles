@@ -1,0 +1,18 @@
+AllCops:
+  TargetRubyVersion: 3.4
+  NewCops: enable
+  SuggestExtensions: false
+
+# Standalone scripts are procedural; the 10-line default forces artificial splits.
+Metrics/MethodLength:
+  Max: 25
+Metrics/AbcSize:
+  Max: 25
+
+# Shell-tool template tokens (e.g. curl's %{http_code}) are not Ruby format strings.
+Style/FormatStringToken:
+  EnforcedStyle: template
+
+# Chezmoi encodes the execute bit in the executable_ filename prefix, not in source-file permissions.
+Lint/ScriptPermission:
+  Enabled: false
