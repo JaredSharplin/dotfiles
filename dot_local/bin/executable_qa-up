@@ -6,8 +6,8 @@
 # Creates a detached zellij session `qa-<worktree>` with four tabs:
 #   tunnel  — bin/tunnel <worktree>
 #   server  — bin/dev server   (waits for the tunnel's initial sync)
-#   worker  — bin/dev worker   (waits for the server's remote deps step)
-#   webpack — bin/dev webpack  (waits for the server's remote deps step)
+#   worker  — bin/dev worker   (waits for the server to respond)
+#   webpack — bin/dev webpack  (waits for the server to respond)
 #
 # All devbox logic stays in bin/tunnel and bin/dev; this script only
 # orchestrates zellij and polls files/URLs for readiness.
@@ -23,16 +23,20 @@ CACHE = File.expand_path('~/.cache/qa-up')
 STATE_FILE = File.join(CACHE, 'state.json')
 LAYOUT_FILE = File.join(CACHE, 'layout.kdl')
 SESSION_PREFIX = 'qa-'
-ENTANGLER_PGREP = 'entangler.*payaus_dev_config_apac'
-SSH_CONFIG = File.expand_path('~/.ssh/payaus_dev_config_apac')
+# Single-region developer; stated once so the pgrep pattern, ssh config, and app
+# domain can't drift apart. Make it env-derived if this ever goes multi-region.
+REGION = 'apac'
+ENTANGLER_PGREP = "entangler.*payaus_dev_config_#{REGION}".freeze
+SSH_CONFIG = File.expand_path("~/.ssh/payaus_dev_config_#{REGION}")
 ROLES = %w[tunnel server worker webpack].freeze
 # The app containers bin/dev server/worker/webpack start on the box. They outlive
 # their ssh ttys, so teardown and switching must stop them explicitly.
 REMOTE_APP_CONTAINERS = %w[rails payaus-dev-job-work webpack].freeze
 
 SYNC_TIMEOUT = 900
-DEPS_TIMEOUT = 1200
-HTTP_TIMEOUT = 600
+# Remote bundle/yarn + app-image pull + boot + first HTTP response.
+SERVER_TIMEOUT = 1800
+BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
 
 def run(*args, allow_failure: false)
   stdout, stderr, status = Open3.capture3(*args)
@@ -44,7 +48,9 @@ end
 def log_path(role) = File.join(CACHE, "#{role}.log")
 def exit_path(role) = File.join(CACHE, "#{role}.exit")
 
-def state = JSON.parse(File.read(STATE_FILE), symbolize_names: true)
+# state.json is written once before any poller starts, so memoizing is safe and
+# avoids re-parsing it every poll tick across the foreground and pane processes.
+def state = @state ||= JSON.parse(File.read(STATE_FILE), symbolize_names: true)
 
 def worktrees
   run('git', '-C', PAYAUS, 'worktree', 'list', '--porcelain')
@@ -136,20 +142,19 @@ end
 
 def handle_existing_sessions(session)
   existing = qa_sessions
+  return if existing.empty?
+
   target = existing.find { it[:name] == session }
   if target && !target[:exited] && !previous_run_failed?
     puts "#{session} is already running. Attach with: zellij attach #{session}"
     exit 0
   end
-  return if existing.empty?
 
-  existing.each { remove_existing_session(it, session) }
-  stop_remote_containers
+  existing.each { announce_removal(it, session) }
+  teardown(existing)
 end
 
-def remove_existing_session(existing, session)
-  kill_tunnel! unless existing[:exited]
-  remove_session(existing[:name])
+def announce_removal(existing, session)
   if existing[:name] == session
     puts 'relaunching (previous run was not healthy)'
   else
@@ -157,13 +162,18 @@ def remove_existing_session(existing, session)
   end
 end
 
+# The launch path kills the tunnel unconditionally afterwards, and --down kills it
+# first, so teardown itself only removes sessions and stops their remote containers.
+def teardown(sessions)
+  sessions.each { remove_session(it[:name]) }
+  stop_remote_containers
+end
+
 # Pane wrappers only write an .exit file when their command exits on its own;
 # a clean teardown kills them first, so a leftover .exit marks a failed run.
 def previous_run_failed?
   ROLES.any? { File.exist?(exit_path(it)) }
 end
-
-def entangler_log(sync_dir) = File.join(sync_dir, '.entangler', 'log', 'entangler.log')
 
 def developer_instance
   env_file = File.join(PAYAUS, '.env')
@@ -180,9 +190,7 @@ def prepare_state(worktree_dir)
 
   File.write(STATE_FILE, JSON.pretty_generate(
                            worktree: File.basename(worktree_dir),
-                           sync_dir: worktree_dir,
-                           entangler_offset: File.size?(entangler_log(worktree_dir)) || 0,
-                           app_url: "https://#{developer_instance}.dev.apac.adnat.co"
+                           app_url: "https://#{developer_instance}.dev.#{REGION}.adnat.co"
                          ))
 end
 
@@ -208,45 +216,40 @@ end
 
 # --- readiness signals (shared by the foreground monitor and the pane gates) ---
 
-def sync_ready?
-  log = entangler_log(state[:sync_dir])
-  return false unless File.exist?(log)
-
-  offset = state[:entangler_offset]
-  size = File.size(log)
-  offset = 0 if size < offset # log rotated mid-wait
-  return false if size == offset
-
-  File.open(log) do |f|
-    f.seek(offset)
-    f.read.include?('INFO: Ready!')
-  end
+# The pane tees each command's output to <role>.log, truncated per run, so a
+# marker is this run's. Memoize once seen — the file only grows while we wait.
+def log_reached?(role, marker)
+  @log_reached ||= {}
+  @log_reached["#{role}/#{marker}"] ||=
+    File.exist?(log_path(role)) && File.read(log_path(role)).include?(marker)
 end
 
-def server_deps_done?
-  File.exist?(log_path('server')) && File.read(log_path('server')).include?('Running server at')
-end
+# entangler mirrors "INFO: Ready!" to stdout when its initial sync reaches steady state.
+def sync_ready? = log_reached?('tunnel', 'INFO: Ready!')
 
 def http_ready?(url)
   code, = Open3.capture3('curl', '-so', File::NULL, '-w', '%{http_code}', '--max-time', '5', url)
   code.match?(/^[23]/)
 end
 
-def wait_for(label, timeout:, failed_if_exited: [])
+def wait_for(label, timeout:, failed_if_exited: [], hint: nil)
   started = Time.now
-  hinted = false
+  hint_at = hint ? started + 60 : nil
   until yield
-    failed_if_exited.each do |role|
-      abort_with_log_tail(role) if File.exist?(exit_path(role))
-    end
-    elapsed = (Time.now - started).to_i
+    fail_if_pane_exited(failed_if_exited)
+    elapsed = Time.now - started
     abort "Timed out after #{timeout}s waiting for #{label}." if elapsed > timeout
-    if elapsed > 60 && !hinted
-      puts "still waiting for #{label} — check the tunnel tab in case it needs AWS SSO auth"
-      hinted = true
+    if hint_at && Time.now > hint_at
+      puts "still waiting for #{label} — #{hint}"
+      hint_at = nil
     end
     sleep 2
   end
+end
+
+def fail_if_pane_exited(roles)
+  role = roles.find { File.exist?(exit_path(it)) }
+  abort_with_log_tail(role) if role
 end
 
 def abort_with_log_tail(role)
@@ -269,7 +272,7 @@ def run_role(role)
       # Wait for the server to actually serve HTTP, not just finish its deps step:
       # "Running server at" prints before the server's docker compose run pulls the
       # app image, and concurrent pulls of a missing image corrupt containerd's ingest.
-      gate(role, 'server to respond', timeout: SYNC_TIMEOUT + DEPS_TIMEOUT + HTTP_TIMEOUT) do
+      gate(role, 'server to respond', timeout: BRINGUP_TIMEOUT) do
         http_ready?(state[:app_url])
       end
       "bin/dev #{role}"
@@ -310,11 +313,8 @@ def down!
     return
   end
 
-  sessions.each do |session|
-    remove_session(session[:name])
-    puts "killed #{session[:name]}"
-  end
-  stop_remote_containers
+  teardown(sessions)
+  puts "killed #{sessions.map { it[:name] }.join(', ')}"
 end
 
 # --- main ---
@@ -354,12 +354,11 @@ write_layout
 launch_session(session)
 puts "Launched #{session} (tabs: #{ROLES.join(', ')} + scratch shell)"
 
-wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel]) { sync_ready? }
-puts 'Tunnel synced.'
-wait_for('remote deps + server start', timeout: DEPS_TIMEOUT, failed_if_exited: %w[tunnel server]) { server_deps_done? }
-puts 'Server starting (deps done); worker + webpack launch once it responds.'
+wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel],
+                        hint: 'check the tunnel tab in case it needs AWS SSO auth') { sync_ready? }
+puts 'Tunnel synced — waiting for the server to boot (remote deps can take a few minutes).'
 app_url = state[:app_url]
-wait_for('server HTTP', timeout: HTTP_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(app_url) }
+wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(app_url) }
 
 branch = run('git', '-C', worktree_dir, 'rev-parse', '--abbrev-ref', 'HEAD')
 puts

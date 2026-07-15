@@ -31,7 +31,7 @@ If it reports "switched from <other>", relay that to the user — their previous
 
 - `gh pr view --json number,title,body,url` (from the worktree — infers the PR from the branch).
 - Extract the section under a `## QA`, `## Testing`, or `## How to test` heading (payaus has no PR template; `## QA` is the common convention).
-- No such section → derive concrete QA steps from the diff: `gh pr view <n> --json additions,deletions` first; small PRs `gh pr diff <n>`, large ones `gh pr diff <n> --name-only` then read the key files. Say the checklist is derived, not authored.
+- No such section → derive concrete QA steps from the diff (follow the PR-diff-size workflow in the global CLAUDE.md § "Analyzing PR changes"). Say the checklist is derived, not authored.
 - No PR for the branch → say so and derive steps from `git log`/diff against master.
 
 ### 4. Wait for readiness
