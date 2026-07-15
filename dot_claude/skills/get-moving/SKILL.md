@@ -52,17 +52,21 @@ Spawn one `Explore` agent. Give it the PR number and repo (`owner/name` from `re
 this contract verbatim:
 
 > Run `gh pr diff <number> --repo <owner/name>` (use `--name-only` first if the PR is large, then
-> read the few files that matter). Return ONLY, in this order, nothing else:
-> 1. `FIRST STEP:` one imperative action taking ~2 minutes, naming an exact file:line or exact
->    command. Examples of the right shape: "Open `app/models/foo.rb:42` and read `#sync`",
->    "Run `bin/rails test test/models/foo_test.rb:88`". For a draft PR the step should start its
->    testing (e.g. open the screen the change affects); never suggest review or merge for a draft.
-> 2. `READ:` an ordered list of 3–7 stops, each `file:line — <label of 5 words or fewer>`, in the
->    order that makes the change easiest to follow.
-> 3. `ANSWER WHILE READING:` 2–3 short questions that guide the reading (e.g. "where does X get
->    its value when the list is empty?"). Questions only — do not answer them.
-> Do NOT summarize the PR, describe what the code does, or add any other prose. If you write a
-> paragraph, you have failed the task.
+> read the few files that matter). This is a DRAFT PR — the goal is to build the developer's own
+> understanding and confidence in the change, not to review or merge it. Return ONLY, in this order,
+> nothing else:
+> 1. `START HERE:` one concrete ~2-minute action to begin. For a user-facing change this is a manual
+>    browser check — name the screen or flow to open in the running app and the thing to do there
+>    (derive the entry point from the routes/controllers/views in the diff). For a non-user-facing
+>    change, name the single file where the core behaviour begins and what to find there. NEVER "run
+>    a test" — CI does that and it builds no understanding.
+> 2. `QUESTIONS:` 3–5 plain-language questions that build understanding of how the change actually
+>    works, each anchored to where to start looking with a `file` in backticks. Frame them simply and
+>    conceptually — e.g. "How and where does the app discover a POS source after an integration is
+>    created? (start in `app/models/pos_integration.rb`)". Plain English, no jargon, no code
+>    mechanics in the wording. Questions only — do not answer them.
+> Do NOT summarize the PR, describe what the code does, list a file without a question attached to
+> it, or add any other prose. If you write a paragraph, you have failed the task.
 
 ## Step 4 — save the care card and refresh the garden
 
@@ -73,9 +77,8 @@ Write the subagent's output to `~/.local/share/productivity/jumplists/<number>.j
   "number": 56263,
   "title": "<PR title>",
   "repo": "owner/name",
-  "first_step": "<the FIRST STEP line>",
-  "read": ["file:line — label", "..."],
-  "answer": ["question", "..."],
+  "first_step": "<the START HERE line>",
+  "questions": ["How and where does ...? (start in `file`)", "..."],
   "generated_at": "<ISO8601 now>"
 }
 ```
@@ -89,5 +92,5 @@ will pick this up, highlighting the plant and showing its care card):
 
 ## Step 5 — print and stop
 
-Print, in order: the pick line, `FIRST STEP`, `READ`, `ANSWER WHILE READING`. Nothing else — no
-motivation, no closing advice. End the turn.
+Print, in order: the pick line, `START HERE`, `QUESTIONS`. Nothing else — no motivation, no closing
+advice. End the turn.

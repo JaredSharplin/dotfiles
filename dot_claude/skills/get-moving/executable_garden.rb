@@ -43,28 +43,29 @@ def jumplists
   end
 end
 
+# Renders `code` spans from backticked file paths in the subagent's questions.
+def inline_code(text) = CGI.escapeHTML(text).gsub(/`([^`]+)`/, '<code>\1</code>')
+
 def care_card(number)
   data = jumplists[number]
   unless data
     return "<p class=\"hint\">No care card yet. Type <code>/get-moving #{number}</code> in your terminal to tend this plant.</p>"
   end
 
-  read = Array(data["read"]).map { "<li><code>#{CGI.escapeHTML(it)}</code></li>" }.join
-  answer = Array(data["answer"]).map { "<li>#{CGI.escapeHTML(it)}</li>" }.join
+  questions = Array(data["questions"]).map { "<li>#{inline_code(it)}</li>" }.join
   <<~HTML
-    <p class="first-step">🪴 <strong>First step:</strong> #{CGI.escapeHTML(data['first_step'].to_s)}</p>
-    <div class="cols">
-      <div><h3>Read, in order</h3><ol>#{read}</ol></div>
-      <div><h3>Answer while reading</h3><ul>#{answer}</ul></div>
-    </div>
+    <p class="first-step">🪴 <strong>Start here:</strong> #{inline_code(data['first_step'].to_s)}</p>
+    <h3>Figure out as you read</h3>
+    <ul class="questions">#{questions}</ul>
   HTML
 end
 
-# Uniform card shell so every plant sits at the same height regardless of
-# state or title length. `meta` is the two dated lines under the plant.
-# Merged PRs have no care card, so `panel: false` drops the click and template.
+# Uniform card shell so every plant sits at the same height regardless of state
+# or title length. Two click zones: the plant opens the care-card modal, the
+# number/title links out to the PR on GitHub. Merged PRs have no care card, so
+# `panel: false` drops the plant click and its template.
 def card(pr, plant:, state:, classes: "", style: "", plant_style: "", meta: "", panel: true)
-  onclick = panel ? " onclick=\"show(#{pr['number']})\"" : ""
+  plant_attrs = panel ? " class=\"plant tap\" onclick=\"show(#{pr['number']})\" title=\"Tap for the care card\"" : " class=\"plant\""
   template =
     if panel
       <<~TPL
@@ -78,11 +79,13 @@ def card(pr, plant:, state:, classes: "", style: "", plant_style: "", meta: "", 
     end
 
   <<~HTML
-    <div class="card #{classes}" style="#{style}"#{onclick}>
-      <div class="plant" style="#{plant_style}">#{plant}</div>
+    <div class="card #{classes}" style="#{style}">
+      <div#{plant_attrs} style="#{plant_style}">#{plant}</div>
       <div class="meta">#{meta}</div>
-      <div class="num">##{pr['number']} <a class="gh" href="#{pr['url']}" onclick="event.stopPropagation()">↗</a></div>
-      <div class="title">#{CGI.escapeHTML(pr['title'][0, 80])}</div>
+      <a class="prlink" href="#{pr['url']}" title="Open PR on GitHub">
+        <div class="num">##{pr['number']} ↗</div>
+        <div class="title">#{CGI.escapeHTML(pr['title'][0, 80])}</div>
+      </a>
       <div class="state">#{state}</div>
     </div>
     #{template}
@@ -157,32 +160,37 @@ html = <<~HTML
            padding: 30px 40px 40px; align-items: stretch; }
     .card { width: 170px; min-height: 215px; border-radius: 12px; padding: 16px 12px;
             text-align: center; color: #ebdbb2; box-shadow: 0 3px 12px rgba(0,0,0,0.5);
-            transition: transform 0.15s; cursor: pointer; background: #262626;
-            display: flex; flex-direction: column; justify-content: flex-end; }
-    .card:hover { transform: translateY(-4px); }
+            background: #262626; display: flex; flex-direction: column; justify-content: flex-end; }
     .card.ready { background: #32302f; }
-    .card.harvest { background: #2c2a24; opacity: 0.9; cursor: default; }
+    .card.harvest { background: #2c2a24; opacity: 0.9; }
     .card.target { outline: 2px solid #b8bb26; box-shadow: 0 0 18px rgba(184,187,38,0.35); }
     .plant { font-size: 64px; line-height: 1.2; }
+    .plant.tap { cursor: pointer; transition: transform 0.15s; }
+    .plant.tap:hover { transform: scale(1.15); }
     @keyframes sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
     .meta { min-height: 40px; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
     .age { font-weight: 700; color: #fe8019; font-size: 13px; }
     .planted { font-size: 11px; color: #a89984; }
-    .num { font-weight: 600; margin-top: 4px; }
-    .gh { color: #83a598; text-decoration: none; font-size: 13px; }
+    .prlink { text-decoration: none; color: inherit; display: block; }
+    .prlink:hover .title { text-decoration: underline; }
+    .num { font-weight: 600; margin-top: 4px; color: #83a598; }
     .title { font-size: 12px; margin-top: 4px; height: 30px; overflow: hidden;
              display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     .state { font-size: 11px; color: #928374; margin-top: 6px; }
-    .plaque { max-width: 760px; margin: 0 auto 50px; background: #262320; border: 1px solid #504945;
-              border-radius: 12px; padding: 20px 28px; display: none; }
-    .plaque h2 { color: #d79921; font-size: 17px; margin: 0 0 12px; text-align: left; }
-    .plaque h3 { color: #b8bb26; font-size: 13px; margin: 12px 0 6px; }
-    .first-step { background: #32302f; border-left: 3px solid #b8bb26; padding: 10px 14px;
-                  border-radius: 6px; font-size: 14px; }
-    .cols { display: flex; gap: 30px; flex-wrap: wrap; }
-    .cols > div { flex: 1; min-width: 280px; }
-    .plaque li { font-size: 13px; margin-bottom: 5px; }
-    .plaque code { background: #1d2021; padding: 1px 5px; border-radius: 4px; color: #d3869b; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none;
+             align-items: center; justify-content: center; padding: 20px; z-index: 10; }
+    .modal-box { position: relative; max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto;
+                 background: #262320; border: 1px solid #504945; border-radius: 12px; padding: 24px 30px;
+                 text-align: left; }
+    .modal-box h2 { color: #d79921; font-size: 17px; margin: 0 26px 14px 0; }
+    .modal-box h3 { color: #b8bb26; font-size: 13px; margin: 16px 0 8px; }
+    .x { position: absolute; top: 12px; right: 16px; background: none; border: none; color: #a89984;
+         font-size: 26px; line-height: 1; cursor: pointer; }
+    .x:hover { color: #ebdbb2; }
+    .first-step { background: #32302f; border-left: 3px solid #b8bb26; padding: 12px 16px;
+                  border-radius: 6px; font-size: 14px; line-height: 1.5; }
+    .questions li { font-size: 14px; margin-bottom: 10px; line-height: 1.5; }
+    .modal-box code { background: #1d2021; padding: 1px 6px; border-radius: 4px; color: #83a598; }
     .hint { color: #a89984; font-size: 14px; }
     .harvest-row { border-top: 2px dashed #504945; margin: 0 40px; }
     h2.harvest-h { text-align: center; color: #d79921; font-weight: 600; margin-top: 24px; }
@@ -192,22 +200,21 @@ html = <<~HTML
   <body>
   <h1>🌿 PR Garden — #{now.strftime('%a %-d %b, %H:%M')}</h1>
   #{beds.empty? ? '<div class="empty">No open PRs. The garden is clear.</div>' : "<div class=\"bed\">#{beds}</div>"}
-  <section id="plaque" class="plaque"></section>
   #{unless merged_today.empty?
       "<div class=\"harvest-row\"></div><h2 class=\"harvest-h\">🧺 Harvested today</h2><div class=\"bed\">#{merged_today.map { harvest_card(it) }.join}</div>"
     end}
+  <div id="modal" class="modal" onclick="if (event.target === this) closeModal()">
+    <div class="modal-box"><button class="x" onclick="closeModal()">×</button><div id="modal-body"></div></div>
+  </div>
   <script>
     function show(n) {
       const tpl = document.getElementById('panel-' + n);
       if (!tpl) return;
-      const plaque = document.getElementById('plaque');
-      plaque.innerHTML = tpl.innerHTML;
-      plaque.style.display = 'block';
-      localStorage.setItem('garden_sel', n);
-      plaque.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      document.getElementById('modal-body').innerHTML = tpl.innerHTML;
+      document.getElementById('modal').style.display = 'flex';
     }
-    const initial = #{target || 'null'} || Number(localStorage.getItem('garden_sel'));
-    if (initial) show(initial);
+    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
   </script>
   </body>
   </html>
