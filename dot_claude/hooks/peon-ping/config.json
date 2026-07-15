@@ -38,7 +38,9 @@
   ],
   "pack_rotation_mode": "round-robin",
   "path_rules": [],
-  "exclude_dirs": [],
+  "exclude_dirs": [
+    "~/Library/Application Support/CodexBar"
+  ],
   "ide_rules": [],
   "session_ttl_days": 7,
   "use_sound_effects_device": true,
