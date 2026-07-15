@@ -18,6 +18,11 @@ require 'json'
 require 'open3'
 require 'optparse'
 
+# zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
+# background Claude task's $TMPDIR is longer still — either can exceed the ~103-byte
+# AF_UNIX limit. Pin a short one so bring-up, teardown, and attach share one socket path.
+ENV['TMPDIR'] = '/tmp'
+
 PAYAUS = File.expand_path('~/programming/payaus')
 CACHE = File.expand_path('~/.cache/qa-up')
 STATE_FILE = File.join(CACHE, 'state.json')
@@ -84,17 +89,6 @@ def pick_worktree_with_fzf
   pick_worktree_by_name(choice.strip)
 end
 
-def check_branch_freshness(sync_dir)
-  run('git', '-C', sync_dir, 'fetch', 'origin', 'master', allow_failure: true)
-  behind = run('git', '-C', sync_dir, 'rev-list', '--count', 'HEAD..origin/master').to_i
-  return nil if behind.zero?
-
-  branch = run('git', '-C', sync_dir, 'rev-parse', '--abbrev-ref', 'HEAD')
-  "WARNING: #{branch} is #{behind} commits behind origin/master. The shared dev DB is migrated as " \
-    'master merges, so a stale branch can hit schema drift. Consider merging master first. ' \
-    '(Never run migrations against the shared DB from this branch.)'
-end
-
 # Includes sessions zellij keeps listed as resurrectable after a kill.
 def qa_sessions
   stdout, _, status = Open3.capture3('zellij', 'list-sessions', '--no-formatting')
@@ -148,7 +142,7 @@ def handle_existing_sessions(session)
 
   target = existing.find { it[:name] == session }
   if target && !target[:exited] && !previous_run_failed?
-    puts "#{session} is already running. Attach with: zellij attach #{session}"
+    puts "#{session} is already running. Attach with: qa-up attach #{session.delete_prefix(SESSION_PREFIX)}"
     exit 0
   end
 
@@ -317,9 +311,14 @@ if ARGV.first == 'run'
   exit
 end
 
+if ARGV.first == 'attach'
+  worktree = File.basename(ARGV[1] || resolve_worktree(nil))
+  exec('zellij', 'attach', "#{SESSION_PREFIX}#{worktree}")
+end
+
 options = { attach: $stdout.tty? }
 OptionParser.new do |o|
-  o.banner = 'Usage: qa-up [worktree] [--down] [--no-attach]'
+  o.banner = 'Usage: qa-up [worktree] [--down | attach [worktree]] [--no-attach]'
   o.on('--down', 'Tear down the QA session and tunnel') { options[:down] = true }
   o.on('--no-attach', 'Do not attach to the zellij session when ready') { options[:attach] = false }
   o.on('-h', '--help') do
@@ -337,9 +336,6 @@ worktree_dir = resolve_worktree(ARGV.first)
 worktree = File.basename(worktree_dir)
 session = "#{SESSION_PREFIX}#{worktree}"
 
-freshness_warning = check_branch_freshness(worktree_dir)
-puts freshness_warning if freshness_warning
-
 handle_existing_sessions(session)
 kill_tunnel!
 prepare_state(worktree_dir)
@@ -355,9 +351,8 @@ wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunn
 branch = run('git', '-C', worktree_dir, 'rev-parse', '--abbrev-ref', 'HEAD')
 puts
 puts "Worktree: #{worktree} (#{branch})"
-puts freshness_warning if freshness_warning
 puts "App:      #{APP_URL}"
-puts "Session:  #{session} (zellij attach #{session})"
+puts "Session:  #{session} (qa-up attach #{worktree})"
 puts 'Teardown: qa-up --down'
 puts '(webpack may still be compiling — check the webpack tab if assets 404)'
 puts
