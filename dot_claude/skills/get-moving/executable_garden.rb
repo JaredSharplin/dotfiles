@@ -31,7 +31,11 @@ end
 # Continuous wilt styling: the older the draft, the browner, droopier, and
 # louder its card. Capped so ancient drafts stay legible.
 def draft_card(pr, days)
-  emoji = days < 1 ? "🌱" : days < 3 ? "🥀" : "🍂"
+  emoji = case days
+          when 0...1 then "🌱"
+          when 1...3 then "🥀"
+          else "🍂"
+          end
   rotate = [days * 4, 15].min.round(1)
   saturate = [1 - (days * 0.15), 0.3].max.round(2)
   sepia = [days * 0.12, 0.6].min.round(2)
@@ -83,9 +87,7 @@ drafts = drafts
   .map { |pr| [pr, (now - Time.iso8601(pr["updatedAt"])) / 86_400.0] }
   .sort_by { |_pr, days| -days }
 
-beds = +""
-beds << drafts.map { |pr, days| draft_card(pr, days) }.join
-beds << ready.map { ready_card(it) }.join
+beds = drafts.map { |pr, days| draft_card(pr, days) }.join + ready.map { ready_card(it) }.join
 
 html = <<~HTML
   <!DOCTYPE html>
