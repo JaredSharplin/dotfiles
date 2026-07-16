@@ -108,15 +108,16 @@ When the user asks to **schedule / automate** this check-in (not run a one-off t
 cron with the built-in `CronCreate` tool — do not hand-roll a scheduler:
 
 ```
-CronCreate(cron: "7 9-18 * * 1-5", prompt: "/productivity-summary", recurring: true, durable: true)
+CronCreate(cron: "7 9-18 * * 1-5", prompt: "/productivity-summary", recurring: true)
 ```
 
 That fires the check-in hourly, weekdays only, first tick ~9am and last ~6pm, in local time — so it
 auto-starts in the morning and auto-finishes at 6pm. Then call `CronList` to confirm, and tell the
-user plainly how far the automation actually reaches: it fires only while a Claude session is
-running; it is **session-only** in practice (even with `durable: true` it has come back
-`[session-only]` — it does not survive the session exiting, so re-arm when you start a new session);
-and recurring jobs **auto-expire after 7 days**. Use `CronDelete` to cancel.
+user plainly how far the automation reaches: it fires only while a Claude session is running, it is
+**session-only** (dies when the session exits — re-arm when you start a new one), and recurring jobs
+**auto-expire after 7 days**. Use `CronDelete` to cancel. (`durable: true` is a real CronCreate
+option but a no-op in this environment — it still comes back session-only — so don't bother passing
+it.)
 
 (Why not `/loop`: its `ScheduleWakeup` delay caps at 1 hour, so it can't bridge overnight or know
 about weekdays — cron is the right built-in for a fixed daily window.)
