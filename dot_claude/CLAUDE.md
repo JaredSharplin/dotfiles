@@ -352,8 +352,10 @@ Write very short commit messages.
 
 Pushing is off by default (`push-branches = false`), which keeps CI spend down — no `[skip ci]` machinery needed. `git town sync` updates branches **locally only**, so intermediate syncs burn no Buildkite builds. The deliberate pushes:
 
-- `git town propose` pushes once when opening the PR — that's the build you want.
+- `gh pr create --draft` pushes the branch and opens the PR (see *Creating PRs*). Because it opens as a draft, no CI runs yet.
 - `git town sync --push` pushes on purpose (e.g. to update an open PR).
+
+**Draft PRs run no CI.** Buildkite skips the pipeline on a draft PR unless it carries the `run-bk` label (payaus #56255; the skip fails open, so an API hiccup runs CI rather than skipping it). A PR's first CI run happens when you mark it **ready for review** — lining CI up with the QA gate. To run CI on a still-draft PR, add the `run-bk` label.
 
 Feature sync strategy is `merge` (not compress/rebase), so syncs never rewrite history — a later push is always a clean fast-forward.
 
@@ -387,16 +389,18 @@ Don't use `--patch` — it shows individual commit patches, not the net diff.
 ## Creating PRs
 
 ```bash
-git town propose --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
-gh pr ready --undo   # start as draft — see below
+git town sync                                   # integrate parent locally; does NOT push
+parent=$(git config "git-town-branch.$(git branch --show-current).parent")
+gh pr create --draft --base "${parent:-master}" \
+  --title "..." --body "..." \
+  --assignee @me --label <type-label> --label built-in-australia
 ```
 
-`git town propose` syncs the branch, pushes it, and opens the PR in one step — no separate `git town sync` needed before propose, and its push is what triggers CI on the PR.
+`git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR as a draft in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (see *CI builds and pushing*). `--base` resolves to the branch's git-town parent, or `master` for an ordinary branch. (Git Town 23 can't open drafts, so `gh` handles creation.)
 
-**Every PR starts as a draft.** Git Town has no `--draft` flag, so flip it right after proposing with `gh pr ready --undo` (`gh pr edit` has no draft option). Draft means *not yet self-reviewed or manually QA'd* — it's the QA gate. Only *I* flip a PR to ready-for-review (`gh pr ready`), by hand, once I've QA'd it. Don't mark a PR ready for me, and don't push toward review/merge on a draft — a draft's next step is QA, not review.
+**Every PR starts as a draft** — *not yet self-reviewed or manually QA'd*, the QA gate. Marking it ready-for-review (`gh pr ready`) kicks off its first CI run; do that when I ask you to. Otherwise leave it as a draft for me to QA.
 
-Every PR must have (set via `gh pr edit` after create):
+Every PR must have (set inline on `gh pr create`, or via `gh pr edit` later):
 
 - `--add-assignee @me` — always assign yourself
 - `--add-label built-in-australia` — always added to every PR

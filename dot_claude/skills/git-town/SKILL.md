@@ -18,7 +18,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Update stacked branches with latest changes | `git town sync -s` | Syncs entire stack safely |
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
-| Create PR for current branch | `git town propose --title ... --body ...` | Then `gh pr edit` for assignee + labels, then `gh pr ready --undo` to start as draft |
+| Create PR for current branch | `git town sync` then `gh pr create --draft --base <parent> ...` | Opens as a draft, assignee + labels inline — see "Creating a PR" |
 | Push branch/stack to remote | `git town sync --push` | Pushing is off by default — see "Pushing (off by default)" |
 | Switch to parent branch | `git town down` | Move down the stack |
 | Switch to child branch | `git town up` | Move up the stack |
@@ -34,18 +34,19 @@ Pushing is **off by default** (`push-branches = false` in global git config). Th
 
 - `git town sync` (and `sync -s`) update branches **locally only** — they do **not** push to the remote.
 - To push on purpose: **`git town sync --push`** (overrides the config for that run). Use `git town sync -s --push` to push the whole stack.
-- `git town propose` **always pushes** — it has to, in order to open the PR. So proposing a branch is also how its first push (and first CI run) happens.
+- `gh pr create --draft` pushes the branch as part of opening the PR — that's a new branch's first push. Because the PR opens as a draft, no CI runs; CI first runs when the PR is marked ready for review.
 - `observe` branches never push regardless (they're read-only).
 
-Rule of thumb: sync freely to stay up to date; push only when you actually want the remote / PR updated or CI to run.
+Rule of thumb: sync freely to stay up to date; push only when you actually want the remote / PR updated. Pushing a *draft* runs no CI (Buildkite skips drafts without the `run-bk` label) — CI runs when the PR is marked ready.
 
 ## When to Use Git Town vs Standard Git
 
 **Use Git Town for:**
 - Branch creation and hierarchy management (`hack`, `append`, `prepend`)
-- Keeping stacks synchronized (`sync`)
-- Creating PRs (`propose`)
+- Keeping stacks synchronized (`sync`) — also what writes PR stack-nav links
 - Modifying stack relationships (`set-parent`)
+
+(PRs are created with `gh pr create --draft` — see "Creating a PR".)
 
 **Use standard Git for:**
 - Checking status and history (`git status`, `git log`)
@@ -150,14 +151,18 @@ This is the **one exception** to the "never manually stash" rule — `git town d
 ### Creating a PR
 
 ```bash
-git town propose --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
-gh pr ready --undo   # start as draft (QA gate — see below)
+git town sync                                   # integrate parent locally; does NOT push
+parent=$(git config "git-town-branch.$(git branch --show-current).parent")
+gh pr create --draft --base "${parent:-master}" \
+  --title "..." --body "..." \
+  --assignee @me --label <type-label> --label built-in-australia
 ```
 
-`git town propose` syncs the branch (pushing it) and opens the PR in one step. It also automatically adds stack navigation links to the PR body (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`). **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically.
+`git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` resolves to the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
 
-**Every PR starts as a draft.** Git Town 23 has no `--draft` flag and `gh pr edit` has no draft option, so flip it with `gh pr ready --undo` immediately after proposing (no argument = the current branch's PR). Draft means *not yet self-reviewed or manually QA'd*. Flipping to ready-for-review (`gh pr ready`) is the developer's manual QA gate — **Claude never marks a PR ready**, and never pushes a draft toward review or merge. A draft's next step is QA, not review.
+Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
+
+**Every PR starts as a draft** — *not yet self-reviewed or manually QA'd*, the QA gate. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this when the developer asks. Otherwise the draft stays put for the developer to QA.
 
 ## Working on Someone Else's Branch
 
@@ -557,16 +562,16 @@ git town append feature/follow-up
 ### After Organizing: Create PRs
 
 ```bash
-# Create a PR for each branch in stack (each starts as draft — see "Creating a PR")
+# Create a PR for each branch in stack (each opens as a draft — see "Creating a PR")
+git town sync   # local sync of the whole state before creating PRs
+
 git checkout migration/foundation
-git town propose --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
-gh pr ready --undo
+gh pr create --draft --base "$(git config git-town-branch.migration/foundation.parent)" \
+  --title "..." --body "..." --assignee @me --label <type-label> --label built-in-australia
 
 git checkout feature/implementation
-git town propose --title "..." --body "..."
-gh pr edit --add-assignee @me --add-label <type-label> --add-label built-in-australia
-gh pr ready --undo
+gh pr create --draft --base "$(git config git-town-branch.feature/implementation.parent)" \
+  --title "..." --body "..." --assignee @me --label <type-label> --label built-in-australia
 ```
 
 ## ⛔ NEVER Manually Stash (With One Exception)
@@ -597,6 +602,6 @@ gh pr ready --undo
 - Use git town for all branch management and stacked development
 - Branch naming: feature/task-description or feature/task-id-description
 - Standard workflow: 1) Check current branch, 2) Create feature branch, 3) Implement code, 4) Write tests, 5) Commit
-- **`git town propose` syncs the branch automatically — no need to run `git town sync` before proposing**
-- **`git town sync` does NOT push (pushing is off by default) — push deliberately with `git town sync --push`**
+- **Create PRs with `gh pr create --draft` after `git town sync` — opens as a draft, CI stays quiet.**
+- **`git town sync` does NOT push (pushing is off by default) — push deliberately with `git town sync --push`; `gh pr create` pushes the branch as it opens the PR**
 - **NEVER use `git push` directly**

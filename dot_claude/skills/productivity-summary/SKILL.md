@@ -36,8 +36,8 @@ Two rules about drafts:
 
 - A draft PR is not finished being tested. Its next step is testing, then marking it ready. Never
   tell the developer to get a draft reviewed or merged.
-- Only the developer marks a PR ready for review, by hand, after testing it. Never do it for them,
-  never offer to.
+- Marking a PR ready happens after testing, on the developer's explicit request — not something to
+  do or suggest from this summary.
 
 The collector does all the data gathering; you just read its JSON and talk. Don't gather data yourself.
 
