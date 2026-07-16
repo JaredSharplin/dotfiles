@@ -15,6 +15,9 @@ DATA_DIR = File.join(HOME, ".local", "share", "productivity")
 PROJECTS_DIR = File.join(HOME, ".claude", "projects")
 REPOS = [File.join(HOME, "programming", "payaus")] +
         Dir.glob(File.join(HOME, "programming", "worktrees", "*")).select { File.directory?(it) }
+# The first tick of the day floors its window here instead of midnight, so it
+# reports the workday — not a dump of everything since 00:00.
+DAY_START_HOUR = 9
 
 def log_path(date) = File.join(DATA_DIR, "#{date}.jsonl")
 
@@ -37,11 +40,11 @@ def git_activity(dir, since)
   return nil unless File.exist?(File.join(dir, ".git"))
 
   since_arg = since.iso8601
-  commits = git(dir, "log", "--since=#{since_arg}", "--oneline").lines.size
+  commits = git(dir, "log", "--no-merges", "--since=#{since_arg}", "--oneline").lines.size
   return nil if commits.zero?
 
   insertions = deletions = 0
-  git(dir, "log", "--since=#{since_arg}", "--numstat", "--pretty=tformat:").each_line do |line|
+  git(dir, "log", "--no-merges", "--since=#{since_arg}", "--numstat", "--pretty=tformat:").each_line do |line|
     added, removed, = line.split("\t")
     insertions += added.to_i
     deletions += removed.to_i
@@ -164,6 +167,8 @@ previous = File.exist?(log_path(today)) ? File.readlines(log_path(today)).last&.
 checkpoint =
   if previous
     Time.iso8601(previous["ts"])
+  elsif now.hour >= DAY_START_HOUR
+    Time.new(now.year, now.month, now.day, DAY_START_HOUR, 0, 0, now.utc_offset)
   else
     Time.new(now.year, now.month, now.day, 0, 0, 0, now.utc_offset)
   end

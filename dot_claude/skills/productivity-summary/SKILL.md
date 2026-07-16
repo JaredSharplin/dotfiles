@@ -6,14 +6,16 @@ description: >
   worktrees since the last tick, then prints a tight terminal summary, flags stalled
   work, and fires a macOS notification. Records each snapshot to
   ~/.local/share/productivity/<date>.jsonl for end-of-day reflection. Use when the
-  user invokes /productivity-summary, asks "what have I done", wants a productivity
-  check-in, or — the intended use — runs it on a timer via `/loop 30m /productivity-summary`.
+  user invokes /productivity-summary, asks "what have I done", or wants a productivity
+  check-in. Also arms the recurring schedule when the user asks to "schedule the
+  productivity summary", "run it on weekdays", or "automate the check-in" (see Scheduling).
 ---
 
 # Productivity check-in
 
-A check-in on the last ~30 minutes only — not the whole day. Runs under `/loop`. Your job: say
-plainly what happened, then say the one next thing worth doing.
+A check-in on the last period only — not the whole day. Normally fired on a schedule (see
+Scheduling); can also be run by hand anytime. Your job: say plainly what happened, then say the one
+next thing worth doing.
 
 **Write like a person talking.** Short, plain sentences. No metaphors, no invented phrases, no
 jargon. Do not say "gate", "stage", "pipeline", "momentum", "drive it", "land it", "the finish
@@ -98,4 +100,21 @@ osascript -e 'display notification "Marked #4830 ready for review. Next: get it 
 osascript -e 'display notification "Nothing merged. #4830 is a draft — finish testing it and mark it ready." with title "Productivity check-in" subtitle "<window>"'
 ```
 
-That's the whole tick. End the turn — under `/loop`, the next tick fires on schedule.
+That's the whole tick. End the turn — the next tick fires on its own schedule (see Scheduling).
+
+## Scheduling
+
+When the user asks to **schedule / automate** this check-in (not run a one-off tick), arm a recurring
+cron with the built-in `CronCreate` tool — do not hand-roll a scheduler:
+
+```
+CronCreate(cron: "7 9-18 * * 1-5", prompt: "/productivity-summary", recurring: true, durable: true)
+```
+
+That fires the check-in hourly, weekdays only, first tick ~9am and last ~6pm, in local time — so it
+auto-starts in the morning and auto-finishes at 6pm. Then call `CronList` to confirm it registered,
+and tell the user two things: it only fires while a Claude session is running, and **recurring jobs
+auto-expire after 7 days**, so they re-run this to renew. Use `CronDelete` to cancel.
+
+(Why not `/loop`: its `ScheduleWakeup` delay caps at 1 hour, so it can't bridge overnight or know
+about weekdays — cron is the right built-in for a fixed daily window.)
