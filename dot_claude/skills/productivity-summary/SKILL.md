@@ -112,9 +112,11 @@ CronCreate(cron: "7 9-18 * * 1-5", prompt: "/productivity-summary", recurring: t
 ```
 
 That fires the check-in hourly, weekdays only, first tick ~9am and last ~6pm, in local time — so it
-auto-starts in the morning and auto-finishes at 6pm. Then call `CronList` to confirm it registered,
-and tell the user two things: it only fires while a Claude session is running, and **recurring jobs
-auto-expire after 7 days**, so they re-run this to renew. Use `CronDelete` to cancel.
+auto-starts in the morning and auto-finishes at 6pm. Then call `CronList` to confirm, and tell the
+user plainly how far the automation actually reaches: it fires only while a Claude session is
+running; it is **session-only** in practice (even with `durable: true` it has come back
+`[session-only]` — it does not survive the session exiting, so re-arm when you start a new session);
+and recurring jobs **auto-expire after 7 days**. Use `CronDelete` to cancel.
 
 (Why not `/loop`: its `ScheduleWakeup` delay caps at 1 hour, so it can't bridge overnight or know
 about weekdays — cron is the right built-in for a fixed daily window.)
