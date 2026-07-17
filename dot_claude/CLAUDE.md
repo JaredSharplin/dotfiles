@@ -398,7 +398,7 @@ gh pr create --draft --base "${parent:-master}" \
 
 `git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR as a draft in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (see *CI builds and pushing*). `--base` resolves to the branch's git-town parent, or `master` for an ordinary branch. (Git Town 23 can't open drafts, so `gh` handles creation.)
 
-**Every PR starts as a draft** — *not yet self-reviewed or manually QA'd*, the QA gate. Marking it ready-for-review (`gh pr ready`) kicks off its first CI run; do that when I ask you to. Otherwise leave it as a draft for me to QA.
+**Every PR starts as a draft** — *not yet marked ready by me; the ready-flip is my review gate*. Marking it ready-for-review (`gh pr ready`) kicks off its first CI run; do that only when I ask. Otherwise leave it as a draft — but a draft still gets full browser QA and screenshots from you before you hand back (see below). "Draft" means I haven't done my review, not that QA hasn't happened.
 
 Every PR must have (set inline on `gh pr create`, or via `gh pr edit` later):
 
@@ -407,6 +407,16 @@ Every PR must have (set inline on `gh pr create`, or via `gh pr edit` later):
 - `--add-label <type-label>` — pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
 
 Choose the type label based on the nature of the change. If unsure, ask before creating the PR.
+
+## Browser QA and screenshots are yours — automatic, not a handoff
+
+When you open a PR for anything a user can see or interact with, running the browser QA on native dev and attaching the screenshots is part of preparing the PR — done before you hand back, never left as placeholders or deferred to me. Without being asked:
+
+- Bring up native dev if needed (`bin/native/ensure_running.sh`, enable any required feature flag, build assets), drive the change through the browser with Chrome DevTools MCP, and capture one screenshot per user-visible behaviour.
+- Upload them into the PR body's Screenshots section with `gh image`, replacing the placeholders. The `/git-town` skill has the capture destination and upload mechanics.
+- Only skip for a change with no user-visible surface (pure internal refactor, config, `api-only`) — and say so explicitly rather than silently leaving placeholders.
+
+This is separate from marking the PR ready for review. Doing the QA and attaching evidence is automatic and yours; flipping the draft to ready is my gate and stays mine. Handing back a user-visible PR with empty Screenshots placeholders is an incomplete PR, not a handoff.
 
 ## Editing PR bodies
 

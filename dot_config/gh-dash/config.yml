@@ -89,6 +89,27 @@ keybindings:
     - key: "E"
       name: edit-pr
       command: gh pr edit {{.PrNumber}} --repo {{.RepoName}}
+    # Review the selected PR in snacks.nvim's diff reviewer (line-by-line, `a` to
+    # comment). Passing repo means gh_diff fetches the diff via `gh pr diff --repo`
+    # and comments via the API, so this needs no checkout and mutates nothing —
+    # right for others' PRs. vim.schedule defers the call one tick so the
+    # lazy-loaded picker exists. gh-dash suspends to the foreground, so nvim owns
+    # the terminal and quitting returns here. Folded scalar keeps the quotes literal.
+    # Key "n" = nvim; "N" is the heavier review+edit variant (lower/upper mirrors
+    # gh-dash's own r/R, x/X). r/R are refresh, v/V/e/E/d are all built-in actions.
+    - key: n
+      name: review-in-nvim
+      command: >-
+        nvim -c 'lua vim.schedule(function()
+        Snacks.picker.gh_diff({ pr = {{.PrNumber}}, repo = "{{.RepoName}}" })
+        end)'
+    # Review + edit: land in a worktree for the PR branch (reusing an existing one,
+    # else a disposable ~/.cache/gh-dash-review checkout), then open the same
+    # reviewer over the real files with LSP — for my own PRs where a fix means
+    # editing and pushing. The wrapper handles worktree resolution and cleanup.
+    - key: N
+      name: review-edit-worktree
+      command: gh-review-worktree {{.RepoName}} {{.PrNumber}} {{.HeadRefName}}
   branches: []
 repoPaths:
   TandaHQ/*: ~/programming/*

@@ -1,0 +1,142 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# gh-review-worktree — open a PR in snacks.nvim's reviewer over its real files.
+#
+# Invoked by gh-dash's "N" keybinding (review + edit) with the selected PR:
+#   gh-review-worktree <owner/name> <pr-number> <head-ref>
+#
+# Unlike the plain "n" keybinding (which reviews GitHub's diff with no checkout),
+# this lands you in a worktree for the PR branch so you can edit files with LSP
+# and push fixes — for your own PRs. It prefers an existing worktree on the branch
+# and otherwise creates a disposable one under ~/.cache/gh-dash-review, so the main
+# repo's master baseline and your real ~/programming/worktrees are never touched.
+#
+# Worktree hygiene (the whole point of the cache root): every run first prunes
+# review worktrees that are clean AND untouched for a week, so they never pile up;
+# dirty ones are always kept. `--clean` sweeps all clean ones regardless of age.
+
+require 'English'
+require 'fileutils'
+require 'open3'
+
+REPOS_ROOT = File.expand_path('~/programming')
+REVIEW_ROOT = File.expand_path('~/.cache/gh-dash-review')
+STALE_AFTER = 7 * 24 * 60 * 60
+
+def run(*args, chdir: nil, allow_failure: false)
+  opts = chdir ? { chdir: } : {}
+  stdout, stderr, status = Open3.capture3(*args, **opts)
+  raise "#{args.join(' ')} failed: #{stderr.strip}" unless status.success? || allow_failure
+
+  stdout.strip
+end
+
+# The clone the worktree commands operate against: ~/programming/<name>, matching
+# gh-dash's `repoPaths: TandaHQ/*: ~/programming/*`. Strip the owner.
+def repo_dir(repo)
+  dir = File.join(REPOS_ROOT, repo.split('/').last)
+  Dir.exist?(File.join(dir, '.git')) || Dir.exist?(dir) or
+    abort("No local clone at #{dir}. Clone #{repo} there first.")
+  dir
+end
+
+# `git worktree list --porcelain` emits paragraph-per-worktree; pair each path with
+# its checked-out branch (detached worktrees have no `branch` line).
+def worktrees(repo)
+  run('git', 'worktree', 'list', '--porcelain', chdir: repo)
+    .split("\n\n")
+    .map do |para|
+      { path: para[/^worktree (.+)$/, 1],
+        branch: para[%r{^branch refs/heads/(.+)$}, 1] }
+    end
+end
+
+def clean?(path)
+  run('git', 'status', '--porcelain', chdir: path, allow_failure: true).empty?
+end
+
+# Remove review worktrees that carry no unsaved work. `age_out` limits it to stale
+# ones (the every-run guard); --clean drops the age check for a full sweep. Uses
+# `git worktree remove` so git's bookkeeping stays consistent, then prunes the repos
+# whose worktrees we touched and drops emptied parents.
+def prune_review_worktrees(age_out:)
+  return unless Dir.exist?(REVIEW_ROOT)
+
+  clones = review_worktree_paths.select { prunable?(it, age_out:) }.map { remove_worktree(it) }
+  clones.uniq.each { run('git', 'worktree', 'prune', chdir: it, allow_failure: true) }
+  sweep_empty_parents
+end
+
+def review_worktree_paths
+  Dir.glob(File.join(REVIEW_ROOT, '*', '*')).select { File.directory?(it) }
+end
+
+# Clean = no unsaved work, so losing it is harmless (it's re-fetchable). age_out keeps
+# the every-run guard to stale worktrees; --clean passes false to sweep all clean ones.
+def prunable?(path, age_out:)
+  return false if age_out && (Time.now - File.mtime(path)) < STALE_AFTER
+
+  clean?(path)
+end
+
+# Returns the repo clone the worktree belonged to, so the caller can `git worktree prune` it.
+def remove_worktree(path)
+  clone = repo_dir_for_cache(File.dirname(path))
+  run('git', 'worktree', 'remove', '--force', path, chdir: clone, allow_failure: true)
+  clone
+end
+
+# `git worktree remove` deletes the pr-<n> leaf but leaves its <owner>__<name> parent;
+# drop any now-empty parents so the cache root doesn't collect husks.
+def sweep_empty_parents
+  Dir.glob(File.join(REVIEW_ROOT, '*')).each { Dir.rmdir(it) if File.directory?(it) && Dir.empty?(it) }
+end
+
+# The cache layout is <REVIEW_ROOT>/<owner>__<name>/pr-<n>; recover the repo clone
+# from an <owner>__<name> cache subdir so prune can target the right git dir.
+def repo_dir_for_cache(cache_owner_repo)
+  File.join(REPOS_ROOT, File.basename(cache_owner_repo).split('__').last)
+end
+
+# An existing worktree already on the PR branch (the common case for your own PRs —
+# that's where you did the work). Reuse it; create nothing.
+def existing_worktree(repo, head_ref)
+  worktrees(repo).find { it[:branch] == head_ref }&.fetch(:path)
+end
+
+# Fallback: a disposable detached checkout of the PR head. `pull/<n>/head` resolves
+# PRs from forks too, and --detach leaves no stray local branch to clean up. mtime is
+# bumped on reuse so an active review isn't pruned out from under you.
+def review_worktree(repo, owner_repo, number)
+  path = File.join(REVIEW_ROOT, owner_repo.gsub('/', '__'), "pr-#{number}")
+  if Dir.exist?(path)
+    FileUtils.touch(path)
+    return path
+  end
+
+  FileUtils.mkdir_p(File.dirname(path))
+  run('git', 'fetch', 'origin', "pull/#{number}/head", chdir: repo)
+  run('git', 'worktree', 'add', '--detach', path, 'FETCH_HEAD', chdir: repo)
+  path
+end
+
+def open_reviewer(target, owner_repo, number)
+  lua = 'vim.schedule(function() Snacks.picker.gh_diff(' \
+        "{ pr = #{number}, repo = \"#{owner_repo}\" }) end)"
+  Dir.chdir(target)
+  exec('nvim', '-c', "lua #{lua}")
+end
+
+if ARGV.first == '--clean'
+  prune_review_worktrees(age_out: false)
+  exit
+end
+
+owner_repo, pr, head_ref = ARGV
+abort('Usage: gh-review-worktree <owner/name> <pr-number> <head-ref> | --clean') unless head_ref
+
+repo = repo_dir(owner_repo)
+prune_review_worktrees(age_out: true)
+target = existing_worktree(repo, head_ref) || review_worktree(repo, owner_repo, pr)
+open_reviewer(target, owner_repo, pr)

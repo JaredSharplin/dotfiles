@@ -162,7 +162,7 @@ gh pr create --draft --base "${parent:-master}" \
 
 Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
 
-**Every PR starts as a draft** — *not yet self-reviewed or manually QA'd*, the QA gate. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this when the developer asks. Otherwise the draft stays put for the developer to QA.
+**Every PR starts as a draft** — *not yet marked ready by the developer; the ready-flip is their review gate*. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this only when the developer asks. Otherwise the draft stays put — but a draft PR still gets full browser QA and screenshots from Claude before handoff (see *Screenshots* below). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
 
 ## Working on Someone Else's Branch
 
@@ -366,7 +366,7 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 
 ### Screenshots
 
-Leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. After browser QA, capture the screenshots (see *Capturing during final QA*) and replace the placeholders with the uploaded images (see *Uploading to the PR*). Use "None." only for pure internal changes.
+At `gh pr create` time, leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. These placeholders are a to-do list for Claude, not a handoff to the developer: before handing the PR back, Claude does the browser QA on native dev, captures the screenshots (see *Capturing during final QA*), and replaces every placeholder with the uploaded image (see *Uploading to the PR*). Handing back a user-visible PR with unfilled placeholders is incomplete. Use "None." only for pure internal changes with no user-visible surface.
 
 #### Capturing during final QA
 
