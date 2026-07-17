@@ -27,7 +27,7 @@ Run `git town sync` in the worktree first, so QA runs against code that's curren
 qa-up --no-attach
 ```
 
-Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~30s → (a few quiet minutes) → `QA_READY …`. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
+Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~30s → (a few quiet minutes) → `Server up …` → `QA_READY …`. QA_READY means usable in the browser — the server responds *and* webpack's first compile is done. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
 
 If it reports "switched from <other>", relay that to the user — their previous QA session was torn down.
 

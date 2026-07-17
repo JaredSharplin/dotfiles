@@ -38,6 +38,10 @@ REMOTE_APP_CONTAINERS = %w[rails payaus-dev-job-work webpack].freeze
 SYNC_TIMEOUT = 900
 # Remote bundle/yarn + app-image pull + boot + first HTTP response.
 SERVER_TIMEOUT = 1800
+# webpack's first compile of the full bundle; dev-middleware holds asset requests until done.
+WEBPACK_TIMEOUT = 900
+# Any bundle the login page needs works as the "assets are servable" probe.
+ASSET_PROBE_URL = "#{APP_URL}/assets/webpack/application.js".freeze
 BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
 
 # zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
@@ -379,6 +383,10 @@ wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hin
 end
 puts 'Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected).'
 wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
+puts 'Server up — waiting for webpack to finish its first compile (assets hang until then).'
+wait_for('webpack assets', timeout: WEBPACK_TIMEOUT, failed_if_exited: %w[tunnel server webpack]) do
+  http_ready?(ASSET_PROBE_URL)
+end
 
 branch = run('git', '-C', worktree_dir, 'rev-parse', '--abbrev-ref', 'HEAD')
 puts
@@ -386,7 +394,6 @@ puts "Worktree: #{worktree} (#{branch})"
 puts "App:      #{APP_URL}"
 puts "Session:  #{session} (qa-up attach #{worktree})"
 puts 'Teardown: qa-up --down'
-puts '(webpack may still be compiling — check the webpack tab if assets 404)'
 puts
 puts "QA_READY url=#{APP_URL} session=#{session}"
 
