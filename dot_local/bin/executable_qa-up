@@ -18,23 +18,19 @@ require 'json'
 require 'open3'
 require 'optparse'
 
-# zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
-# background Claude task's $TMPDIR is longer still — either can exceed the ~103-byte
-# AF_UNIX limit. Pin a short one so bring-up, teardown, and attach share one socket path.
-ENV['TMPDIR'] = '/tmp'
-
 PAYAUS = File.expand_path('~/programming/payaus')
 CACHE = File.expand_path('~/.cache/qa-up')
 STATE_FILE = File.join(CACHE, 'state.json')
 LAYOUT_FILE = File.join(CACHE, 'layout.kdl')
 SESSION_PREFIX = 'qa-'
-# Single-region developer; stated once so the pgrep pattern, ssh config, and app
-# domain can't drift apart. Make it env-derived if this ever goes multi-region.
+# Single-region developer; stated once so the pgrep pattern, ssh config, profile, and
+# app domain can't drift apart. Make it env-derived if this ever goes multi-region.
 REGION = 'apac'
+DEVELOPER = 'jaredsharplin'
 ENTANGLER_PGREP = "entangler.*payaus_dev_config_#{REGION}".freeze
 SSH_CONFIG = File.expand_path("~/.ssh/payaus_dev_config_#{REGION}")
-# This developer's fixed dev box — the tunnel, ssh, and app all target the same one.
-APP_URL = "https://jaredsharplin.dev.#{REGION}.adnat.co".freeze
+PROFILE = "tt-dev-#{REGION}".freeze
+APP_URL = "https://#{DEVELOPER}.dev.#{REGION}.adnat.co".freeze
 ROLES = %w[tunnel server worker webpack].freeze
 # The app containers bin/dev server/worker/webpack start on the box. They outlive
 # their ssh ttys, so teardown and switching must stop them explicitly.
@@ -44,6 +40,16 @@ SYNC_TIMEOUT = 900
 # Remote bundle/yarn + app-image pull + boot + first HTTP response.
 SERVER_TIMEOUT = 1800
 BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
+
+# zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
+# background Claude task's $TMPDIR is longer still — either can exceed the ~103-byte
+# AF_UNIX limit. Pin a short one so bring-up, teardown, and attach share one socket path.
+ENV['TMPDIR'] = '/tmp'
+# bin/tunnel prompts interactively for a developer name when neither .env nor $DEV_NAME
+# has one; in a detached pane that read blocks forever. Supply it so the pane never stalls.
+ENV['DEV_NAME'] = DEVELOPER
+# Flush milestone output promptly even when stdout is a pipe (e.g. the /qa skill).
+$stdout.sync = true
 
 def run(*args, allow_failure: false)
   stdout, stderr, status = Open3.capture3(*args)
@@ -219,9 +225,9 @@ def http_ready?(url)
   code.match?(/^[23]/)
 end
 
-def wait_for(label, timeout:, failed_if_exited: [], hint: nil)
+def wait_for(label, timeout:, failed_if_exited: [], hint: nil, hint_after: 60)
   started = Time.now
-  hint_at = hint ? started + 60 : nil
+  hint_at = hint ? started + hint_after : nil
   until yield
     fail_if_pane_exited(failed_if_exited)
     elapsed = Time.now - started
@@ -304,6 +310,27 @@ def down!
   puts "killed #{sessions.map { it[:name] }.join(', ')}"
 end
 
+# bin/tunnel runs `aws sso login` when the token is expired — interactive, so it would
+# block the detached tunnel pane. Preflight the same check and fail fast with the fix.
+def ensure_aws_sso!
+  return if system('aws', 'sts', 'get-caller-identity', '--profile', PROFILE,
+                   out: File::NULL, err: File::NULL)
+
+  abort "AWS SSO for profile #{PROFILE} has expired. Run:\n  aws sso login --profile #{PROFILE}\n" \
+        'then re-run qa-up.'
+end
+
+def status!
+  sessions = qa_sessions
+  puts sessions.empty? ? 'No qa- session.' : sessions.map { "session #{it[:name]}#{' (EXITED)' if it[:exited]}" }
+  ROLES.each do |role|
+    exited = File.exist?(exit_path(role)) ? " [exited #{File.read(exit_path(role)).strip}]" : ''
+    log = log_path(role)
+    tail = File.exist?(log) && !File.empty?(log) ? File.readlines(log).last(12).join.rstrip : '(no output yet)'
+    puts "\n── #{role}#{exited} ──\n#{tail}"
+  end
+end
+
 # --- main ---
 
 if ARGV.first == 'run'
@@ -316,9 +343,14 @@ if ARGV.first == 'attach'
   exec('zellij', 'attach', "#{SESSION_PREFIX}#{worktree}")
 end
 
+if ARGV.first == 'status'
+  status!
+  exit
+end
+
 options = { attach: $stdout.tty? }
 OptionParser.new do |o|
-  o.banner = 'Usage: qa-up [worktree] [--down | attach [worktree]] [--no-attach]'
+  o.banner = 'Usage: qa-up [worktree] [--down | attach [worktree] | status] [--no-attach]'
   o.on('--down', 'Tear down the QA session and tunnel') { options[:down] = true }
   o.on('--no-attach', 'Do not attach to the zellij session when ready') { options[:attach] = false }
   o.on('-h', '--help') do
@@ -336,6 +368,7 @@ worktree_dir = resolve_worktree(ARGV.first)
 worktree = File.basename(worktree_dir)
 session = "#{SESSION_PREFIX}#{worktree}"
 
+ensure_aws_sso!
 handle_existing_sessions(session)
 kill_tunnel!
 prepare_state(worktree_dir)
@@ -343,9 +376,12 @@ write_layout
 launch_session(session)
 puts "Launched #{session} (tabs: #{ROLES.join(', ')} + scratch shell)"
 
-wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel],
-                        hint: 'check the tunnel tab in case it needs AWS SSO auth') { sync_ready? }
-puts 'Tunnel synced — waiting for the server to boot (remote deps can take a few minutes).'
+# The tunnel connects and does its initial sync in seconds; silence here means trouble.
+wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 30,
+                        hint: 'this should be quick — run `qa-up status`; if the dev box is down, `bin/dev start`') do
+  sync_ready?
+end
+puts 'Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected).'
 wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
 
 branch = run('git', '-C', worktree_dir, 'rev-parse', '--abbrev-ref', 'HEAD')

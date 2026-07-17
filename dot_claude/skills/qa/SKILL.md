@@ -27,7 +27,7 @@ Run `git town sync` in the worktree first, so QA runs against code that's curren
 qa-up --no-attach
 ```
 
-Run via Bash with `run_in_background: true` — full bring-up takes 5–15 minutes. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
+Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~30s → (a few quiet minutes) → `QA_READY …`. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
 
 If it reports "switched from <other>", relay that to the user — their previous QA session was torn down.
 
@@ -40,13 +40,12 @@ If it reports "switched from <other>", relay that to the user — their previous
 
 ### 5. Wait for readiness
 
-Poll the background shell's output. Success is the line:
+Two phases, with very different timing — don't conflate them:
 
-```
-QA_READY url=<app url> session=qa-<worktree>
-```
+- **Tunnel sync is fast (seconds).** `Tunnel synced` should print within ~30s of `Launched`. If it hasn't after a minute, something is wrong — **do not tell the user to keep waiting.** Run `qa-up status` to see the tunnel tab and diagnose.
+- **Server boot is the slow part (a few minutes).** Only *after* `Tunnel synced` is a stretch of no output expected. `QA_READY url=… session=qa-<worktree>` is the success signal.
 
-On failure, qa-up prints the failing tab's last output — relay it. Common cases: dev box stopped ("Try 'bin/dev start'"), or the tunnel tab waiting on interactive AWS SSO auth (tell the user to attach and complete it: `qa-up attach <worktree>`).
+qa-up fails fast with a clear reason rather than hanging: AWS SSO expired (prints the `aws sso login` command to run before retrying), dev box stopped (`bin/dev start`), or a pane exited (prints that pane's last output). Relay whatever it prints. If output stalls with no such message, run `qa-up status` — never report a stall as normal.
 
 ### 6. Test-org discovery
 
