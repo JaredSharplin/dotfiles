@@ -23,13 +23,12 @@ CACHE = File.expand_path('~/.cache/qa-up')
 STATE_FILE = File.join(CACHE, 'state.json')
 LAYOUT_FILE = File.join(CACHE, 'layout.kdl')
 SESSION_PREFIX = 'qa-'
-# Single-region developer; stated once so the pgrep pattern, ssh config, profile, and
-# app domain can't drift apart. Make it env-derived if this ever goes multi-region.
+# Single-region developer; stated once so the pgrep pattern, ssh config, and app
+# domain can't drift apart. Make it env-derived if this ever goes multi-region.
 REGION = 'apac'
 DEVELOPER = 'jaredsharplin'
 ENTANGLER_PGREP = "entangler.*payaus_dev_config_#{REGION}".freeze
 SSH_CONFIG = File.expand_path("~/.ssh/payaus_dev_config_#{REGION}")
-PROFILE = "tt-dev-#{REGION}".freeze
 APP_URL = "https://#{DEVELOPER}.dev.#{REGION}.adnat.co".freeze
 ROLES = %w[tunnel server worker webpack].freeze
 # The app containers bin/dev server/worker/webpack start on the box. They outlive
@@ -316,23 +315,6 @@ def down!
   puts "killed #{sessions.map { it[:name] }.join(', ')}"
 end
 
-def aws_authenticated?
-  system('aws', 'sts', 'get-caller-identity', '--profile', PROFILE, out: File::NULL, err: File::NULL)
-end
-
-# bin/tunnel runs `aws sso login` when the token is expired — interactive, so it would
-# block the detached tunnel pane. Do the login here instead (it opens the browser and
-# polls), before launching, so the pane starts with a valid session.
-def ensure_aws_sso!
-  return if aws_authenticated?
-
-  puts "AWS SSO for #{PROFILE} has expired — opening your browser to log in. Approve it to continue."
-  unless system('aws', 'sso', 'login', '--profile', PROFILE)
-    abort "`aws sso login` failed. Run it manually: aws sso login --profile #{PROFILE}"
-  end
-  abort 'AWS SSO login did not establish a valid session.' unless aws_authenticated?
-end
-
 def status!
   sessions = qa_sessions
   puts sessions.empty? ? 'No qa- session.' : sessions.map { "session #{it[:name]}#{' (EXITED)' if it[:exited]}" }
@@ -381,7 +363,6 @@ worktree_dir = resolve_worktree(ARGV.first)
 worktree = File.basename(worktree_dir)
 session = "#{SESSION_PREFIX}#{worktree}"
 
-ensure_aws_sso!
 handle_existing_sessions(session)
 kill_tunnel!
 prepare_state(worktree_dir)
@@ -389,9 +370,11 @@ write_layout
 launch_session(session)
 puts "Launched #{session} (tabs: #{ROLES.join(', ')} + scratch shell)"
 
-# The tunnel connects and does its initial sync in seconds; silence here means trouble.
+# The tunnel connects and does its initial sync in seconds; silence here means trouble —
+# unless bin/tunnel just opened a browser SSO prompt that's awaiting approval.
 wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 30,
-                        hint: 'this should be quick — run `qa-up status`; if the dev box is down, `bin/dev start`') do
+                        hint: 'this should be quick unless a browser SSO prompt is awaiting approval — ' \
+                              'run `qa-up status` to see the tunnel tab; if the dev box is down, `bin/dev start`') do
   sync_ready?
 end
 puts 'Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected).'
