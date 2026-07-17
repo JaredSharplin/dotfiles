@@ -316,14 +316,21 @@ def down!
   puts "killed #{sessions.map { it[:name] }.join(', ')}"
 end
 
-# bin/tunnel runs `aws sso login` when the token is expired — interactive, so it would
-# block the detached tunnel pane. Preflight the same check and fail fast with the fix.
-def ensure_aws_sso!
-  return if system('aws', 'sts', 'get-caller-identity', '--profile', PROFILE,
-                   out: File::NULL, err: File::NULL)
+def aws_authenticated?
+  system('aws', 'sts', 'get-caller-identity', '--profile', PROFILE, out: File::NULL, err: File::NULL)
+end
 
-  abort "AWS SSO for profile #{PROFILE} has expired. Run:\n  aws sso login --profile #{PROFILE}\n" \
-        'then re-run qa-up.'
+# bin/tunnel runs `aws sso login` when the token is expired — interactive, so it would
+# block the detached tunnel pane. Do the login here instead (it opens the browser and
+# polls), before launching, so the pane starts with a valid session.
+def ensure_aws_sso!
+  return if aws_authenticated?
+
+  puts "AWS SSO for #{PROFILE} has expired — opening your browser to log in. Approve it to continue."
+  unless system('aws', 'sso', 'login', '--profile', PROFILE)
+    abort "`aws sso login` failed. Run it manually: aws sso login --profile #{PROFILE}"
+  end
+  abort 'AWS SSO login did not establish a valid session.' unless aws_authenticated?
 end
 
 def status!

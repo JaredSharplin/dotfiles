@@ -45,7 +45,7 @@ Two phases, with very different timing — don't conflate them:
 - **Tunnel sync is fast (seconds).** `Tunnel synced` should print within ~30s of `Launched`. If it hasn't after a minute, something is wrong — **do not tell the user to keep waiting.** Run `qa-up status` to see the tunnel tab and diagnose.
 - **Server boot is the slow part (a few minutes).** Only *after* `Tunnel synced` is a stretch of no output expected. `QA_READY url=… session=qa-<worktree>` is the success signal.
 
-qa-up fails fast with a clear reason rather than hanging: AWS SSO expired (prints the `aws sso login` command to run before retrying), dev box stopped (`bin/dev start`), or a pane exited (prints that pane's last output). Relay whatever it prints. If output stalls with no such message, run `qa-up status` — never report a stall as normal.
+If AWS SSO has expired, qa-up opens the browser to log in automatically before bringing anything up — relay "approve the SSO login in your browser" to the user; the run continues once they approve. Other failures are fast and explicit: dev box stopped (`bin/dev start`), or a pane exited (prints that pane's last output). Relay whatever qa-up prints. If output stalls with no such message, run `qa-up status` — never report a stall as normal.
 
 ### 6. Test-org discovery
 
