@@ -1,5 +1,7 @@
-# mise shims for non-login shells (login shells re-prepend in .zprofile, after macOS path_helper).
-export PATH="$HOME/.local/share/mise/shims:$PATH"
+# Shims first (login shells re-prepend in .zprofile); append system dirs so shells that inherit a
+# stripped PATH still find git/wc/tr. typeset -U dedupes, keeping shims ahead of system ruby.
+export PATH="$HOME/.local/share/mise/shims:$PATH:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+typeset -U path PATH
 
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
