@@ -177,13 +177,18 @@ def previous_run_failed?
   ROLES.any? { File.exist?(exit_path(it)) }
 end
 
-def prepare_state(worktree_dir)
-  FileUtils.mkdir_p(CACHE)
+# Per-run logs and exit markers, cleared at bring-up and teardown so `status` never
+# shows output from a run that's no longer live.
+def clear_run_artifacts
   ROLES.each do |role|
-    File.write(log_path(role), '')
+    FileUtils.rm_f(log_path(role))
     FileUtils.rm_f(exit_path(role))
   end
+end
 
+def prepare_state(worktree_dir)
+  FileUtils.mkdir_p(CACHE)
+  clear_run_artifacts
   File.write(STATE_FILE, JSON.pretty_generate(worktree: File.basename(worktree_dir)))
 end
 
@@ -301,6 +306,7 @@ end
 def down!
   kill_tunnel!
   sessions = qa_sessions
+  clear_run_artifacts
   if sessions.empty?
     puts 'No qa- session running.'
     return
