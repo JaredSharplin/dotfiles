@@ -39,12 +39,17 @@ end
 def git_activity(dir, since)
   return nil unless File.exist?(File.join(dir, ".git"))
 
-  since_arg = since.iso8601
-  commits = git(dir, "log", "--no-merges", "--since=#{since_arg}", "--oneline").lines.size
+  # Only commits the user authored: a master merge brings other people's recent
+  # commits into the branch, and --since alone would count them as progress.
+  author = git(dir, "config", "user.email").strip
+  return nil if author.empty?
+
+  filters = ["--no-merges", "--author=#{author}", "--since=#{since.iso8601}"]
+  commits = git(dir, "log", *filters, "--oneline").lines.size
   return nil if commits.zero?
 
   insertions = deletions = 0
-  git(dir, "log", "--no-merges", "--since=#{since_arg}", "--numstat", "--pretty=tformat:").each_line do |line|
+  git(dir, "log", *filters, "--numstat", "--pretty=tformat:").each_line do |line|
     added, removed, = line.split("\t")
     insertions += added.to_i
     deletions += removed.to_i
