@@ -55,5 +55,9 @@ if command -v mcfly &> /dev/null; then
   eval "$(mcfly init zsh)"
 fi
 
-# mise shims: PATH ordering is handled in .zshenv (non-login shells) and .zprofile (login shells, after
-# macOS path_helper runs). Kept out of .zshrc so non-interactive login shells get it too.
+# antidote's zephyr plugins (loaded above) re-run `brew shellenv`, re-prepending
+# /opt/homebrew/bin — whose node overlaps mise's. This is the last actor to touch PATH in an
+# interactive shell, so re-assert shims-first here (mise_shims_first is defined in .zshenv).
+# Non-interactive shells return at the top of this file, before antidote, and keep the
+# .zshenv/.zprofile ordering.
+mise_shims_first

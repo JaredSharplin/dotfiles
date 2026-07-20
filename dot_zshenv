@@ -1,7 +1,17 @@
-# Shims first (login shells re-prepend in .zprofile); append system dirs so shells that inherit a
-# stripped PATH still find git/wc/tr. typeset -U dedupes, keeping shims ahead of system ruby.
-export PATH="$HOME/.local/share/mise/shims:$PATH:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+# PATH is reordered by three actors during startup: the inherited env, macOS path_helper
+# (login shells, via /etc/zprofile), and antidote's zephyr plugins (interactive shells,
+# which re-run `brew shellenv`). Homebrew's bin holds a `node` that overlaps mise's, so the
+# shims must stay ahead of it. mise_shims_first re-asserts that after each reorderer; each
+# shell class calls it from its last-running startup file (.zshenv / .zprofile / .zshrc).
+# typeset -U makes the prepend a move-to-front, not a grow.
 typeset -U path PATH
+mise_shims_first() { export PATH="$HOME/.local/share/mise/shims:$PATH" }
+
+# Append system dirs so shells that inherit a stripped PATH still find git/wc/tr, then
+# assert shims-first for this and every non-interactive shell (.zshenv is the only startup
+# file guaranteed to run for all shells).
+export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+mise_shims_first
 
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
