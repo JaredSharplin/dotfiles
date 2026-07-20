@@ -121,3 +121,8 @@ customCommands:
     command: 'git-town continue'
     output: 'log'
     loadingText: 'Continuing'
+  - key: 'E'
+    context: 'global'
+    description: 'Open current worktree in editor'
+    command: '$EDITOR'
+    output: 'terminal'
