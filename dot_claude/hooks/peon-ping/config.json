@@ -33,8 +33,7 @@
     "sc_goliath",
     "sc_vulture",
     "sc_wraith",
-    "sc_dropship",
-    "sc_vessel"
+    "sc_dropship"
   ],
   "pack_rotation_mode": "round-robin",
   "path_rules": [],
