@@ -47,9 +47,11 @@ Good tests here:
 
 - Deterministic — one execution path, no if/else
 - Exact values — calculate expected up front, assert directly
-- `assert_in_delta expected, actual` with defaults, no extra arguments
+- `assert_in_delta expected, actual` with defaults, no extra arguments — **except payroll tests** (below)
 - No comments or assertion messages
 - Thorough coverage — exercise the behavior, not just the happy path
+
+**Payroll tests are exact.** In `test/**/payroll*/**/*`, never `assert_in_delta` — use exact `assert_equal`. Payroll values must be exact; a rounding gap means the production code or the assertion is wrong, not that a delta is acceptable. Enforced by the `TandaCustomCops/NoAssertInDelta` cop.
 
 Two absolutes:
 
@@ -173,7 +175,7 @@ config.dig(:database, :primary) => {host:, port:}
 
 ## Keyword arguments for multi-parameter methods
 
-Use keyword args when a method takes more than one argument. Use shorthand syntax when the variable name matches the key.
+Use keyword args when a method takes more than one argument. (Shorthand syntax — `user:` for `user: user` — is enforced by RuboCop `Style/HashSyntax`, so it's not repeated here.)
 
 ```ruby
 # Avoid
@@ -183,10 +185,6 @@ send_notification(user, "welcome", true)
 # Prefer
 def create_user(name:, email:, role:)
 send_notification(user:, template: "welcome", immediate: true)
-
-# Shorthand: `user:` is short for `user: user`
-user = find_user(id)
-send_notification(user:, template:)
 ```
 
 # Scripting language
@@ -220,7 +218,7 @@ For everything else, use the alternative — these aren't judgment calls:
 
 Most dev work here is **local** (native dev or Docker, isolated local DBs). The remote dev box is only for **bug investigation** needing the shared, prod-scrubbed dataset — typically reproducing a customer issue.
 
-The remote dev box is wired to the **main repo only** (`~/programming/payaus`), not worktrees. If a bug-investigation step needs `bin/dev`, switch to the main repo first.
+The read-only `bin/dev console`/`runner` path (below) runs from the **main repo** (`~/programming/payaus`) — switch there first if a bug-investigation step needs it. Full remote-devbox *QA* does work per-worktree, though: `qa-up` / the `/qa` skill infers the worktree from cwd and brings up a tunneled `qa-<worktree>` session against the shared dataset. That's a separate path from the read-only console here.
 
 For read-only investigation, the project ships a `/dev-console` skill in `payaus/.claude/skills/dev-console/`. That skill is the canonical contract:
 - `bin/dev runner "..."` — preferred for one-shot reads (no interactive session)
@@ -233,7 +231,7 @@ These `bin/dev` commands target the remote shared DB and are allowed for read-on
 
 This developer runs the app natively via payaus's shipped native dev setup (puma-dev; PR #45524 + follow-ups), in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native dev is active.
 
-Local DB targeting is automatic: `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshenv` (not `~/.zshrc` — `.zshenv` is read by *every* shell, including the non-interactive ones agents and hooks run in), so `config/boot.rb` loads the repo's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB. No wrapper. `config/boot.rb` skips `.env.local` in the test env, so tests stay clean.
+Local DB targeting is automatic. `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshenv` — not `~/.zshrc`, because `.zshenv` is read by *every* shell, including the non-interactive ones agents and hooks run in. So `config/boot.rb` loads the repo's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB — no wrapper. `config/boot.rb` skips `.env.local` in the test env, so tests stay clean.
 
 ## When to use native local dev
 
@@ -261,7 +259,11 @@ Native dev is *not* set up by that hook — it's opt-in. When a task in an ephem
 
 ## Rails commands in native local dev
 
-Bare `bin/rails ...` runs against the **local** DB — the `~/.zshenv` marker plus the repo's `.env.local` make it local. Just run it; migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB. If `.env.local` is missing, dev `bin/rails` won't reach the shared remote DB in practice — the vault can't decrypt secrets locally and the remote DB host isn't reachable from your machine, so it errors rather than connecting; run `bin/native/ensure_running.sh` to (re)create `.env.local`. (`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
+Bare `bin/rails ...` runs against the **local** DB (via the marker + `.env.local` mechanism described above). Just run it — migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB.
+
+If `.env.local` is missing, dev `bin/rails` won't reach the shared remote DB in practice: the vault can't decrypt secrets locally and the remote DB host isn't reachable from your machine, so it errors rather than connecting. Run `bin/native/ensure_running.sh` to (re)create `.env.local`.
+
+(`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
 
 **Pending migrations are not a decision point.** A `PendingMigrationError`, or pending migrations blocking boot/QA, means: run `bin/rails db:migrate` — however many are pending, don't ask, don't propose isolating the worktree's DB, don't skip QA over it. The shared-DB caveat above is awareness, not a veto. (`db:reset`/`db:drop` discard data — those are the only local DB commands worth confirming first.)
 
@@ -352,7 +354,7 @@ Write very short commit messages.
 
 Pushing is off by default (`push-branches = false`), which keeps CI spend down — no `[skip ci]` machinery needed. `git town sync` updates branches **locally only**, so intermediate syncs burn no Buildkite builds. The deliberate pushes:
 
-- `gh pr create --draft` pushes the branch and opens the PR (see *Creating PRs*). Because it opens as a draft, no CI runs yet.
+- `gh pr create --draft` pushes the branch and opens the PR (see *Creating and editing PRs*). Because it opens as a draft, no CI runs yet.
 - `git town sync --push` pushes on purpose (e.g. to update an open PR).
 
 **Draft PRs run no CI.** Buildkite skips the pipeline on a draft PR unless it carries the `run-bk` label (payaus #56255; the skip fails open, so an API hiccup runs CI rather than skipping it). A PR's first CI run happens when you mark it **ready for review** — lining CI up with the QA gate. To run CI on a still-draft PR, add the `run-bk` label.
@@ -377,7 +379,7 @@ After the re-run, if it's still red it's your code: `git diff master -- <file>` 
 
 ## Analyzing PR changes
 
-**For PR review, `git diff master` is off the table in every form** — including `git diff master -- <path>`, `git diff origin/master`, any equivalent. Use `gh pr diff <number>`. Local master is often stale (injects unrelated changes) and `git diff` includes merge-commit artifacts that distort the file list; only `gh pr diff` shows the true PR diff reviewers see.
+**When reviewing a PR, don't inspect its diff with `git diff master` in any form** — not `git diff master -- <path>`, not `git diff origin/master`, nor any equivalent. Use `gh pr diff <number>`. Local master is often stale (injects unrelated changes) and `git diff` includes merge-commit artifacts that distort the file list; only `gh pr diff` shows the true PR diff reviewers see. (This is about inspecting a *PR's* diff — using `git diff master -- <file>` to see your own branch's changes while fixing a failing test, as in *When a test fails on your branch* above, is a different thing and fine.)
 
 Workflow:
 1. Check size: `gh pr view <number> --json additions,deletions`
@@ -386,73 +388,24 @@ Workflow:
 
 Don't use `--patch` — it shows individual commit patches, not the net diff.
 
-## Creating PRs
+## Creating and editing PRs
 
-```bash
-git town sync                                   # integrate parent locally; does NOT push
-parent=$(git config "git-town-branch.$(git branch --show-current).parent")
-gh pr create --draft --base "${parent:-master}" \
-  --title "..." --body "..." \
-  --assignee @me --label <type-label> --label built-in-australia
-```
+Invoke the `/git-town` skill before any PR work — it holds the mechanics: the `git town sync` → `gh pr create --draft` sequence, the required assignee/labels (`built-in-australia` + one type label), the screenshot capture/upload workflow, and the surgical PR-body edit rules (never wholesale-replace a body).
 
-`git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR as a draft in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (see *CI builds and pushing*). `--base` resolves to the branch's git-town parent, or `master` for an ordinary branch. (Git Town 23 can't open drafts, so `gh` handles creation.)
+Two things always hold, skill loaded or not:
 
-**Every PR starts as a draft** — *not yet marked ready by me; the ready-flip is my review gate*. Marking it ready-for-review (`gh pr ready`) kicks off its first CI run; do that only when I ask. Otherwise leave it as a draft — but a draft still gets full browser QA and screenshots from you before you hand back (see below). "Draft" means I haven't done my review, not that QA hasn't happened.
-
-Every PR must have (set inline on `gh pr create`, or via `gh pr edit` later):
-
-- `--add-assignee @me` — always assign yourself
-- `--add-label built-in-australia` — always added to every PR
-- `--add-label <type-label>` — pick one: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
-
-Choose the type label based on the nature of the change. If unsure, ask before creating the PR.
-
-## Browser QA and screenshots are yours — automatic, not a handoff
-
-When you open a PR for anything a user can see or interact with, running the browser QA on native dev and attaching the screenshots is part of preparing the PR — done before you hand back, never left as placeholders or deferred to me. Without being asked:
-
-- Bring up native dev if needed (`bin/native/ensure_running.sh`, enable any required feature flag, build assets), drive the change through the browser with Chrome DevTools MCP, and capture one screenshot per user-visible behaviour.
-- Upload them into the PR body's Screenshots section with `gh image`, replacing the placeholders. The `/git-town` skill has the capture destination and upload mechanics.
-- Only skip for a change with no user-visible surface (pure internal refactor, config, `api-only`) — and say so explicitly rather than silently leaving placeholders.
-
-This is separate from marking the PR ready for review. Doing the QA and attaching evidence is automatic and yours; flipping the draft to ready is my gate and stays mine. Handing back a user-visible PR with empty Screenshots placeholders is an incomplete PR, not a handoff.
-
-## Editing PR bodies
-
-Don't replace a PR body wholesale — I may have made manual edits (checked boxes, notes) that would be lost. Before editing:
-
-1. Fetch the current body: `gh pr view <number> --json body -q '.body'`
-2. Change only the section you need
-3. Adding a section? Append, don't rewrite.
+- **Every PR starts as a draft** — *not yet marked ready by me; the ready-flip is my review gate.* Marking it ready (`gh pr ready`) kicks off its first CI run; do that only when I ask.
+- **Browser QA and screenshots are yours — automatic, not a handoff.** For anything user-visible, run the browser QA on native dev and fill the PR's Screenshots section *before* handing back — never leave placeholders or defer it to me. Skip only for a change with no user-visible surface, and say so explicitly.
 
 # Shape docs
 
-Shape Up planning lives at `~/notes/shaping/<project>/`. Standard files:
-
-- `frame.md` — the pitch: source quote, problem, appetite, no-gos
-- `shaping.md` — current state, outcome-framed requirements (R0..Rn), rabbit holes, fat-marker sketch
-- `slices.md` — vertical slices (V1..Vn), each ending in a concrete demo
-- `spike-*.md` — focused technical investigations referenced from the above
-- `pr-stack.md` — PR stack mapping (added when work goes into flight)
-
-Picking up a slice: read `frame.md`, `slices.md`, `pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Read the spikes a slice or stack explicitly cites.
-
-Frontmatter `shaping: true` marks these files so tooling can find them.
+Shape Up planning lives at `~/notes/shaping/<project>/`. Invoke the `shaping` skill before shaping work or picking up a slice — it holds the file layout (`frame`/`shaping`/`slices`/`spike-*`/`pr-stack`), the pickup read-order, the `shaping: true` frontmatter rule, and the full methodology.
 
 # Working style
 
 - When I reference a documentation file, read all of it in one pass — don't chunk it or skip sections to save tokens. (This is about *reading* input, not about output length.)
-- When you think I'm wrong or asking for the wrong thing, say so before acting on it.
-- If a rule here doesn't fit the current context, flag it — these are guidelines for the common case, not traps.
 - **Stay within the approved scope on destructive or multi-step tasks.** Do exactly what I approved; treat anything beyond it as a fresh decision to surface — even an item that looks "obviously in the same category." When the ground differs from the plan (unexpected file, branch, a worktree with a live session), stop and report. Recovery and undo actions (restore, re-create, kill a process, move uncommitted work) each need their own go-ahead. Read-only investigation needs none of this — the bar is only on state changes.
 - **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one. (This is about effort and rigor, not word count — a terse answer can be fully rigorous.)
 - **When I ask a question, the answer is the deliverable — give it its own turn, ending with no tool call.** Prose in a turn that then fires tools scrolls out of view behind the tool output and never reaches me. Write the answer, stop, end the turn; resume tool work next turn. This is for genuine questions ("why did X?", "which approach is better?") where my reply is what you asked for — not a license to fragment ordinary task execution, where doing the work and reporting in one turn is right. Litmus: if I'd want to read your reasoning and maybe redirect before you act, isolate it.
-- **Use the AskUserQuestion tool to ask questions** — not prose menus. But the tool isn't a substitute for thinking:
-  - **The modal must contain everything I need to decide.** The `question` text and each option's `description` are all I see — so what's being decided, what each option concretely does, and the tradeoff between them all go *in those fields*. Test: someone who hasn't read the conversation could decide from the modal alone. Per-question when batching several, never one shared preamble; a project-state recap isn't framing.
-  - **Fire the tool immediately.** Don't narrate the options in prose first and then repeat them in the modal — that's the same thing twice and wastes a turn. The information belongs in the modal, not before it.
-  - **When I ask for context on a pending question** ("why are you asking", "explain that"), explain the question — don't re-fire it or re-call the tool. Answer from context; investigate only if a specific fact is genuinely missing, and name it. A context request means I under-framed it.
-  - **Justify any `(Recommended)` tag** — why you prefer it, and the tradeoff against the next-best. An unjustified tag gives me nothing to push back on.
-  - **Few concrete options.** Two well-chosen beat four mushy. Reaching for four subtle variants means it's under-framed — narrow it.
-  - **Code review is a primary use case:** surface each finding as its own question with action options ("fix now" / "leave as-is" / "defer"), each with its own what/why/recommendation — not a prose list to triage.
-  - **This outranks any skill's apply/skip instruction.** A decision *not* to act on a finding — skip, keep-as-is, false-positive, dispute — comes to me as a decision before you finalize, never a mid-stream log note. Applying a clearly-genuine fix is fine; declining to act on feedback is mine.
+- **Use the AskUserQuestion tool to ask questions** — not prose menus — and make the modal self-contained. The question text and each option's description are all I see, so put the whole decision there: what's being decided, what each option concretely does, and the tradeoff. Someone who hasn't read the conversation should be able to answer from the modal alone.
+- **Declining to act on feedback is my call.** Applying a clearly-genuine fix is fine, but a decision *not* to act on a finding — skip, keep-as-is, dispute — comes to me, never a silent mid-stream note.

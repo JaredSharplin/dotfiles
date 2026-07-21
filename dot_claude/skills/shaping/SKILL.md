@@ -418,6 +418,18 @@ Shaping produces up to four documents. Each has a distinct role:
 | **Slices doc** | Slice summary table, per-slice prose detail | The implementation plan — how to build incrementally |
 | **Slice plans** | V1-plan.md, V2-plan.md, etc. | Individual implementation plans for each slice |
 
+### Location and files on disk
+
+Shaping work lives at `~/notes/shaping/<project>/`. Standard filenames:
+
+- `frame.md` — the pitch: source quote, problem, appetite, no-gos
+- `shaping.md` — current state, outcome-framed requirements (R0..Rn), rabbit holes, fat-marker sketch
+- `slices.md` — vertical slices (V1..Vn), each ending in a concrete demo
+- `spike-*.md` — focused technical investigations referenced from the above
+- `pr-stack.md` — PR stack mapping (added when work goes into flight)
+
+**Picking up a slice:** read `frame.md`, `slices.md`, and `pr-stack.md` before planning. `shaping.md` is the deep reference — read it when a requirement's intent is unclear. Read the spikes a slice or stack explicitly cites.
+
 ### Document Lifecycle
 
 ```

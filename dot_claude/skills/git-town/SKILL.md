@@ -160,6 +160,14 @@ gh pr create --draft --base "${parent:-master}" \
 
 `git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` resolves to the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
 
+Every PR needs (inline on `gh pr create`, or via `gh pr edit` later):
+
+- `--assignee @me` — always assign yourself
+- `--label built-in-australia` — always added to every PR
+- one `--label <type-label>` from: `feature`, `bug`, `api-only`, `not-user-facing`, `security`, `refactor`
+
+Choose the type label by the nature of the change. If unsure, ask before creating the PR.
+
 Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
 
 **Every PR starts as a draft** — *not yet marked ready by the developer; the ready-flip is their review gate*. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this only when the developer asks. Otherwise the draft stays put — but a draft PR still gets full browser QA and screenshots from Claude before handoff (see *Screenshots* below). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
