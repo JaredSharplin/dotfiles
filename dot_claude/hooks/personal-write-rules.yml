@@ -1,0 +1,21 @@
+# Personal, cross-project write-rules enforced by
+# ~/.claude/hooks/personal-write-rules-check.rb on Edit / MultiEdit / Write /
+# Bash tool calls, in every repo. New rules are YAML entries here — no new
+# scripts. Schema (type / files / pattern / bash_writes / bash_pattern /
+# context / context_script / opt_out_env / opt_in_env) is documented in full
+# at the top of personal-write-rules-check.rb.
+#
+# This file is read ONLY by the personal dispatcher, never by a project's own
+# write-rules-check.rb — so a personal rule and a project rule can share a name
+# without colliding (sentinels are namespaced under personal-write-rules/).
+
+controller_view_helper_reach:
+  type: warn
+  files:
+    - 'app/controllers/**/*.rb'
+  pattern: '\bhelpers\.'
+  context: >
+    Don't reach into a view helper from a controller (`helpers.…`). Helpers are
+    view-layer; a controller needing that logic is a sign it belongs on a model
+    (how a record names/describes itself, e.g. DataStreamJoin#data_streamable_name)
+    or a plain object. Move it there.
