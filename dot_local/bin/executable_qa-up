@@ -51,6 +51,11 @@ ENV['TMPDIR'] = '/tmp'
 # bin/tunnel prompts interactively for a developer name when neither .env nor $DEV_NAME
 # has one; in a detached pane that read blocks forever. Supply it so the pane never stalls.
 ENV['DEV_NAME'] = DEVELOPER
+# Agent harnesses (e.g. Claude Code) export BROWSER=true — a shell no-op. Python's
+# webbrowser honours $BROWSER first, so `aws sso login` in the tunnel pane would
+# "open" its login page into nothing. The session must reach the developer's real
+# browser; drop the no-op and let macOS pick the default.
+ENV.delete('BROWSER') if ENV['BROWSER'] == 'true'
 # Flush milestone output promptly even when stdout is a pipe (e.g. the /qa skill).
 $stdout.sync = true
 
