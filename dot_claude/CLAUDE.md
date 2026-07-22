@@ -37,6 +37,12 @@ The exhale isn't optional; skipping it compounds complexity. Only exemption: gen
 
 For payaus, the canonical exhale tool is `/simplify-with-analysis` — gathers findings report-only (a `/code-review` pass, a cold Beck-rules subagent, and `bin/diff-quality`: rubycritic + SimpleCov coverage vs `master`), posts one consolidated summary before editing, then applies one follow-up pass. Other projects: `/simplify` (built-in) is fine.
 
+## Planning coding work
+
+Every implementation plan uses **TDD — no exceptions.** Structure it around the inhale/exhale loop above: write the failing tests first, then the implementation that passes them, then the exhale refactor. A plan that leads with implementation is wrong. This is an absolute, not a default.
+
+Plans must also **name the skills to load as explicit, mandatory steps**, at the point in the sequence where they apply — not as a vague aside. Write the literal invocation, e.g. "Load `/write-ruby-tests` before writing the test file", "Load `/write-react-tests` for the JS tests", "Load `/database-migrations` before the migration". If a step is governed by a skill, the plan says which skill and when.
+
 # Testing
 
 Use `bin/rails test file.rb:123` — always with the line number. Don't use `bin/dev test`.
