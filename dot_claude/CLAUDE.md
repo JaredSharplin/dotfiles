@@ -401,7 +401,7 @@ Invoke the `/git-town` skill before any PR work — it holds the mechanics: the 
 Two things always hold, skill loaded or not:
 
 - **Every PR starts as a draft** — *not yet marked ready by me; the ready-flip is my review gate.* Marking it ready (`gh pr ready`) kicks off its first CI run; do that only when I ask.
-- **Browser QA and screenshots are yours — automatic, not a handoff.** For anything user-visible, run the browser QA on native dev and fill the PR's Screenshots section *before* handing back — never leave placeholders or defer it to me. Skip only for a change with no user-visible surface, and say so explicitly.
+- **Browser QA and screenshots are yours — automatic, not a handoff.** For anything user-visible, run the browser QA on native dev *before* handing back — fill the PR's Screenshots section and check every Manual Browser QA box you actually verified (leave unverified ones unchecked for me). Never leave placeholders or defer it to me. Skip only for a change with no user-visible surface, and say so explicitly.
 
 # Shape docs
 

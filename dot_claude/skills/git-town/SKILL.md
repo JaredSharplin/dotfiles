@@ -170,7 +170,7 @@ Choose the type label by the nature of the change. If unsure, ask before creatin
 
 Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
 
-**Every PR starts as a draft** — *not yet marked ready by the developer; the ready-flip is their review gate*. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this only when the developer asks. Otherwise the draft stays put — but a draft PR still gets full browser QA and screenshots from Claude before handoff (see *Screenshots* below). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
+**Every PR starts as a draft** — *not yet marked ready by the developer; the ready-flip is their review gate*. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this only when the developer asks. Otherwise the draft stays put — but a draft PR still gets full browser QA from Claude before handoff: screenshots filled (see *Screenshots* below) and the Manual Browser QA boxes checked for every task Claude verified (see *Checking the boxes after QA*). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
 
 ## Working on Someone Else's Branch
 
@@ -372,6 +372,12 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 - NEVER include `bin/rails test`, automated test results, or descriptions of test coverage — that's what CI is for
 - NEVER write "Small change which is hard to manually test." — think through the user journey and describe it. Every change that touches code a user can trigger is testable through the browser. The only exception is a pure internal refactor with zero UI effect (e.g. renaming a private method, changing a log format) — and even then, describe what you'd check to confirm nothing broke
 
+#### Checking the boxes after QA
+
+Write these tasks as unchecked (`- [ ]`) at `gh pr create` time — QA hasn't run yet. Then, like the screenshot placeholders, they're a to-do list Claude comes back to: after the final browser QA on native dev, **check (`- [x]`) every task Claude actually verified, and leave unchecked every task it did not.** When the QA run covered every task, that means checking all of them; when it covered only some (a path Claude couldn't reach locally, a step needing data it didn't have), the rest stay `[ ]` for the developer to verify. Do the checking with a surgical body edit (see *⛔ Editing PR Bodies*), never a wholesale replace.
+
+A checked box is Claude's assertion "I ran this step and it passed" — never check one that wasn't actually verified, and if a step failed, don't check it; fix the code or raise it. If none of the tasks were verified (e.g. no browser QA was possible), leave them all unchecked and say so on handoff.
+
 ### Screenshots
 
 At `gh pr create` time, leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. These placeholders are a to-do list for Claude, not a handoff to the developer: before handing the PR back, Claude does the browser QA on native dev, captures the screenshots (see *Capturing during final QA*), and replaces every placeholder with the uploaded image (see *Uploading to the PR*). Handing back a user-visible PR with unfilled placeholders is incomplete. Use "None." only for pure internal changes with no user-visible surface.
@@ -463,7 +469,7 @@ gh pr edit <number> --body "$updated_body"
 
 - **Always fetch the current body first** — never assume you know what's there
 - **Surgical edits only** — insert, append, or replace specific sections. Never rewrite the full body
-- **Preserve user state** — checked checkboxes (`[x]`), manually added notes, reviewer comments in the body
+- **Preserve user state** — checked checkboxes (`[x]`, whether the developer ticked them or Claude checked them after its own QA), manually added notes, reviewer comments in the body
 - **Leave `<!-- branch-stack-start -->` / `<!-- branch-stack-end -->` blocks alone** — git town manages these
 
 ---
