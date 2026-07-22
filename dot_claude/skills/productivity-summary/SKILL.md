@@ -23,6 +23,13 @@ line", "motion vs progress", "under your hands", "scatter". Say the plain thing 
 "review it", "finish testing it", "you didn't finish anything". If a sentence needs decoding,
 rewrite it.
 
+**Never name a PR by its number alone.** A bare `#56263` tells the developer nothing — they think in
+what the PR *does*, not its number. Always lead with a short plain-English handle from the PR's title
+(drop the `(feature) |` / `(internal) |`-style prefix and any noise), with the number in parentheses
+after: `the reimport-window selector (#56524)`, `the flag removal (#56263)`. This holds everywhere —
+the status list, the next action, and the notification. The number is a secondary reference, never
+the way you refer to the PR.
+
 What actually counts as work finished:
 
 - **A PR merged for customers** — a merged PR labelled `feature` or `bug`. This is the main thing.
@@ -53,8 +60,14 @@ Appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the s
 Everything below is about **this period only**. Read the JSON — `window` (local-time `HH:MM–HH:MM`
 label; use it as-is, don't reformat `since`/`ts`, which are UTC), `github.shipped` (merged PRs, each
 with `customer_facing`), `github.qa_completed` (marked ready this period), `github.in_flight` (all
-your open PRs, each with `isDraft` — a status list, not "changed this period"), `github.reviews_given`
+your open PRs — a status list, not "changed this period"), `github.reviews_given`
 (PRs you reviewed this period, each with a `comments` count), `git.commits`, `sessions`.
+
+Each `github.in_flight` entry carries: `isDraft`; `age_days` (how long the PR has existed);
+`idle_days` (days since it last changed); `parked` (true when it wears the `on-hold` label — a PR you
+deliberately set aside); and `stack_base` (the PR number at the bottom of its git-town stack, or
+`null` if it stands alone). `github.stacks` lists each stack as `{base, members}` with `members`
+ordered bottom → top. These drive the rules below — don't recompute them yourself.
 
 ## Step 2 — what happened
 
@@ -63,8 +76,16 @@ Only this period. No day totals. Put the most important first:
 1. **Merged for customers** — `Shipped: #N <title>`. Any internal (non-customer-facing) merges
    after, one line, marked internal.
 2. **Marked ready for review** — from `qa_completed`: `Ready for review: #N <title>`. Real progress.
-3. **Your open PRs** — current status of each, not a claim you touched it this period. A draft:
-   `#N <title> — still a draft, being tested`; a ready one: `#N <title> — ready, waiting for review`.
+3. **Your open PRs** — current status of each, not a claim you touched it this period. Read the
+   in-flight fields instead of treating every PR as an independent line:
+   - **Parked** (`parked: true`): list once as `<handle> (#N) — parked (on-hold)`. Never nag about it,
+     never count it as waiting on the developer. It's set aside on purpose.
+   - **In a stack** (`stack_base` set / see `github.stacks`): show the members together, base first,
+     each by its handle. Only the base can move next; the ones above it are `blocked behind <base
+     handle> (#<base>)`, not stalled by the developer. Don't give a member its own "waiting" line.
+   - **A standalone draft**: `<handle> (#N) — draft, active` when `idle_days` is small; when it's been
+     idle a while (say ≥ 2 days), `<handle> (#N) — draft, untouched Nd`.
+   - **A standalone ready PR**: `<handle> (#N) — ready, waiting Nd` using `age_days`.
 4. **Other activity** — short: PRs you reviewed this period (`#N (N comments)`), commits per branch
    (`count > 0`), which worktrees were active (`<worktree>: N turns, active` or `no code changed`).
 
@@ -74,30 +95,41 @@ marked ready in <window>.` A dozen lines at most. Skip empty sections.
 ## Step 3 — the one next thing
 
 End with a single clear next action — the most useful thing to do next. Match it to the PR's status.
-Never suggest reviewing or merging a draft.
+Never suggest reviewing or merging a draft. **Never point at a parked PR, and never point at a stack
+member that isn't the base** — those aren't the developer's move.
 
-- A ready PR waiting → `#N is ready — ask someone to review it, or merge it if it's approved.`
-- A draft you're working on → `You're testing #N. Finish testing it and mark it ready when it passes.`
-- A draft untouched for a while → `#N has been a draft for a while. Test it and mark it ready.`
+- A stack whose **base is ready** → `<base handle> (#<base>) is the base of a stack — merge it to unblock N above.`
+- A stack whose **base is a draft** → `<base handle> (#<base>) is the base — finish it; N PRs wait on it.`
+- A stack whose **base is parked** → the whole stack is on hold; say so and look elsewhere for the
+  next action. Don't nag any member.
+- A standalone ready PR → escalate by age instead of repeating the same line: fresh (`age_days` small)
+  → `<handle> (#N) is ready — ask someone to review it, or merge it if it's approved.`; older →
+  `<handle> (#N) has been ready Nd — chase a named reviewer or merge it if it's approved.`
+- A standalone draft you're working on → `You're testing <handle> (#N). Finish testing it and mark it ready when it passes.`
+- A standalone draft untouched a while (`idle_days` ≥ ~2) → `<handle> (#N) has been a draft Nd. Test it and mark it ready.`
 - Several branches touched, none finished → `You worked on 3 branches but didn't finish any. Pick one — #N is closest — and finish it.`
 - Time went to internal or refactor work while customer work waits → `This period was internal cleanup. #N is the customer feature that's waiting.`
 - A worktree active but no code changed → `#N was active but no code changed — it might be stuck. Unblock it or set it aside.`
 
-If a PR was merged or marked ready, say so in one line and still give the next thing. Don't invent a
-problem, but always end with one concrete action.
+If every open PR is parked or blocked behind a parked base, there may be nothing to push — say that
+plainly rather than inventing a next step. Otherwise always end with one concrete action. If a PR was
+merged or marked ready, say so in one line and still give the next thing.
 
 ## Step 4 — notify
 
 One macOS notification: one plain line saying what happened and what to do next. Under ~120 chars,
 escape double quotes:
 
+Name the PRs here too — a bare number in a notification is useless. Keep each handle short so the
+line stays under ~120 chars.
+
 ```bash
 # merged something:
-osascript -e 'display notification "Shipped #4821. Next: #4830 is ready — ask for a review." with title "Productivity check-in" subtitle "<window>"'
+osascript -e 'display notification "Shipped the CSV export (#4821). Next: the payroll filter (#4830) is ready — ask for a review." with title "Productivity check-in" subtitle "<window>"'
 # marked a PR ready:
-osascript -e 'display notification "Marked #4830 ready for review. Next: get it reviewed." with title "Productivity check-in" subtitle "<window>"'
+osascript -e 'display notification "Marked the payroll filter (#4830) ready. Next: get it reviewed." with title "Productivity check-in" subtitle "<window>"'
 # nothing finished:
-osascript -e 'display notification "Nothing merged. #4830 is a draft — finish testing it and mark it ready." with title "Productivity check-in" subtitle "<window>"'
+osascript -e 'display notification "Nothing merged. The payroll filter (#4830) is a draft — finish testing it and mark it ready." with title "Productivity check-in" subtitle "<window>"'
 ```
 
 That's the whole tick. End the turn — the next tick fires on its own schedule (see Scheduling).

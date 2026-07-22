@@ -31,22 +31,62 @@ next thing. The developer's hardest step is the first one — this command makes
 Queries live PR data, writes and opens `~/.local/share/productivity/garden.html`. Don't describe
 the garden in the terminal — it speaks for itself.
 
-## Step 2 — pick one target
+## Step 2 — triage what's stalled
 
-- A PR number argument (`/get-moving 56263`) wins.
+Before picking, clear the noise: a PR that's stuck for a reason only the developer knows will nag the
+hourly `/productivity-summary` forever unless that reason is recorded in GitHub's own state. Fix that
+here, so it's explained once instead of every hour.
+
+Read the freshest PR data from the collector rather than re-deriving it. Use the last line of
+today's log if present, else run the collector once:
+
+```bash
+f=~/.local/share/productivity/$(date +%F).jsonl
+[ -s "$f" ] && tail -1 "$f" || ~/.claude/skills/productivity-summary/collect.rb
+```
+
+From `github.in_flight`, find PRs that look stalled **with no explanation yet** — a ready PR
+(`isDraft: false`) that is not `parked` and has a largish `age_days`, or a draft idle a while
+(`idle_days` ≥ ~2) that is not `parked`. **Skip stack members that aren't the base** (`stack_base`
+set and ≠ the PR's own number) — they're legitimately blocked behind their base, not stalled.
+
+For each stalled PR, ask one **AskUserQuestion** — "Why is `<handle> (#N)` stalled?", naming it by a
+short plain handle from its title, never the bare number — and apply the action the answer maps to
+(use the entry's `repo`). Only act on the option chosen; a "leave it" is a real answer,
+not a prompt to do nothing quietly:
+
+- **Parked — waiting on customer feedback / a flag rollout / deprioritised** →
+  `gh pr edit <n> --repo <repo> --add-label on-hold`. From the next tick the summary lists it as
+  parked and stops nagging.
+- **Not actually ready — needs more work** → `gh pr ready <n> --repo <repo> --undo` (back to draft).
+- **Blocked on a specific reviewer** → ask who, then `gh pr edit <n> --repo <repo> --add-reviewer <user>`.
+- **Still active, leave it** → no change.
+
+If nothing looks stalled, skip this step silently and go straight to the pick.
+
+## Step 3 — pick one target
+
+- A PR number argument (`/get-moving 56263`) wins — target it as asked.
 - Otherwise: the draft with the oldest `updatedAt` (most neglected).
 - No drafts? The oldest ready PR that's waiting for review.
 - Nothing open? Say so in one line and stop.
 
-Get the candidates from one query:
+**Respect the stack.** If the chosen candidate is in a stack (`stack_base` set), the only member that
+can move next is the base — walk down and target `stack_base` instead. If that base is `parked`, the
+whole stack is on hold; skip it and take the next candidate. Never start someone on a PR that's
+blocked behind another.
+
+Candidates come from the collector data read in Step 2 (or this query if you skipped it):
 
 ```bash
 gh search prs --author=@me --state open --limit 50 --json number,title,url,isDraft,updatedAt,repository
 ```
 
-State the pick in one line: `Starting on #56263 — <title> (draft, untouched 2d).`
+State the pick in one line, noting the stack when relevant:
+`Starting on #53818 — base of a 5-PR stack; the others wait on it.` or
+`Starting on #56263 — <title> (draft, untouched 2d).`
 
-## Step 3 — jump-list (one subagent)
+## Step 4 — jump-list (one subagent)
 
 Spawn one `Explore` agent. Give it the PR number and repo (`owner/name` from `repository`), and
 this contract verbatim:
@@ -68,7 +108,7 @@ this contract verbatim:
 > Do NOT summarize the PR, describe what the code does, list a file without a question attached to
 > it, or add any other prose. If you write a paragraph, you have failed the task.
 
-## Step 4 — save the care card and refresh the garden
+## Step 5 — save the care card and refresh the garden
 
 Write the subagent's output to `~/.local/share/productivity/jumplists/<number>.json`:
 
@@ -90,7 +130,7 @@ will pick this up, highlighting the plant and showing its care card):
 ~/.claude/skills/get-moving/garden.rb --target <number> --no-open
 ```
 
-## Step 5 — print and stop
+## Step 6 — print and stop
 
 Print, in order: the pick line, `START HERE`, `QUESTIONS`. Nothing else — no motivation, no closing
 advice. End the turn.

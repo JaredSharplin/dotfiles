@@ -67,6 +67,9 @@ end
 # Labels that mean the PR ships something to customers. Everything else
 # (not-user-facing, refactor, api-only, security tooling) is supporting work.
 CUSTOMER_LABELS = %w[feature bug].freeze
+# The label that marks a PR intentionally on hold (customer feedback, flag
+# rollout). The collector reads it back so the summary stops nagging about it.
+ON_HOLD_LABEL = "on-hold"
 REVIEW_EVENTS = %w[PullRequestReviewEvent PullRequestReviewCommentEvent].freeze
 
 # PRs I reviewed during the window, from my GitHub event feed. The feed carries
@@ -89,18 +92,73 @@ def reviews_given(since)
   end
 end
 
-def github_activity(since)
+def days_between(iso, now)
+  return nil unless iso
+
+  ((now - Time.iso8601(iso)) / 86_400.0).round(1)
+end
+
+# Rebuilds git-town stacks from GitHub branch refs. A PR's base branch is its
+# parent's head branch (git town sets --base <parent> when it creates the PR),
+# so head->base edges reconstruct the tree. A PR whose base is no other open PR's
+# head targets the trunk and is a stack base. gh search prs can't return branch
+# refs, so this pulls them per repo (~1 call each). Returns [stacks, base_by_number]
+# where a stack is a base with at least one child; standalone PRs are omitted.
+def pr_stacks(open_prs)
+  repos = open_prs.filter_map { it.dig("repository", "nameWithOwner") }.uniq
+  refs = repos.flat_map do |repo|
+    gh_json("pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
+            "--json", "number,headRefName,baseRefName")
+  end
+  return [[], {}] if refs.empty?
+
+  head_to_number = refs.to_h { [it["headRefName"], it["number"]] }
+  parent_of = refs.to_h { |pr| [pr["number"], head_to_number[pr["baseRefName"]]] }
+  children = refs.map { it["number"] }.group_by { parent_of[it] }
+
+  root_of = lambda do |number|
+    number = parent_of[number] while parent_of[number]
+    number
+  end
+  order_from = lambda do |base|
+    ordered = []
+    queue = [base]
+    until queue.empty?
+      current = queue.shift
+      ordered << current
+      queue.concat((children[current] || []).sort)
+    end
+    ordered
+  end
+
+  grouped = refs.map { it["number"] }.group_by { root_of.call(it) }.select { |_base, members| members.size > 1 }
+  stacks = grouped.keys.map { { base: it, members: order_from.call(it) } }
+  base_by_number = grouped.flat_map { |base, members| members.map { [it, base] } }.to_h
+  [stacks, base_by_number]
+end
+
+def github_activity(since, now)
   merged = gh_json("search", "prs", "--author=@me", "--merged-at", ">=#{since.utc.iso8601}", "--limit", "40",
                    "--json", "number,title,url,labels")
   open_prs = gh_json("search", "prs", "--author=@me", "--state", "open", "--limit", "40",
-                     "--json", "number,title,url,isDraft")
+                     "--json", "number,title,url,isDraft,createdAt,updatedAt,labels,repository")
+  stacks, base_by_number = pr_stacks(open_prs)
   {
     shipped: merged.map do |pr|
       labels = Array(pr["labels"]).map { it["name"] }
       { number: pr["number"], title: pr["title"], url: pr["url"], labels:,
         customer_facing: labels.intersect?(CUSTOMER_LABELS) }
     end,
-    in_flight: open_prs.map { it.slice("number", "title", "url", "isDraft") },
+    in_flight: open_prs.map do |pr|
+      labels = Array(pr["labels"]).map { it["name"] }
+      { number: pr["number"], title: pr["title"], url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
+        isDraft: pr["isDraft"], labels:,
+        age_days: days_between(pr["createdAt"], now),
+        idle_days: days_between(pr["updatedAt"], now),
+        parked: labels.include?(ON_HOLD_LABEL),
+        stack_base: base_by_number[pr["number"]] }
+    end,
+    stacks:,
     reviews_given: reviews_given(since)
   }
 end
@@ -179,12 +237,14 @@ checkpoint =
   end
 
 commits = REPOS.filter_map { git_activity(it, checkpoint) }
-github = github_activity(checkpoint)
+github = github_activity(checkpoint, now)
 
 # A PR that flipped draft -> ready since last tick has cleared the developer's
-# manual QA gate — the visible outcome of otherwise-invisible QA work.
+# manual QA gate — the visible outcome of otherwise-invisible QA work. The
+# previous record is parsed JSON (string keys); this tick's in_flight is
+# symbol-keyed, so the two sides read their keys differently.
 previously_draft = Array(previous&.dig("github", "in_flight")).select { it["isDraft"] }.map { it["number"] }
-github[:qa_completed] = github[:in_flight].reject { it["isDraft"] }.select { previously_draft.include?(it["number"]) }
+github[:qa_completed] = github[:in_flight].reject { it[:isDraft] }.select { previously_draft.include?(it[:number]) }
 
 record = {
   ts: now.utc.iso8601,
