@@ -95,10 +95,11 @@ keybindings:
     # right for others' PRs. vim.schedule defers the call one tick so the
     # lazy-loaded picker exists. gh-dash suspends to the foreground, so nvim owns
     # the terminal and quitting returns here. Folded scalar keeps the quotes literal.
-    # Key "n" = nvim; "N" is the heavier review+edit variant (lower/upper mirrors
-    # gh-dash's own r/R, x/X). r/R are refresh, v/V/e/E/d are all built-in actions.
+    # Key "n" = review; "N" is review-in-worktree, the same reviewer opened over a
+    # checkout (lower/upper mirrors gh-dash's own r/R, x/X). r/R are refresh,
+    # v/V/e/E/d are all built-in actions (d = the plain diff view this augments).
     - key: n
-      name: review-in-nvim
+      name: review
       command: >-
         nvim -c 'lua vim.schedule(function()
         Snacks.picker.gh_diff({ pr = {{.PrNumber}}, repo = "{{.RepoName}}" })
@@ -108,7 +109,7 @@ keybindings:
     # reviewer over the real files with LSP — for my own PRs where a fix means
     # editing and pushing. The wrapper handles worktree resolution and cleanup.
     - key: N
-      name: review-edit-worktree
+      name: review-in-worktree
       command: gh-review-worktree {{.RepoName}} {{.PrNumber}} {{.HeadRefName}}
   branches: []
 repoPaths:
