@@ -2,6 +2,10 @@
 
 This is a [chezmoi](https://www.chezmoi.io/)-managed dotfiles repository. Source files here are templates that deploy to `$HOME`.
 
+## Committing to this repo
+
+Commit dotfiles changes straight to `main`. Commit when a logical unit is done; push only when asked.
+
 ## Development Workflow Architecture
 
 Parallel development runs through Claude Code's **agent view** (`claude agents`). Each dispatched
