@@ -98,6 +98,8 @@ def days_between(iso, now)
   ((now - Time.iso8601(iso)) / 86_400.0).round(1)
 end
 
+def label_names(pr) = Array(pr["labels"]).map { it["name"] }
+
 # Rebuilds git-town stacks from GitHub branch refs. A PR's base branch is its
 # parent's head branch (git town sets --base <parent> when it creates the PR),
 # so head->base edges reconstruct the tree. A PR whose base is no other open PR's
@@ -145,12 +147,12 @@ def github_activity(since, now)
   stacks, base_by_number = pr_stacks(open_prs)
   {
     shipped: merged.map do |pr|
-      labels = Array(pr["labels"]).map { it["name"] }
+      labels = label_names(pr)
       { number: pr["number"], title: pr["title"], url: pr["url"], labels:,
         customer_facing: labels.intersect?(CUSTOMER_LABELS) }
     end,
     in_flight: open_prs.map do |pr|
-      labels = Array(pr["labels"]).map { it["name"] }
+      labels = label_names(pr)
       { number: pr["number"], title: pr["title"], url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
         isDraft: pr["isDraft"], labels:,
         age_days: days_between(pr["createdAt"], now),
