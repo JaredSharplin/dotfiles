@@ -254,8 +254,14 @@ Derived from analysis of Jared's PRs written before May 2025 (pre-Claude). Alway
 
 These two rules override the urge to be thorough. PR bodies here are short and human, not exhaustive.
 
+The plain-writing craft below is shared with the Terse output style — same principles, different voice:
+
+{{ template "writing-principles.md" . }}
+
+On top of that, for PR bodies specifically:
+
 - **Short by default.** A reviewer should be able to read the whole body in under ~30 seconds. When in doubt, cut. The diff carries the detail — the body just frames it.
-- **Plain English, like you'd explain it to a teammate out loud** — not architecture documentation. No engineering jargon or implementation vocabulary ("refactored", "extracted", "wired up", "leverages", "abstraction", "encapsulates"), and no class / method / file names in the body. Those belong in the diff or as inline review comments.
+- **No implementation vocabulary or code names.** Beyond the general no-jargon rule above: keep out engineering/implementation words ("refactored", "extracted", "wired up", "leverages", "abstraction", "encapsulates") and class / method / file names — those belong in the diff or as inline review comments.
 - **No padding.** Don't restate the title. Don't walk through the changes file-by-file or commit-by-commit. (Opening with "This PR adds…" / "This PR fixes…" is fine — leading with what it does beats easing in with context.)
 
 If the body reads like a changelog of code edits, rewrite it as a couple of plain sentences about what changed for the user or the system.
