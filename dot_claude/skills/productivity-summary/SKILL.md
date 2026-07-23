@@ -72,9 +72,12 @@ your open PRs — a status list, not "changed this period"), `github.reviews_giv
 
 Each `github.in_flight` entry carries: `isDraft`; `age_days` (how long the PR has existed);
 `idle_days` (days since it last changed); `on_hold` (true when it wears the `on-hold` label — a PR you
-deliberately set aside); and `stack_base` (the PR number at the bottom of its git-town stack, or
-`null` if it stands alone). `github.stacks` lists each stack as `{base, members}` with `members`
-ordered bottom → top. These drive the rules below — don't recompute them yourself.
+deliberately set aside); `review_state` (`approved`, `changes_requested`, `awaiting_review`, or `null`
+for a draft or a PR no one's been asked to review yet — this is how you know whether a ready PR can
+actually be merged or is still waiting on a colleague); and `stack_base` (the PR number at the bottom
+of its git-town stack, or `null` if it stands alone). `github.stacks` lists each stack as
+`{base, members}` with `members` ordered bottom → top. These drive the rules below — don't recompute
+them yourself.
 
 ## Step 2 — what happened
 
@@ -92,7 +95,9 @@ Only this period. No day totals. Put the most important first:
      handle> (#<base>)`, not stalled by the developer. Don't give a member its own "waiting" line.
    - **A standalone draft**: `<handle> (#N) — draft, active` when `idle_days` is small; when it's been
      idle a while (say ≥ 2 days), `<handle> (#N) — draft, untouched Nd`.
-   - **A standalone ready PR**: `<handle> (#N) — ready, waiting Nd` using `age_days`.
+   - **A standalone ready PR**: read `review_state` — `approved` → `<handle> (#N) — approved, ready to
+     merge`; `awaiting_review` → `<handle> (#N) — waiting on review Nd` (using `age_days`);
+     `changes_requested` → `<handle> (#N) — changes requested`.
 4. **Other activity** — short: PRs you reviewed this period (`#N (N comments)`), commits per branch
    (`count > 0`), which worktrees were active (`<worktree>: N turns, active` or `no code changed`).
 
@@ -105,13 +110,21 @@ End with a single clear next action — the most useful thing to do next. Match 
 Never suggest reviewing or merging a draft. **Never point at an on-hold PR, and never point at a stack
 member that isn't the base** — those aren't the developer's move.
 
-- A stack whose **base is ready** → `<base handle> (#<base>) is the base of a stack — merge it to unblock N above.`
+**Only say "merge it" when `review_state` is `approved`.** A ready PR that's `awaiting_review` is
+waiting on a colleague, not on the developer to merge — say "waiting on review" and, once it's aged,
+"chase the reviewer". `changes_requested` is the developer's move — say "address the review". Telling
+someone to merge a PR a colleague hasn't approved is wrong and unhelpful.
+
+- A stack whose **base is ready and `approved`** → `<base handle> (#<base>) is approved — merge it to unblock N above.`
+- A stack whose **base is ready but `awaiting_review`** → `<base handle> (#<base>) is the base and waiting on review — chase the reviewer so the N above can move.` Don't say merge.
+- A stack whose **base has `changes_requested`** → `<base handle> (#<base>) has changes requested — address them; N PRs wait on it.`
 - A stack whose **base is a draft** → `<base handle> (#<base>) is the base — finish it; N PRs wait on it.`
 - A stack whose **base is on hold** → the whole stack is on hold; say so and look elsewhere for the
   next action. Don't nag any member.
-- A standalone ready PR → escalate by age instead of repeating the same line: fresh (`age_days` small)
-  → `<handle> (#N) is ready — ask someone to review it, or merge it if it's approved.`; older →
-  `<handle> (#N) has been ready Nd — chase a named reviewer or merge it if it's approved.`
+- A standalone ready PR → branch on `review_state`: `approved` → `<handle> (#N) is approved — merge it.`;
+  `awaiting_review` and fresh (`age_days` small) → `<handle> (#N) is waiting on review — chase a reviewer
+  if no one's looking.`; `awaiting_review` and older → `<handle> (#N) has been waiting on review Nd —
+  chase the reviewer.`; `changes_requested` → `<handle> (#N) has changes requested — address the review.`
 - A standalone draft you're working on → `You're testing <handle> (#N). Finish testing it and mark it ready when it passes.`
 - A standalone draft untouched a while (`idle_days` ≥ ~2) → `<handle> (#N) has been a draft Nd. Test it and mark it ready.`
 - Several branches touched, none finished → `You worked on 3 branches but didn't finish any. Pick one — #N is closest — and finish it.`

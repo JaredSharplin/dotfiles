@@ -71,6 +71,14 @@ CUSTOMER_LABELS = %w[feature bug].freeze
 # rollout). The collector reads it back so the summary stops nagging about it.
 ON_HOLD_LABEL = "on-hold"
 REVIEW_EVENTS = %w[PullRequestReviewEvent PullRequestReviewCommentEvent].freeze
+# GitHub's reviewDecision translated to the words the summary speaks. An empty
+# decision (a draft, or a repo without a review policy) maps to nil — not
+# applicable — so the summary only talks about review state on ready PRs.
+REVIEW_STATES = {
+  "APPROVED" => "approved",
+  "CHANGES_REQUESTED" => "changes_requested",
+  "REVIEW_REQUIRED" => "awaiting_review"
+}.freeze
 
 # PRs I reviewed during the window, from my GitHub event feed. The feed carries
 # each event's real timestamp (when I actually reviewed), unlike a PR search on
@@ -100,18 +108,23 @@ end
 
 def label_names(pr) = Array(pr["labels"]).map { it["name"] }
 
+# One gh call per repo fetching every open authored PR with the fields that both
+# stack detection and review state need. gh search prs returns neither branch
+# refs nor reviewDecision, so we pull them here and share the result.
+def open_pr_details(open_prs)
+  repos = open_prs.filter_map { it.dig("repository", "nameWithOwner") }.uniq
+  repos.flat_map do |repo|
+    gh_json("pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
+            "--json", "number,headRefName,baseRefName,reviewDecision")
+  end
+end
+
 # Rebuilds git-town stacks from GitHub branch refs. A PR's base branch is its
 # parent's head branch (git town sets --base <parent> when it creates the PR),
 # so head->base edges reconstruct the tree. A PR whose base is no other open PR's
-# head targets the trunk and is a stack base. gh search prs can't return branch
-# refs, so this pulls them per repo (~1 call each). Returns [stacks, base_by_number]
+# head targets the trunk and is a stack base. Returns [stacks, base_by_number]
 # where a stack is a base with at least one child; standalone PRs are omitted.
-def pr_stacks(open_prs)
-  repos = open_prs.filter_map { it.dig("repository", "nameWithOwner") }.uniq
-  refs = repos.flat_map do |repo|
-    gh_json("pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
-            "--json", "number,headRefName,baseRefName")
-  end
+def pr_stacks(refs)
   return [[], {}] if refs.empty?
 
   head_to_number = refs.to_h { [it["headRefName"], it["number"]] }
@@ -144,7 +157,9 @@ def github_activity(since, now)
                    "--json", "number,title,url,labels")
   open_prs = gh_json("search", "prs", "--author=@me", "--state", "open", "--limit", "40",
                      "--json", "number,title,url,isDraft,createdAt,updatedAt,labels,repository")
-  stacks, base_by_number = pr_stacks(open_prs)
+  refs = open_pr_details(open_prs)
+  stacks, base_by_number = pr_stacks(refs)
+  review_by_number = refs.to_h { [it["number"], REVIEW_STATES[it["reviewDecision"]]] }
   {
     shipped: merged.map do |pr|
       labels = label_names(pr)
@@ -158,6 +173,7 @@ def github_activity(since, now)
         age_days: days_between(pr["createdAt"], now),
         idle_days: days_between(pr["updatedAt"], now),
         on_hold: labels.include?(ON_HOLD_LABEL),
+        review_state: review_by_number[pr["number"]],
         stack_base: base_by_number[pr["number"]] }
     end,
     stacks:,
