@@ -157,7 +157,7 @@ def github_activity(since, now)
         isDraft: pr["isDraft"], labels:,
         age_days: days_between(pr["createdAt"], now),
         idle_days: days_between(pr["updatedAt"], now),
-        parked: labels.include?(ON_HOLD_LABEL),
+        on_hold: labels.include?(ON_HOLD_LABEL),
         stack_base: base_by_number[pr["number"]] }
     end,
     stacks:,

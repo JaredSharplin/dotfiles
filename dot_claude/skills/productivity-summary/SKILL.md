@@ -71,7 +71,7 @@ your open PRs — a status list, not "changed this period"), `github.reviews_giv
 (PRs you reviewed this period, each with a `comments` count), `git.commits`, `sessions`.
 
 Each `github.in_flight` entry carries: `isDraft`; `age_days` (how long the PR has existed);
-`idle_days` (days since it last changed); `parked` (true when it wears the `on-hold` label — a PR you
+`idle_days` (days since it last changed); `on_hold` (true when it wears the `on-hold` label — a PR you
 deliberately set aside); and `stack_base` (the PR number at the bottom of its git-town stack, or
 `null` if it stands alone). `github.stacks` lists each stack as `{base, members}` with `members`
 ordered bottom → top. These drive the rules below — don't recompute them yourself.
@@ -85,7 +85,7 @@ Only this period. No day totals. Put the most important first:
 2. **Marked ready for review** — from `qa_completed`: `Ready for review: #N <title>`. Real progress.
 3. **Your open PRs** — current status of each, not a claim you touched it this period. Read the
    in-flight fields instead of treating every PR as an independent line:
-   - **Parked** (`parked: true`): list once as `<handle> (#N) — parked (on-hold)`. Never nag about it,
+   - **On hold** (`on_hold: true`): list once as `<handle> (#N) — on hold`. Never nag about it,
      never count it as waiting on the developer. It's set aside on purpose.
    - **In a stack** (`stack_base` set / see `github.stacks`): show the members together, base first,
      each by its handle. Only the base can move next; the ones above it are `blocked behind <base
@@ -102,12 +102,12 @@ marked ready in <window>.` A dozen lines at most. Skip empty sections.
 ## Step 3 — the one next thing
 
 End with a single clear next action — the most useful thing to do next. Match it to the PR's status.
-Never suggest reviewing or merging a draft. **Never point at a parked PR, and never point at a stack
+Never suggest reviewing or merging a draft. **Never point at an on-hold PR, and never point at a stack
 member that isn't the base** — those aren't the developer's move.
 
 - A stack whose **base is ready** → `<base handle> (#<base>) is the base of a stack — merge it to unblock N above.`
 - A stack whose **base is a draft** → `<base handle> (#<base>) is the base — finish it; N PRs wait on it.`
-- A stack whose **base is parked** → the whole stack is on hold; say so and look elsewhere for the
+- A stack whose **base is on hold** → the whole stack is on hold; say so and look elsewhere for the
   next action. Don't nag any member.
 - A standalone ready PR → escalate by age instead of repeating the same line: fresh (`age_days` small)
   → `<handle> (#N) is ready — ask someone to review it, or merge it if it's approved.`; older →
@@ -118,7 +118,7 @@ member that isn't the base** — those aren't the developer's move.
 - Time went to internal or refactor work while customer work waits → `This period was internal cleanup. #N is the customer feature that's waiting.`
 - A worktree active but no code changed → `#N was active but no code changed — it might be stuck. Unblock it or set it aside.`
 
-If every open PR is parked or blocked behind a parked base, there may be nothing to push — say that
+If every open PR is on hold or blocked behind an on-hold base, there may be nothing to push — say that
 plainly rather than inventing a next step. Otherwise always end with one concrete action. If a PR was
 merged or marked ready, say so in one line and still give the next thing.
 

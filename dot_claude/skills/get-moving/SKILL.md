@@ -46,8 +46,8 @@ f=~/.local/share/productivity/$(date +%F).jsonl
 ```
 
 From `github.in_flight`, find PRs that look stalled **with no explanation yet** — a ready PR
-(`isDraft: false`) that is not `parked` and has a largish `age_days`, or a draft idle a while
-(`idle_days` ≥ ~2) that is not `parked`. **Skip stack members that aren't the base** (`stack_base`
+(`isDraft: false`) that is not `on_hold` and has a largish `age_days`, or a draft idle a while
+(`idle_days` ≥ ~2) that is not `on_hold`. **Skip stack members that aren't the base** (`stack_base`
 set and ≠ the PR's own number) — they're legitimately blocked behind their base, not stalled.
 
 For each stalled PR, ask one **AskUserQuestion** — "Why is `<handle> (#N)` stalled?", naming it by a
@@ -55,9 +55,9 @@ short plain handle from its title, never the bare number — and apply the actio
 (use the entry's `repo`). Only act on the option chosen; a "leave it" is a real answer,
 not a prompt to do nothing quietly:
 
-- **Parked — waiting on customer feedback / a flag rollout / deprioritised** →
+- **On hold — waiting on customer feedback / a flag rollout / deprioritised** →
   `gh pr edit <n> --repo <repo> --add-label on-hold`. From the next tick the summary lists it as
-  parked and stops nagging.
+  on hold and stops nagging.
 - **Not actually ready — needs more work** → `gh pr ready <n> --repo <repo> --undo` (back to draft).
 - **Blocked on a specific reviewer** → ask who, then `gh pr edit <n> --repo <repo> --add-reviewer <user>`.
 - **Still active, leave it** → no change.
@@ -72,7 +72,7 @@ If nothing looks stalled, skip this step silently and go straight to the pick.
 - Nothing open? Say so in one line and stop.
 
 **Respect the stack.** If the chosen candidate is in a stack (`stack_base` set), the only member that
-can move next is the base — walk down and target `stack_base` instead. If that base is `parked`, the
+can move next is the base — walk down and target `stack_base` instead. If that base is `on_hold`, the
 whole stack is on hold; skip it and take the next candidate. Never start someone on a PR that's
 blocked behind another.
 
