@@ -70,8 +70,10 @@ with `customer_facing`), `github.qa_completed` (marked ready this period), `gith
 your open PRs — a status list, not "changed this period"), `github.reviews_given`
 (PRs you reviewed this period, each with a `comments` count), `git.commits`, `sessions`.
 
-Each `github.in_flight` entry carries: `isDraft`; `age_days` (how long the PR has existed);
-`idle_days` (days since it last changed); `on_hold` (true when it wears the `on-hold` label — a PR you
+Each `github.in_flight` entry carries: `isDraft`; `age_days` (working days the PR has existed —
+weekday 9–6 only, so an overnight or weekend doesn't inflate it); `idle_days` (working days since it
+last changed, same basis — a PR ready since yesterday afternoon reads well under 1, not "a full day");
+`on_hold` (true when it wears the `on-hold` label — a PR you
 deliberately set aside); `review_state` (`approved`, `changes_requested`, `awaiting_review`, or `null`
 for a draft or a PR no one's been asked to review yet — this is how you know whether a ready PR can
 actually be merged or is still waiting on a colleague); and `stack_base` (the PR number at the bottom

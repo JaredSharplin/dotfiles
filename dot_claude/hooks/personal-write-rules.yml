@@ -13,9 +13,14 @@ controller_view_helper_reach:
   type: warn
   files:
     - 'app/controllers/**/*.rb'
-  pattern: '\bhelpers\.'
+  pattern: '\bhelpers\.|^\s*helper\s+[A-Z:]'
   context: >
-    Don't reach into a view helper from a controller (`helpers.…`). Helpers are
-    view-layer; a controller needing that logic is a sign it belongs on a model
-    (how a record names/describes itself, e.g. DataStreamJoin#data_streamable_name)
-    or a plain object. Move it there.
+    Don't couple a controller to the view-helper layer — neither by reaching into a
+    helper at runtime (`helpers.…`) nor by including one (`helper SomeHelper` /
+    `helper :all`). Both mix presentation into routing and data loading.
+    If the logic is about a record (how it names/describes itself), move it to the
+    model (e.g. DataStreamJoin#data_streamable_name) or a plain object. If a shared
+    partial needs view helpers, put them in their own helper module and `include` it
+    into the helper modules that need it (helper-includes-helper) — the controller's
+    name-matched helper (FooController -> FooHelper) is auto-included, so wire shared
+    helpers through that, never through the `helper` macro.

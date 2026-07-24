@@ -16,8 +16,10 @@ PROJECTS_DIR = File.join(HOME, ".claude", "projects")
 REPOS = [File.join(HOME, "programming", "payaus")] +
         Dir.glob(File.join(HOME, "programming", "worktrees", "*")).select { File.directory?(it) }
 # The first tick of the day floors its window here instead of midnight, so it
-# reports the workday — not a dump of everything since 00:00.
+# reports the workday — not a dump of everything since 00:00. Also the start of
+# the working day used to age PRs (see working_days_between).
 DAY_START_HOUR = 9
+WORK_DAY_END_HOUR = 18
 
 def log_path(date) = File.join(DATA_DIR, "#{date}.jsonl")
 
@@ -100,10 +102,25 @@ def reviews_given(since)
   end
 end
 
-def days_between(iso, now)
+# Elapsed working time between an ISO timestamp and now, in working days (weekday
+# 09:00–18:00 local, 9h each). Time outside those hours — nights, weekends —
+# doesn't count, so a PR that's only sat overnight doesn't read as an aged stall.
+def working_days_between(iso, now)
   return nil unless iso
 
-  ((now - Time.iso8601(iso)) / 86_400.0).round(1)
+  start = Time.iso8601(iso).localtime
+  work_hours = WORK_DAY_END_HOUR - DAY_START_HOUR
+  hours = 0.0
+  day = Time.new(start.year, start.month, start.day, DAY_START_HOUR, 0, 0, start.utc_offset)
+  while day < now
+    if (1..5).cover?(day.wday)
+      open_time = [start, day].max
+      close_time = [now, day + work_hours * 3600].min
+      hours += (close_time - open_time) / 3600.0 if close_time > open_time
+    end
+    day += 86_400
+  end
+  (hours / work_hours).round(1)
 end
 
 def label_names(pr) = Array(pr["labels"]).map { it["name"] }
@@ -170,8 +187,8 @@ def github_activity(since, now)
       labels = label_names(pr)
       { number: pr["number"], title: pr["title"], url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
         isDraft: pr["isDraft"], labels:,
-        age_days: days_between(pr["createdAt"], now),
-        idle_days: days_between(pr["updatedAt"], now),
+        age_days: working_days_between(pr["createdAt"], now),
+        idle_days: working_days_between(pr["updatedAt"], now),
         on_hold: labels.include?(ON_HOLD_LABEL),
         review_state: review_by_number[pr["number"]],
         stack_base: base_by_number[pr["number"]] }
