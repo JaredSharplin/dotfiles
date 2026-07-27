@@ -20,9 +20,9 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
 | Create PR for current branch | `git town sync` then `gh pr create --draft --base <parent> ...` | Opens as a draft, assignee + labels inline — see "Creating a PR" |
 | Push branch/stack to remote | `git town sync --push` | Pushing is off by default — see "Pushing (off by default)" |
-| Switch to parent branch | `git town down` | Move down the stack |
-| Switch to child branch | `git town up` | Move up the stack |
-| Fix something on a parent branch | See "Making Changes on a Parent Branch" | Stash → down → fix → sync → up → pop → sync |
+| Switch to parent branch | `git town up` | Moves toward the trunk |
+| Switch to child branch | `git town down` | Moves away from the trunk |
+| Fix something on a parent branch | See "Making Changes on a Parent Branch" | Stash → up → fix → sync → down → pop → sync |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
@@ -99,18 +99,26 @@ git town prepend feature/auth-models
 
 ### Navigating a Branch Stack
 
-Use `git town down` and `git town up` to move between branches in a stack:
+Use `git town up` and `git town down` to move between branches in a stack. Git town draws the trunk at the top and children below it, so "up" means toward the trunk:
+
+```
+main            <- git town up
+ \
+* feature-1     <- you are here
+   \
+    feature-2   <- git town down
+```
 
 | Command | Purpose |
 |---------|---------|
-| `git town down` | Switch to the parent branch (move down the stack) |
-| `git town up` | Switch to the child branch (move up the stack) |
+| `git town up` | Switch to the **parent** branch (toward the trunk) |
+| `git town down` | Switch to the **child** branch (away from the trunk) |
 
 For non-adjacent branches (e.g. jumping from grandchild to grandparent), use `git checkout <branch-name>` directly.
 
 **Note:** `git town switch` exists but is an interactive TUI — Claude cannot use it.
 
-**Important:** `git town down`/`up` do NOT auto-stash uncommitted changes. They are thin wrappers around `git checkout`. Uncommitted changes either carry over (if non-conflicting) or cause the command to fail. See "Making Changes on a Parent Branch" for the safe workflow.
+**Important:** `git town up`/`down` do NOT auto-stash uncommitted changes. They are thin wrappers around `git checkout`. Uncommitted changes either carry over (if non-conflicting) or cause the command to fail. See "Making Changes on a Parent Branch" for the safe workflow.
 
 ### Making Changes on a Parent Branch
 
@@ -121,7 +129,7 @@ When you're working on a child branch and need to make a fix on a parent branch:
 git stash
 
 # 2. Switch to the parent branch
-git town down
+git town up
 
 # 3. Make your changes and commit
 git add <specific files>
@@ -131,7 +139,7 @@ git commit -m "Fix description"
 git town sync
 
 # 5. Switch back to the child branch
-git town up
+git town down
 
 # 6. Restore your uncommitted changes
 git stash pop
@@ -144,9 +152,9 @@ git town sync
 - `git add .` would accidentally commit child-branch work on the parent
 - If the same file has both child WIP and needs a parent fix, there's no way to selectively stage (Claude can't use interactive `git add -p`)
 
-This is the **one exception** to the "never manually stash" rule — `git town down`/`up` don't auto-stash like `hack`/`sync`/`append` do.
+This is the **one exception** to the "never manually stash" rule — `git town up`/`down` don't auto-stash like `hack`/`sync`/`append` do.
 
-**Shortcut:** After step 4, `git town sync --stack` syncs all descendants too, so you could skip step 7 — but you still need to `git town up` and `git stash pop` to get back to your child branch.
+**Shortcut:** After step 4, `git town sync --stack` syncs all descendants too, so you could skip step 7 — but you still need to `git town down` and `git stash pop` to get back to your child branch.
 
 ### Creating a PR
 
@@ -601,10 +609,10 @@ gh pr create --draft --base "$(git config git-town-branch.feature/implementation
 - ❌ `git stash` then `git town hack` — WRONG
 - ✅ `git town hack feature/name` directly with dirty working directory — CORRECT
 
-**Exception:** `git town down`/`up` do NOT auto-stash (they're thin `git checkout` wrappers). When switching to a parent branch to make a fix, stash first to avoid cross-contaminating branches:
+**Exception:** `git town up`/`down` do NOT auto-stash (they're thin `git checkout` wrappers). When switching to a parent branch to make a fix, stash first to avoid cross-contaminating branches:
 
-- ✅ `git stash` → `git town down` → fix → `git town up` → `git stash pop` — CORRECT
-- ❌ `git town down` with uncommitted changes then `git add .` on parent — WRONG (commits child work on parent)
+- ✅ `git stash` → `git town up` → fix → `git town down` → `git stash pop` — CORRECT
+- ❌ `git town up` with uncommitted changes then `git add .` on parent — WRONG (commits child work on parent)
 
 ## Tips for Claude Code
 
