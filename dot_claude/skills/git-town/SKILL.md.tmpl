@@ -23,6 +23,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Switch to parent branch | `git town up` | Moves toward the trunk |
 | Switch to child branch | `git town down` | Moves away from the trunk |
 | Fix something on a parent branch | See "Making Changes on a Parent Branch" | Stash → up → fix → sync → down → pop → sync |
+| Work on a branch git town didn't create | `git town set-parent <branch>` | Record the parent *before* the first sync — see "Branches Git Town Didn't Create" |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
@@ -51,6 +52,30 @@ Rule of thumb: sync freely to stay up to date; push only when you actually want 
 **Use standard Git for:**
 - Checking status and history (`git status`, `git log`)
 
+## Branches Git Town Didn't Create — Record the Parent First
+
+Git town only knows a branch's parent if something recorded it. `hack`, `append`, and `prepend` record it. **`git checkout -b` and `EnterWorktree` (agent view, `Agent(isolation: "worktree")`, `claude --worktree`) do not** — so most agent-view branches start with no parent. `git town up` then errors `branch <name> has no parent`, and `git town sync` refuses to run:
+
+```
+Error: cannot determine parent branch for "my-branch": could not open a new TTY: open /dev/tty: device not configured
+```
+
+That's git town trying to open its parent-picker dialog in a shell with no TTY. (With `--non-interactive` the same failure reads `interactivity disabled via CLI`.) It is **not** suspended runstate — don't apply the recovery from the section below; just record the parent.
+
+**Do this as the first git town step in any worktree you didn't create with `hack` — before the first sync, not after it fails:**
+
+```bash
+git config "git-town-branch.$(git branch --show-current).parent"   # no output = no parent recorded
+git town set-parent <parent-branch>                                # branch as an argument = no dialog
+```
+
+Choosing `<parent-branch>`:
+
+- Standalone work off master → `master`.
+- Stacked work → the branch it builds on. **Ask if it isn't obvious** — this value becomes the PR's `--base`, and a wrong base makes the PR diff show the parent's commits as your changes.
+
+Every branch up the chain needs one too. If you set `my-branch`'s parent to `feature/foo` and `feature/foo` has no parent recorded, the sync fails on `feature/foo` instead. Walk up with `git town up` and set each one until you reach master.
+
 ## Core Stacked Changes Commands
 
 ### `git town hack <branch-name>`
@@ -73,7 +98,12 @@ Rule of thumb: sync freely to stay up to date; push only when you actually want 
 
 A previous git town command (usually `sync`) that hit a conflict or was interrupted leaves **suspended runstate**. The next git town command then tries to prompt about it before doing anything — in an agent shell with no TTY this surfaces as `Error: could not open a new TTY: open /dev/tty: device not configured`.
 
-**This is the suspended state, not an environment/TTY problem.** Don't misdiagnose it, and don't try to force the prompt through (`script`, `unbuffer`, `expect`) — git town reads `/dev/tty` directly, so `--non-interactive`, piping stdin, and `--dry-run` all fail identically.
+**Check the error text first.** Two different problems print that same TTY line:
+
+- `Error: cannot determine parent branch for "<branch>": could not open a new TTY…` → **not** suspended state. The branch has no recorded parent — see "Branches Git Town Didn't Create" above.
+- The bare TTY error with no `cannot determine parent branch` prefix → suspended state, handled here.
+
+**Suspended state is not an environment/TTY problem.** Don't misdiagnose it, and don't try to force the prompt through (`script`, `unbuffer`, `expect`) — git town reads `/dev/tty` directly, so `--non-interactive`, piping stdin, and `--dry-run` all fail identically.
 
 Diagnose read-only (safe, won't prompt): `git town status`. Then **STOP and ask the user how to recover** — the options (`continue`, `skip`, `undo`, or `git town status reset`) include destructive ones, so the choice is theirs ([[feedback_no_unilateral_decisions]]).
 
@@ -159,14 +189,17 @@ This is the **one exception** to the "never manually stash" rule — `git town u
 ### Creating a PR
 
 ```bash
-git town sync                                   # integrate parent locally; does NOT push
 parent=$(git config "git-town-branch.$(git branch --show-current).parent")
-gh pr create --draft --base "${parent:-master}" \
+echo "$parent"                                  # empty? STOP — see "Branches Git Town Didn't Create"
+git town sync                                   # integrate parent locally; does NOT push
+gh pr create --draft --base "$parent" \
   --title "..." --body "..." \
   --assignee @me --label <type-label> --label built-in-australia
 ```
 
-`git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` resolves to the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
+`git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` is the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
+
+**Don't default an empty `parent` to `master`.** Empty means no parent was recorded, not that the parent is master — on a stacked branch that guess opens the PR against the wrong base and the diff shows the parent's commits as yours. Record the real parent with `git town set-parent`, then create the PR.
 
 Every PR needs (inline on `gh pr create`, or via `gh pr edit` later):
 
