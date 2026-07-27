@@ -496,42 +496,27 @@ Drop those lines as a single block under the `### Screenshots` heading, replacin
 
 ### Required Workflow — file on disk, Read/Edit, one push
 
-Fetch the live body to a file, edit it with the normal Read/Edit tools, push once:
+Settle the final state of *every* section first, then edit, then push once. Each push emails the reviewers.
 
 ```bash
 gh pr view <number> --json body -q .body > <scratchpad>/pr-<number>-body.md
 ```
 
-Then:
-
-1. **Read the whole file.** Not a grep, not a slice — the full body.
-2. **Edit** it, one Edit call per change.
-3. **Read the file again** before pushing (see *Read the result, not the diff* below).
-4. Push once:
+1. **Read the whole file** — the full body, not a grep or a slice.
+2. **Edit** it, one Edit call per change. It fails loudly on a no-match or an ambiguous match, so a stale assumption aborts instead of silently doing nothing.
+3. **Read the file again** before pushing. A body can be textually correct and still render wrong — a `NOTE:` jammed against a list item, a heading with no blank line above it, a stray `<br/>`. A text diff can't show a rendering defect; only reading the assembled body can. Check the blank lines on both sides of every insertion point.
+4. Push:
 
 ```bash
 gh pr edit <number> --body-file <scratchpad>/pr-<number>-body.md
 ```
 
-**Don't shell-script the edit** — no `ruby -e`, `sed`, `awk`, or `body=$(...)` string surgery. Edit already gives you what a script has to hand-roll: it fails loudly on a no-match or an ambiguous match, so a stale assumption about the body aborts instead of silently doing nothing.
-
-**Use `--body-file`, not `--body "$(cat file)"`.** Command substitution strips trailing newlines and pushes the whole body through shell quoting — a real hazard with backticks and `$` in the text.
-
-### Settle the content before touching the file
-
-Decide the final state of *every* section first, then make all the edits, then push. Three pushes because you changed your mind mid-way is a reasoning problem, not a tooling one — and each push emails the reviewers.
-
-### Read the result, not the diff
-
-A body can be textually correct and still render wrong: a `NOTE:` jammed against a list item, a heading with no blank line above it, a `<br/>` in the wrong place. **A text diff cannot show a rendering defect** — only reading the assembled body can.
-
-So after editing, re-read the file and check the blank lines on both sides of every insertion point, with specific attention to list items, headings, and `<br/>`.
+(`--body-file` rather than `--body "$(cat file)"` — command substitution strips trailing newlines and puts the body through shell quoting.)
 
 ### Rules
 
 - **Always fetch the current body first** — never assume you know what's there
 - **Surgical edits only** — insert, append, or replace specific sections. Never rewrite the full body
-- **`gh pr edit --body "..."` with a hand-composed body is the forbidden move**, whatever produced the string
 - **Preserve user state** — checked checkboxes (`[x]`, whether the developer ticked them or Claude checked them after its own QA), manually added notes, reviewer comments in the body
 - **Leave `<!-- branch-stack-start -->` / `<!-- branch-stack-end -->` blocks alone** — git town manages these
 
