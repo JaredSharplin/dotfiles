@@ -20,6 +20,9 @@ REPOS = [File.join(HOME, "programming", "payaus")] +
 # the working day used to age PRs (see working_days_between).
 DAY_START_HOUR = 9
 WORK_DAY_END_HOUR = 18
+# Working days without a commit before a ready, green PR counts as settled — the
+# QA fixes have stopped and the work is genuinely done. Half a working day.
+SETTLED_QUIET_DAYS = 0.5
 
 def log_path(date) = File.join(DATA_DIR, "#{date}.jsonl")
 
@@ -66,6 +69,23 @@ def git_activity(dir, since)
   }
 end
 
+# When each checked-out branch last received a commit from the user, regardless of
+# the tick window. Local, not GitHub: this developer commits far more often than
+# they push, so a PR's last pushed commit can be a day behind the real work.
+def local_commit_times(dirs)
+  dirs.filter_map do |dir|
+    next unless File.exist?(File.join(dir, ".git"))
+
+    author = git(dir, "config", "user.email").strip
+    next if author.empty?
+
+    last = git(dir, "log", "-1", "--no-merges", "--author=#{author}", "--format=%cI").strip
+    next if last.empty?
+
+    [git(dir, "rev-parse", "--abbrev-ref", "HEAD").strip, last]
+  end.to_h
+end
+
 # Labels that mean the PR ships something to customers. Everything else
 # (not-user-facing, refactor, api-only, security tooling) is supporting work.
 CUSTOMER_LABELS = %w[feature bug].freeze
@@ -81,6 +101,11 @@ REVIEW_STATES = {
   "CHANGES_REQUESTED" => "changes_requested",
   "REVIEW_REQUIRED" => "awaiting_review"
 }.freeze
+# statusCheckRollup check tokens collapsed to one build state (see build_state):
+# any failing check wins, then any still-running check, then a real pass. Marking
+# a PR ready only starts CI — a ready PR isn't review-ready until its build passes.
+BUILD_FAILING = %w[FAILURE ERROR TIMED_OUT ACTION_REQUIRED STARTUP_FAILURE].freeze
+BUILD_PENDING = %w[PENDING EXPECTED QUEUED IN_PROGRESS].freeze
 
 # PRs I reviewed during the window, from my GitHub event feed. The feed carries
 # each event's real timestamp (when I actually reviewed), unlike a PR search on
@@ -125,6 +150,17 @@ end
 
 def label_names(pr) = Array(pr["labels"]).map { it["name"] }
 
+# One PR's statusCheckRollup reduced to passing / pending / failing / none. An
+# empty rollup (a draft, or a ready PR whose CI hasn't reported yet) is "none".
+def build_state(rollup)
+  tokens = Array(rollup).filter_map { |check| [check["conclusion"], check["state"], check["status"]].find { !it.to_s.empty? } }
+  return "none" if tokens.empty?
+  return "failing" if tokens.any? { BUILD_FAILING.include?(it) }
+  return "pending" if tokens.any? { BUILD_PENDING.include?(it) }
+
+  tokens.include?("SUCCESS") ? "passing" : "none"
+end
+
 # One gh call per repo fetching every open authored PR with the fields that both
 # stack detection and review state need. gh search prs returns neither branch
 # refs nor reviewDecision, so we pull them here and share the result.
@@ -132,7 +168,7 @@ def open_pr_details(open_prs)
   repos = open_prs.filter_map { it.dig("repository", "nameWithOwner") }.uniq
   repos.flat_map do |repo|
     gh_json("pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
-            "--json", "number,headRefName,baseRefName,reviewDecision")
+            "--json", "number,headRefName,baseRefName,reviewDecision,statusCheckRollup,commits")
   end
 end
 
@@ -177,6 +213,9 @@ def github_activity(since, now)
   refs = open_pr_details(open_prs)
   stacks, base_by_number = pr_stacks(refs)
   review_by_number = refs.to_h { [it["number"], REVIEW_STATES[it["reviewDecision"]]] }
+  build_by_number = refs.to_h { [it["number"], build_state(it["statusCheckRollup"])] }
+  head_by_number = refs.to_h { [it["number"], it["headRefName"]] }
+  pushed_commit_by_number = refs.to_h { [it["number"], Array(it["commits"]).filter_map { it["committedDate"] }.max] }
   {
     shipped: merged.map do |pr|
       labels = label_names(pr)
@@ -191,6 +230,9 @@ def github_activity(since, now)
         idle_days: working_days_between(pr["updatedAt"], now),
         on_hold: labels.include?(ON_HOLD_LABEL),
         review_state: review_by_number[pr["number"]],
+        build_state: build_by_number[pr["number"]],
+        head_branch: head_by_number[pr["number"]],
+        pushed_commit_at: pushed_commit_by_number[pr["number"]],
         stack_base: base_by_number[pr["number"]] }
     end,
     stacks:,
@@ -272,14 +314,50 @@ checkpoint =
   end
 
 commits = REPOS.filter_map { git_activity(it, checkpoint) }
+local_commits = local_commit_times(REPOS)
 github = github_activity(checkpoint, now)
 
-# A PR that flipped draft -> ready since last tick has cleared the developer's
-# manual QA gate — the visible outcome of otherwise-invisible QA work. The
-# previous record is parsed JSON (string keys); this tick's in_flight is
+# The previous record is parsed JSON (string keys); this tick's in_flight is
 # symbol-keyed, so the two sides read their keys differently.
-previously_draft = Array(previous&.dig("github", "in_flight")).select { it["isDraft"] }.map { it["number"] }
-github[:qa_completed] = github[:in_flight].reject { it[:isDraft] }.select { previously_draft.include?(it[:number]) }
+previous_flight = Array(previous&.dig("github", "in_flight")).to_h { [it["number"], it] }
+
+# A PR that flipped draft -> ready since last tick. For this developer that means
+# CI was started (drafts run no CI), not that review is wanted — the build state
+# tells the real story.
+github[:started_ci] = github[:in_flight]
+                      .reject { it[:isDraft] }
+                      .select { previous_flight[it[:number]]&.fetch("isDraft", false) }
+
+# The work this period joined onto the PR it went into, so a PR line can show the
+# effort going in rather than reading as untouched. Matched on branch name — a
+# worktree directory name doesn't map to a GitHub repo, the head ref does.
+commits_by_branch = commits.to_h { [it[:branch], it] }
+github[:in_flight].each do |pr|
+  work = commits_by_branch[pr[:head_branch]]
+  pr[:work_this_period] = work&.slice(:count, :insertions, :deletions)
+
+  # Rounds of fixes that landed while the PR was already ready with a green build
+  # — QA finding real problems after CI passed. One round is ordinary. A count
+  # that keeps climbing means the change isn't holding up, which is worth saying.
+  # Back to draft resets it: that's work resuming before CI, not a fix on green.
+  was = previous_flight[pr[:number]]
+  carried = was ? was.fetch("qa_rounds", 0).to_i : 0
+  landed_on_green = pr[:work_this_period] && was && !was["isDraft"] && was["build_state"] == "passing"
+  pr[:qa_rounds] = pr[:isDraft] ? 0 : carried + (landed_on_green ? 1 : 0)
+
+  # How long since the developer last committed to this PR, in working days. The
+  # local commit usually leads the pushed one (they commit far more than they push),
+  # so take whichever is later.
+  last_commit = [local_commits[pr[:head_branch]], pr[:pushed_commit_at]].compact.max
+  pr[:quiet_days] = working_days_between(last_commit, now)
+
+  # A ready PR whose build passes and whose commits have stopped. Marking a PR
+  # ready only starts CI; QA then turns up real problems and more commits land.
+  # When those stop, the work is actually finished — that, not the ready flip and
+  # not GitHub's reviewDecision, is what means a PR is ready for someone else.
+  pr[:settled] = !pr[:isDraft] && pr[:build_state] == "passing" &&
+                 pr[:quiet_days].to_f >= SETTLED_QUIET_DAYS
+end
 
 record = {
   ts: now.utc.iso8601,

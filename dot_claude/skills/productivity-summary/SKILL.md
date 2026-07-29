@@ -40,13 +40,15 @@ you'd otherwise ask in prose. Most ticks have nothing to ask and just end after 
 What actually counts as work finished:
 
 - **A PR merged for customers** — a merged PR labelled `feature` or `bug`. This is the main thing.
-- **A PR you finished and marked ready for review** — a PR that went from draft to ready this period
-  (`github.qa_completed`). Testing a PR takes real time and doesn't show up in commit data, so
-  marking it ready is how we see that work happened. It counts — say so.
+- **A PR whose build went green** — a ready PR now showing `build_state: passing`
+  (`github.started_ci` shows the ones that flipped draft→ready this period). For this developer,
+  marking a PR ready isn't "done" — it's how they start CI. So the milestone that means the code
+  actually holds up is a **green build**, not the draft→ready flip. When a ready PR is green, that's
+  real progress worth naming.
 
-Everything else — commits on unfinished work, reviews you left on other PRs, internal or refactor
-merges, Claude session activity — is work in progress, not finished. Say that plainly, without
-putting it down.
+Everything else — commits on unfinished work, a ready PR still building or failing CI, reviews you
+left on other PRs, internal or refactor merges, Claude session activity — is work in progress, not
+finished. Say that plainly, without putting it down.
 
 Two rules about drafts:
 
@@ -66,20 +68,39 @@ The collector does all the data gathering; you just read its JSON and talk. Don'
 Appends a record to `~/.local/share/productivity/<today>.jsonl` and prints the same record as JSON.
 Everything below is about **this period only**. Read the JSON — `window` (local-time `HH:MM–HH:MM`
 label; use it as-is, don't reformat `since`/`ts`, which are UTC), `github.shipped` (merged PRs, each
-with `customer_facing`), `github.qa_completed` (marked ready this period), `github.in_flight` (all
-your open PRs — a status list, not "changed this period"), `github.reviews_given`
-(PRs you reviewed this period, each with a `comments` count), `git.commits`, `sessions`.
+with `customer_facing`), `github.started_ci` (PRs that flipped draft→ready this period — i.e. CI was
+started on them, not necessarily that review is wanted), `github.in_flight` (all your open PRs — a
+status list, not "changed this period"), `github.reviews_given` (PRs you reviewed this period, each
+with a `comments` count), `git.commits`, `sessions`.
 
 Each `github.in_flight` entry carries: `isDraft`; `age_days` (working days the PR has existed —
 weekday 9–6 only, so an overnight or weekend doesn't inflate it); `idle_days` (working days since it
 last changed, same basis — a PR ready since yesterday afternoon reads well under 1, not "a full day");
 `on_hold` (true when it wears the `on-hold` label — a PR you
-deliberately set aside); `review_state` (`approved`, `changes_requested`, `awaiting_review`, or `null`
-for a draft or a PR no one's been asked to review yet — this is how you know whether a ready PR can
-actually be merged or is still waiting on a colleague); and `stack_base` (the PR number at the bottom
+deliberately set aside); `review_state` (`approved` and `changes_requested` mean a colleague really
+did review it — `awaiting_review` does **not**: it's branch protection saying a review is required,
+true from the moment a PR goes ready and never anything else, so **never speak from it**, use
+`settled` below); `build_state` (`passing`, `pending`,
+`failing`, or `none` — a ready PR isn't review-ready until this is `passing`; marking ready just
+starts CI); `head_branch`; `work_this_period` (`{count, insertions, deletions}` of the commits that
+went into this PR's branch during the window, or `null` if none did — this is how you know which PR
+the developer actually worked on); `qa_rounds` (see below); and `stack_base` (the PR number at the bottom
 of its git-town stack, or `null` if it stands alone). `github.stacks` lists each stack as
 `{base, members}` with `members` ordered bottom → top. These drive the rules below — don't recompute
 them yourself.
+
+`qa_rounds` counts the ticks where commits landed on a PR that was **already ready with a green
+build** — QA turning up real problems after CI passed. This is normal work, not delay: for this
+developer a green build means the code compiles and the tests pass, nothing more. One or two rounds
+is ordinary. A count that keeps climbing is the one thing worth naming — it means the change isn't
+holding up under testing. Never frame these commits as polishing or as sitting too long.
+
+`quiet_days` is working days since the developer last committed to that PR's branch (local commits
+count — they commit far more often than they push). `settled` is the field that means a PR is
+genuinely done and needs someone else: ready, green, and no commits for half a working day. **A ready
+PR that isn't settled is still the developer's own work in progress** — say "green, still yours", never
+"waiting on review" and never anything about a reviewer. Marking a PR ready is how this developer
+starts CI, so a fresh ready PR means the work is mid-flight, not finished.
 
 ## Step 2 — what happened
 
@@ -87,7 +108,9 @@ Only this period. No day totals. Put the most important first:
 
 1. **Merged for customers** — `Shipped: #N <title>`. Any internal (non-customer-facing) merges
    after, one line, marked internal.
-2. **Marked ready for review** — from `qa_completed`: `Ready for review: #N <title>`. Real progress.
+2. **Started CI** — from `started_ci`: `Started CI: <handle> (#N)` — flipped draft→ready this period,
+   which for this developer means the build is now running, not that it's finished. If such a PR is
+   already `build_state: passing`, say so — a green build is the real progress, not the flip itself.
 3. **Your open PRs** — current status of each, not a claim you touched it this period. Read the
    in-flight fields instead of treating every PR as an independent line:
    - **On hold** (`on_hold: true`): list once as `<handle> (#N) — on hold`. Never nag about it,
@@ -97,11 +120,19 @@ Only this period. No day totals. Put the most important first:
      handle> (#<base>)`, not stalled by the developer. Don't give a member its own "waiting" line.
    - **A standalone draft**: `<handle> (#N) — draft, active` when `idle_days` is small; when it's been
      idle a while (say ≥ 2 days), `<handle> (#N) — draft, untouched Nd`.
-   - **A standalone ready PR**: read `review_state` — `approved` → `<handle> (#N) — approved, ready to
-     merge`; `awaiting_review` → `<handle> (#N) — waiting on review Nd` (using `age_days`);
-     `changes_requested` → `<handle> (#N) — changes requested`.
-4. **Other activity** — short: PRs you reviewed this period (`#N (N comments)`), commits per branch
-   (`count > 0`), which worktrees were active (`<worktree>: N turns, active` or `no code changed`).
+   - **A standalone ready PR**: read `build_state` first. `failing` → `<handle> (#N) — CI failing`;
+     `pending`/`none` → `<handle> (#N) — CI running`. When `passing`, a real review outcome wins:
+     `approved` → `<handle> (#N) — approved, ready to merge`; `changes_requested` → `<handle> (#N) —
+     changes requested`. Otherwise go by `settled`: `settled: false` → `<handle> (#N) — green, still
+     yours`; `settled: true` → `<handle> (#N) — green and quiet Nd, needs a reviewer` (using
+     `quiet_days`).
+   Any PR with `work_this_period` gets its effort on the same line, after the status — that's the PR
+   the developer actually worked on and it should never read as untouched: `<handle> (#N) — green,
+   3 commits this period (+339/−197)`. When `qa_rounds` is 2 or more, add it: `4th round of fixes
+   since it went green`.
+4. **Other activity** — short: PRs you reviewed this period (`#N (N comments)`), commits on branches
+   with no PR yet (`count > 0`), which worktrees were active (`<worktree>: N turns, active` or `no
+   code changed`).
 
 If nothing was merged and nothing was marked ready, say it in one plain line: `Nothing merged or
 marked ready in <window>.` A dozen lines at most. Skip empty sections.
@@ -112,23 +143,34 @@ End with a single clear next action — the most useful thing to do next. Match 
 Never suggest reviewing or merging a draft. **Never point at an on-hold PR, and never point at a stack
 member that isn't the base** — those aren't the developer's move.
 
-**Only say "merge it" when `review_state` is `approved`.** A ready PR that's `awaiting_review` is
-waiting on a colleague, not on the developer to merge — say "waiting on review" and, once it's aged,
-"chase the reviewer". `changes_requested` is the developer's move — say "address the review". Telling
-someone to merge a PR a colleague hasn't approved is wrong and unhelpful.
+**Read `build_state` first, then `settled` — never `awaiting_review`.** Marking a PR ready just starts
+CI. `failing` → the build broke; tell the developer to fix it (their move). `pending`/`none` → CI is
+still running; say "wait for the build". When `build_state` is `passing`: a real review outcome wins
+(`approved` → "merge it"; `changes_requested` → "address the review"); otherwise `settled: false`
+means the work is still the developer's and the next step is finishing it, while `settled: true` is
+the only state where a reviewer is the answer. Never mention a reviewer while the build is pending or
+red, never on an unsettled PR, and only ever say "merge it" on a green, `approved` PR.
 
-- A stack whose **base is ready and `approved`** → `<base handle> (#<base>) is approved — merge it to unblock N above.`
-- A stack whose **base is ready but `awaiting_review`** → `<base handle> (#<base>) is the base and waiting on review — chase the reviewer so the N above can move.` Don't say merge.
-- A stack whose **base has `changes_requested`** → `<base handle> (#<base>) has changes requested — address them; N PRs wait on it.`
+- A stack whose **base is ready but its build is `failing`** → `<base handle> (#<base>) is the base and CI is failing — fix the build; N PRs wait on it.`
+- A stack whose **base is ready but building (`pending`/`none`)** → `<base handle> (#<base>) is the base and CI is still running — wait for the build; N PRs wait on it.`
+- A stack whose **base is green but not `settled`** → `<base handle> (#<base>) is the base and still yours — finish it; N PRs wait on it.` Don't mention review.
+- A stack whose **base is green and `settled`** → `<base handle> (#<base>) is the base, green and quiet Nd — get someone on it so the N above can move.` Don't say merge.
+- A stack whose **base is green and `approved`** → `<base handle> (#<base>) is approved — merge it to unblock N above.`
+- A stack whose **base is green with `changes_requested`** → `<base handle> (#<base>) has changes requested — address them; N PRs wait on it.`
 - A stack whose **base is a draft** → `<base handle> (#<base>) is the base — finish it; N PRs wait on it.`
 - A stack whose **base is on hold** → the whole stack is on hold; say so and look elsewhere for the
   next action. Don't nag any member.
-- A standalone ready PR → branch on `review_state`: `approved` → `<handle> (#N) is approved — merge it.`;
-  `awaiting_review` and fresh (`age_days` small) → `<handle> (#N) is waiting on review — chase a reviewer
-  if no one's looking.`; `awaiting_review` and older → `<handle> (#N) has been waiting on review Nd —
-  chase the reviewer.`; `changes_requested` → `<handle> (#N) has changes requested — address the review.`
+- A standalone ready PR → branch on `build_state` first: `failing` → `<handle> (#N)'s build is failing — fix it.`;
+  `pending`/`none` → `<handle> (#N) is building — wait for CI.`; then when `passing`:
+  `approved` → `<handle> (#N) is approved — merge it.`; `changes_requested` → `<handle> (#N) has changes
+  requested — address the review.`; `settled: false` → `<handle> (#N) is green and still yours — finish
+  it.`; `settled: true` → `<handle> (#N) has been green and quiet Nd — get someone to review it.`
 - A standalone draft you're working on → `You're testing <handle> (#N). Finish testing it and mark it ready when it passes.`
 - A standalone draft untouched a while (`idle_days` ≥ ~2) → `<handle> (#N) has been a draft Nd. Test it and mark it ready.`
+- **A PR on its third-or-later round of fixes since green** (`qa_rounds >= 3`) → this outranks the
+  review-state rules above, because the code isn't done: `<handle> (#N) is on its Nth round of fixes
+  since CI went green — the change may be bigger than the PR.` Say that and stop. Don't tell the
+  developer to split it or push on; that call needs context this check-in doesn't have.
 - Several branches touched, none finished → `You worked on 3 branches but didn't finish any. Pick one — #N is closest — and finish it.`
 - Time went to internal or refactor work while customer work waits → `This period was internal cleanup. #N is the customer feature that's waiting.`
 - A worktree active but no code changed → `#N was active but no code changed — it might be stuck. Unblock it or set it aside.`
