@@ -9,6 +9,18 @@
 # write-rules-check.rb — so a personal rule and a project rule can share a name
 # without colliding (sentinels are namespaced under personal-write-rules/).
 
+rails_test_directory_sweep:
+  type: block_once
+  bash_pattern: '(?:bin/rails|bin/docker-local/test|bin/dev)\s+(?:test\s+)?[^|;&\n]*?\btest/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/?(?=\s|$)'
+  context: >
+    You passed a test directory to the test runner. Name the specific test files
+    instead — `bin/rails test test/models/foo_test.rb test/jobs/bar_test.rb` — or a
+    single test with `:LINE`. To find which ones, grep for the callers of what you
+    changed. A directory sweep runs hundreds of unrelated tests and drags in failures
+    from areas you never touched, which you then have to triage and explain. You don't
+    need to catch those anyway — CI runs the whole suite once the pull request is
+    marked ready for review. Cover your change and let CI cover the rest.
+
 controller_view_helper_reach:
   type: warn
   files:
