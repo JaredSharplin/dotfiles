@@ -51,11 +51,7 @@ module Friction
   # file they came from so a marker can point back at it later.
   def self.entries(path:, lines:, window:)
     lines.filter_map do |line|
-      entry = begin
-        JSON.parse(line)
-      rescue JSON::ParserError
-        nil
-      end
+      entry = parse(line)
       next unless entry.is_a?(Hash) && !entry["isSidechain"] && entry["timestamp"]
       next unless window.cover?(Time.iso8601(entry["timestamp"]).localtime)
 
@@ -68,12 +64,12 @@ module Friction
     streaks = {}
 
     entries.flat_map do |entry|
-      origin = ancestor(entry, by_uuid) { tool_use(it) }
-      skill = entry["attributionSkill"] || ancestor(entry, by_uuid) { it["attributionSkill"] }&.fetch("attributionSkill", nil)
-      # `tool` throughout means what Claude was doing when the marker landed, which
+      use = tool_use(ancestor(entry, by_uuid) { tool_use(it) })
+      # `use` throughout means what Claude was doing when the marker landed, which
       # holds for a correction as much as a rejection — it's what makes "corrections
       # after a `chezmoi apply`" a group worth reading.
-      context = { entry:, origin:, skill: }
+      context = { entry:, use:,
+                  skill: entry["attributionSkill"] || ancestor(entry, by_uuid) { it["attributionSkill"] }&.dig("attributionSkill") }
 
       found = []
       found << marker(kind: "rejection", **context) if DENIAL_KINDS.include?(entry["toolDenialKind"])
@@ -84,9 +80,15 @@ module Friction
       in String => text if CORRECTION.match?(text) then found << marker(kind: "correction", **context)
       else nil
       end
-      found << marker(kind: "repeat_failure", **context) if repeat_failure?(entry, tool_use(origin)&.fetch("name", nil), streaks)
+      found << marker(kind: "repeat_failure", **context) if repeat_failure?(entry, use&.fetch("name", nil), streaks)
       found
     end
+  end
+
+  def self.parse(line)
+    JSON.parse(line)
+  rescue JSON::ParserError
+    nil
   end
 
   # Climbs the parent chain from a marker's turn looking for one the block accepts.
@@ -110,8 +112,7 @@ module Friction
 
   def self.blocks(entry) = Array(entry&.dig("message", "content")).select { it.is_a?(Hash) }
 
-  def self.marker(kind:, entry:, origin:, skill:, text: nil)
-    use = tool_use(origin)
+  def self.marker(kind:, entry:, use:, skill:, text: nil)
     tool = use&.fetch("name", nil)
     sample = sample_of(use)
     { kind:, skill:, text:, tool:, sample:, signature: signature_of(tool:, sample:),
@@ -127,8 +128,8 @@ module Friction
     return nil unless sample
 
     case tool
-    in "Bash" then sample.split(/\s+/).first(2).join(" ")
-    in "Read" | "Edit" | "Write" | "NotebookEdit" then File.extname(sample).then { it.empty? ? nil : it }
+    when "Bash" then sample.split(/\s+/).first(2).join(" ")
+    when "Read", "Edit", "Write", "NotebookEdit" then File.extname(sample).then { it.empty? ? nil : it }
     # A short argument is already a label — a Skill call's skill name, say. A long
     # one is content, and content doesn't group.
     else sample.length <= LABEL_LENGTH ? sample : nil
