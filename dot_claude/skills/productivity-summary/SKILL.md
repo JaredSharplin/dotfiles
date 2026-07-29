@@ -180,11 +180,17 @@ escape double quotes:
 Name the PRs here too — a bare number in a notification is useless. Keep each handle short so the
 line stays under ~120 chars.
 
+The next action here is whatever Step 3 chose — never a different one. In particular, a PR that just
+went ready means CI started: never write "ask for a review" or "get it reviewed" unless Step 3 landed
+on `settled: true`.
+
 ```bash
 # merged something:
-osascript -e 'display notification "Shipped the CSV export (#4821). Next: the payroll filter (#4830) is ready — ask for a review." with title "Productivity check-in" subtitle "<window>"'
-# marked a PR ready:
-osascript -e 'display notification "Marked the payroll filter (#4830) ready. Next: get it reviewed." with title "Productivity check-in" subtitle "<window>"'
+osascript -e 'display notification "Shipped the CSV export (#4821). Next: the payroll filter (#4830) is green and still yours — finish it." with title "Productivity check-in" subtitle "<window>"'
+# started CI on a PR:
+osascript -e 'display notification "Started CI on the payroll filter (#4830). Next: wait for the build." with title "Productivity check-in" subtitle "<window>"'
+# green and quiet, genuinely needs someone else:
+osascript -e 'display notification "The payroll filter (#4830) has been green and quiet 2d. Next: get someone to review it." with title "Productivity check-in" subtitle "<window>"'
 # nothing finished:
 osascript -e 'display notification "Nothing merged. The payroll filter (#4830) is a draft — finish testing it and mark it ready." with title "Productivity check-in" subtitle "<window>"'
 ```

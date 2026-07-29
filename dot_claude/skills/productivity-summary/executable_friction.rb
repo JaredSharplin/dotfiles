@@ -39,6 +39,18 @@ module Friction
   # provoked you sits several turns above it; measured over a real day, every
   # interrupt but one resolves within six.
   ANCESTOR_HOPS = 6
+  # Rows that are part of the conversation. A transcript also carries attachment,
+  # mode and pr-link rows, which sit in the parent chain but aren't turns — they
+  # have to be walked through without spending a hop, or the tool call a marker is
+  # about disappears behind them.
+  CONVERSATION_TYPES = %w[user assistant].freeze
+  # Hard stop on the climb. Hops only count conversation rows, so without this a
+  # long run of attachment rows — or a parent link that loops — walks forever.
+  MAX_ANCESTOR_STEPS = 40
+  # Pressing escape on a modal writes a rejection and an interrupt at the same
+  # instant. Same keypress, one piece of friction — on 2026-07-28, 16 of 18
+  # rejections had an interrupt twinned to them.
+  TWIN_SECONDS = 2
   # Longest tool argument still short enough to read as a label rather than content.
   LABEL_LENGTH = 40
 
@@ -53,9 +65,11 @@ module Friction
     lines.filter_map do |line|
       entry = parse(line)
       next unless entry.is_a?(Hash) && !entry["isSidechain"] && entry["timestamp"]
-      next unless window.cover?(Time.iso8601(entry["timestamp"]).localtime)
 
-      entry.merge(path:)
+      at = Time.iso8601(entry["timestamp"]).localtime
+      next unless window.cover?(at)
+
+      entry.merge(path:, at:)
     end
   end
 
@@ -77,11 +91,28 @@ module Friction
       found << marker(kind: "feedback", text: feedback, **context) if feedback
       case user_text(entry)
       in String => text if text.start_with?(INTERRUPT_PREFIX) then found << marker(kind: "interrupt", **context)
-      in String => text if CORRECTION.match?(text) then found << marker(kind: "correction", **context)
+      in String => text if typed?(entry) && CORRECTION.match?(text) then found << marker(kind: "correction", **context)
       else nil
       end
       found << marker(kind: "repeat_failure", **context) if repeat_failure?(entry, use&.fetch("name", nil), streaks)
       found
+    end.then { drop_twinned_interrupts(it) }
+  end
+
+  # A correction is something the developer typed. Slash-command bodies, task
+  # notifications and hook output all arrive as `type: "user"` too, and a skill body
+  # full of "never", "don't" and "stop" trips the regex on every tick — on
+  # 2026-07-28 that accounted for 25 of 49 "corrections" and task notifications for
+  # 5 more. Interrupt turns carry no `origin` at all, which is why this guards the
+  # correction branch rather than `user_text` itself.
+  def self.typed?(entry) = entry.dig("origin", "kind") == "human"
+
+  # One escape keypress on a modal, counted once.
+  def self.drop_twinned_interrupts(markers)
+    rejections = markers.select { it[:kind] == "rejection" }
+    markers.reject do |marker|
+      marker[:kind] == "interrupt" &&
+        rejections.any? { it[:session] == marker[:session] && (it[:at] - marker[:at]).abs <= TWIN_SECONDS }
     end
   end
 
@@ -99,10 +130,13 @@ module Friction
   # a skill that ran earlier in the session isn't to blame for this turn.
   def self.ancestor(entry, by_uuid)
     current = by_uuid[entry["sourceToolAssistantUUID"] || entry["parentUuid"]]
-    ANCESTOR_HOPS.times do
-      return nil if current.nil?
+    hops = 0
+    steps = 0
+    while current && hops < ANCESTOR_HOPS && steps < MAX_ANCESTOR_STEPS
       return current if yield(current)
 
+      hops += 1 if CONVERSATION_TYPES.include?(current["type"])
+      steps += 1
       current = by_uuid[current["parentUuid"]]
     end
     nil
@@ -115,7 +149,7 @@ module Friction
   def self.marker(kind:, entry:, use:, skill:, text: nil)
     tool = use&.fetch("name", nil)
     sample = sample_of(use)
-    { kind:, skill:, text:, tool:, sample:, signature: signature_of(tool:, sample:),
+    { kind:, skill:, text:, tool:, sample:, signature: signature_of(tool:, sample:), at: entry[:at],
       cwd: entry["cwd"], branch: entry["gitBranch"], session: entry["sessionId"],
       pointer: { file: entry[:path], uuid: entry["uuid"] } }
   end
@@ -193,6 +227,8 @@ module Friction
   end
 
   def self.real_user_turn?(entry)
+    return false unless typed?(entry)
+
     text = user_text(entry)
     !text.nil? && !text.start_with?(INTERRUPT_PREFIX)
   end
