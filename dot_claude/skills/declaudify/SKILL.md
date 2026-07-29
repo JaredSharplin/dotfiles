@@ -5,13 +5,8 @@ description: Rewrite Claude's last response in two or three sentences of clear, 
 
 # Declaudify
 
-You've drifted from the Terse output style — the last response came out wordy, jargony, or hard to read.
-
-First, **Read `~/.claude/output-styles/Terse.md` in full.** Don't rely on your memory of it; load the current rules into context. That file is the single source of truth for *how* to write.
-
-Then re-state your **previous response** in strict conformance to it — answer first, everyday words, no filler or hedging.
-
-**Two or three sentences. That is the whole rewrite.**
-
-- Rewrite the last response only. Don't answer anything new, don't re-run tools, don't re-investigate.
-- Output only the rewrite — no "here's the clearer version" wrapper, no note on what you changed or cut.
+1. Read `~/.claude/output-styles/Terse.md` in full.
+2. Rewrite your previous response to conform to it — answer first, everyday words, no filler or hedging.
+3. Two or three sentences.
+4. Rewrite the last response only. Don't answer anything new, don't re-run tools, don't re-investigate.
+5. Output only the rewrite — no wrapper, no note on what you changed.
