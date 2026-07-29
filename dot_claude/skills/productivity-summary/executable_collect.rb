@@ -41,49 +41,38 @@ rescue Errno::ENOENT
   ""
 end
 
-def git_activity(dir, since)
+# Everything one checked-out repo contributes to a tick: its branch, when the user
+# last committed to it at all, and the commits inside the window. `last_commit_at`
+# is deliberately unbounded by the window — it's how long a PR has been quiet, and
+# it comes from local git because this developer commits far more often than they
+# push, so a PR's last pushed commit can be a day behind the real work.
+# Only commits the user authored: a master merge brings other people's recent
+# commits into the branch, and --since alone would count them as progress.
+def repo_state(dir, since)
   return nil unless File.exist?(File.join(dir, ".git"))
 
-  # Only commits the user authored: a master merge brings other people's recent
-  # commits into the branch, and --since alone would count them as progress.
   author = git(dir, "config", "user.email").strip
   return nil if author.empty?
 
-  filters = ["--no-merges", "--author=#{author}", "--since=#{since.iso8601}"]
-  commits = git(dir, "log", *filters, "--oneline").lines.size
-  return nil if commits.zero?
+  mine = ["--no-merges", "--author=#{author}"]
+  state = {
+    repo: File.basename(dir),
+    branch: git(dir, "rev-parse", "--abbrev-ref", "HEAD").strip,
+    last_commit_at: git(dir, "log", "-1", *mine, "--format=%cI").strip.then { it.empty? ? nil : it }
+  }
+
+  windowed = [*mine, "--since=#{since.iso8601}"]
+  count = git(dir, "log", *windowed, "--oneline").lines.size
+  return state.merge(count: 0) if count.zero?
 
   insertions = deletions = 0
-  git(dir, "log", *filters, "--numstat", "--pretty=tformat:").each_line do |line|
+  git(dir, "log", *windowed, "--numstat", "--pretty=tformat:").each_line do |line|
     added, removed, = line.split("\t")
     insertions += added.to_i
     deletions += removed.to_i
   end
 
-  {
-    repo: File.basename(dir),
-    branch: git(dir, "rev-parse", "--abbrev-ref", "HEAD").strip,
-    count: commits,
-    insertions:,
-    deletions:
-  }
-end
-
-# When each checked-out branch last received a commit from the user, regardless of
-# the tick window. Local, not GitHub: this developer commits far more often than
-# they push, so a PR's last pushed commit can be a day behind the real work.
-def local_commit_times(dirs)
-  dirs.filter_map do |dir|
-    next unless File.exist?(File.join(dir, ".git"))
-
-    author = git(dir, "config", "user.email").strip
-    next if author.empty?
-
-    last = git(dir, "log", "-1", "--no-merges", "--author=#{author}", "--format=%cI").strip
-    next if last.empty?
-
-    [git(dir, "rev-parse", "--abbrev-ref", "HEAD").strip, last]
-  end.to_h
+  state.merge(count:, insertions:, deletions:)
 end
 
 # Labels that mean the PR ships something to customers. Everything else
@@ -313,8 +302,9 @@ checkpoint =
     Time.new(now.year, now.month, now.day, 0, 0, 0, now.utc_offset)
   end
 
-commits = REPOS.filter_map { git_activity(it, checkpoint) }
-local_commits = local_commit_times(REPOS)
+repo_states = REPOS.filter_map { repo_state(it, checkpoint) }
+commits = repo_states.select { it[:count].positive? }.map { it.except(:last_commit_at) }
+last_commit_by_branch = repo_states.filter_map { [it[:branch], it[:last_commit_at]] if it[:last_commit_at] }.to_h
 github = github_activity(checkpoint, now)
 
 # The previous record is parsed JSON (string keys); this tick's in_flight is
@@ -348,7 +338,7 @@ github[:in_flight].each do |pr|
   # How long since the developer last committed to this PR, in working days. The
   # local commit usually leads the pushed one (they commit far more than they push),
   # so take whichever is later.
-  last_commit = [local_commits[pr[:head_branch]], pr[:pushed_commit_at]].compact.max
+  last_commit = [last_commit_by_branch[pr[:head_branch]], pr[:pushed_commit_at]].compact.max
   pr[:quiet_days] = working_days_between(last_commit, now)
 
   # A ready PR whose build passes and whose commits have stopped. Marking a PR
