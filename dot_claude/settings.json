@@ -175,7 +175,6 @@
     "cc-zjstatus@claude-code-zellij-status": true,
     "ruby-lsp@claude-plugins-official": true
   },
-  "outputStyle": "Terse",
   "effortLevel": "high",
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,

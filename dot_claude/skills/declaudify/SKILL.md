@@ -5,8 +5,7 @@ description: Rewrite Claude's last response in two or three sentences of clear, 
 
 # Declaudify
 
-1. Read `~/.claude/output-styles/Terse.md` in full.
-2. Rewrite your previous response to conform to it — answer first, everyday words, no filler or hedging.
-3. Two or three sentences.
-4. Rewrite the last response only. Don't answer anything new, don't re-run tools, don't re-investigate.
-5. Output only the rewrite — no wrapper, no note on what you changed.
+1. Rewrite your previous response — answer first, everyday words, no filler or hedging.
+2. Two or three sentences.
+3. Rewrite the last response only. Don't answer anything new, don't re-run tools, don't re-investigate.
+4. Output only the rewrite — no wrapper, no note on what you changed.
