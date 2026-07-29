@@ -30,13 +30,6 @@ after: `the reimport-window selector (#56524)`, `the flag removal (#56263)`. Thi
 the status list, the next action, and the notification. The number is a secondary reference, never
 the way you refer to the PR.
 
-**Ask with the question tool, not prose.** If a tick leaves you with a question about an action to
-take — offering to apply the `on-hold` label, flip a PR back to draft, chase a named reviewer, or any
-change you'd make on the developer's behalf — put it through the AskUserQuestion tool, each option a
-concrete action. Never end on a prose "say the word", "let me know if you want…", or a hand-typed
-menu. The report itself (Steps 2–4) stays advisory and needs no question; this rule is only for when
-you'd otherwise ask in prose. Most ticks have nothing to ask and just end after the notification.
-
 What actually counts as work finished:
 
 - **A PR merged for customers** — a merged PR labelled `feature` or `bug`. This is the main thing.

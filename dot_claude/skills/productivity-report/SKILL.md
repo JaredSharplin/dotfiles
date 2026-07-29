@@ -98,8 +98,8 @@ Two rules, both absolute:
   metaphors, no invented phrases. Don't soften a finding and don't editorialise about the developer's
   frustration — the interrupts locate the harness bug, they aren't the subject.
 
-## Step 5 — offer to apply
+## Step 5 — leave the drafts on the table
 
-If there's at least one drafted rule, use `AskUserQuestion` to offer handing it to `/capture-rule`,
-one option per rule plus a "none of these" option. Never end on a prose "let me know" or a
-hand-typed menu. If nothing was drafted, just end.
+End with the drafted rules laid out, each naming the file it belongs in. Don't ask whether to apply
+them and don't apply them yourself — the report is advisory, and `/capture-rule` is there when the
+developer wants one written. If nothing was drafted, just end.

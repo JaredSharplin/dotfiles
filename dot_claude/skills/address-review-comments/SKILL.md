@@ -75,7 +75,7 @@ Group threads by file and by topic — reviewers often leave several comments on
 - **Defer** — agree it's worth doing, but not in this PR. Reply explaining why and where it will be tracked.
 - **Dispute** — disagree with the suggestion. Reply explaining the reasoning.
 
-Use AskUserQuestion if the right action isn't obvious. Default to **Fix** unless the reviewer's comment is clearly a question, a nit, or you have a substantive reason to push back.
+Default to **Fix** unless the reviewer's comment is clearly a question, a nit, or you have a substantive reason to push back. Only stop and ask when a group is genuinely ambiguous.
 
 ## Step 4: Make the changes
 
