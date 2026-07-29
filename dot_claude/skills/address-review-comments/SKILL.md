@@ -99,11 +99,13 @@ If any fixed group touched UI (views, components, JS, CSS), dispatch the `manual
 Agent({
   subagent_type: "manual-verifier",
   description: "Verify <change> in the browser",
-  prompt: "Navigate to https://<worktree>.test/<path>. <Specific scenario the change affects>. Expected: <stated outcome>. Report PASS/FAIL with evidence."
+  prompt: "Base host: https://<worktree>.test. How to get there: <Section → Page → control>. Scenario: <specific scenario the change affects>. Expected: <stated outcome>. Report PASS/FAIL with evidence."
 })
 ```
 
-The subagent returns one of PASS / FAIL / BLOCKED. On FAIL, surface the report to the user — don't try to fix and re-verify automatically. On BLOCKED (puma-dev down, login failed, etc.), surface and stop.
+**Pass the click path, not a deep URL** — the subagent reaches features by clicking, since payaus paths are often Turbo Frames that render as bare fragments when hit directly. You've just read the code, so name the nav path.
+
+The subagent returns PASS / FAIL / PARTIAL / BLOCKED. On anything but PASS, surface the report to the user and stop — don't fix and re-verify automatically.
 
 ## Step 6: Commit
 
