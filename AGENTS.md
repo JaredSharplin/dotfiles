@@ -6,6 +6,23 @@ This is a [chezmoi](https://www.chezmoi.io/)-managed dotfiles repository. Source
 
 Commit dotfiles changes straight to `main`. Commit when a logical unit is done; push only when asked.
 
+## Linting Ruby
+
+`standardrb` (and `standardrb --fix`) — bare, not `bundle exec`: this repo has no bundle, so the gem
+comes from the mise-global ruby (`gem install standard`). Ruby here is mostly extensionless
+`executable_` scripts; standardrb finds those by shebang, so a bare run covers everything.
+
+[standardrb](https://github.com/standardrb/standard) is deliberately not configurable — `.standard.yml`
+carries path ignores only. When it complains, change the code. Adding a rule entry there, or bringing
+back a `.rubocop.yml`, is off the table.
+
+`.githooks/pre-commit` runs `standardrb --fix` over staged Ruby and re-stages the result, so nothing
+lands unformatted. It's enabled by local config, which a fresh clone won't have:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Development Workflow Architecture
 
 Parallel development runs through Claude Code's **agent view** (`claude agents`). Each dispatched

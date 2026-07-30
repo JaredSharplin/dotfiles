@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs standardrb --fix over every staged Ruby file and re-stages the result, so
+# nothing lands unformatted. Remaining offences block the commit — fix those in
+# the code, never by adding rules to .standard.yml (standard has no style knobs
+# on purpose).
+#
+# Enabled per clone with `git config core.hooksPath .githooks`. That setting is
+# local rather than committed, so a fresh clone needs it run again.
+
+require "digest"
+require "open3"
+
+# The shebang resolves whichever ruby is first on PATH, which for a hook invoked
+# outside an interactive shell can be macOS's 2.6. Say so instead of dying on a
+# NameError the first time a block uses `it`.
+abort "pre-commit needs Ruby 3.4+, found #{RUBY_VERSION} — is mise on PATH?" if RUBY_VERSION < "3.4"
+
+def git(*args)
+  stdout, stderr, status = Open3.capture3("git", *args)
+  abort "git #{args.first} failed: #{stderr.strip}" unless status.success?
+  stdout
+end
+
+def standardrb(*args)
+  Open3.capture3("standardrb", "--force-exclusion", *args)
+rescue Errno::ENOENT
+  abort "standardrb not found — run `gem install standard`"
+end
+
+# Chezmoi strips the executable bit into an `executable_` filename prefix, so
+# most Ruby here has no .rb extension and has to be recognised by its shebang.
+def ruby_file?(path)
+  return false unless File.file?(path)
+  return true if path.end_with?(".rb")
+
+  File.open(path) { it.readline(chomp: true) }.match?(/\A#!.*ruby/)
+rescue EOFError
+  false
+end
+
+def paths(*args)
+  git(*args, "-z").split("\0")
+end
+
+staged = paths("diff", "--cached", "--name-only", "--diff-filter=ACM").select { ruby_file?(it) }
+exit 0 if staged.empty?
+
+partially_staged = staged & paths("diff", "--name-only")
+unless partially_staged.empty?
+  abort <<~MESSAGE
+    Staged Ruby files also have unstaged changes:
+    #{partially_staged.map { "  #{it}" }.join("\n")}
+    standardrb --fix rewrites the whole file, so re-staging it would sweep in work
+    you did not stage. Stage or stash the rest, then commit again.
+  MESSAGE
+end
+
+digests = staged.to_h { [it, Digest::SHA256.file(it).hexdigest] }
+standardrb("--fix", *staged)
+
+fixed = staged.reject { Digest::SHA256.file(it).hexdigest == digests.fetch(it) }
+unless fixed.empty?
+  git("add", "--", *fixed)
+  warn "standardrb fixed and re-staged:"
+  fixed.each { warn "  #{it}" }
+end
+
+stdout, _stderr, status = standardrb(*staged)
+exit 0 if status.success?
+
+warn stdout
+abort "standardrb found offences it cannot fix — fix them in the code, not in .standard.yml"
