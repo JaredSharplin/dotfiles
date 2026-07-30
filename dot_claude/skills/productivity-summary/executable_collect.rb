@@ -157,7 +157,7 @@ def open_pr_details(open_prs)
   repos = open_prs.filter_map { it.dig("repository", "nameWithOwner") }.uniq
   repos.flat_map do |repo|
     gh_json("pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
-            "--json", "number,headRefName,baseRefName,reviewDecision,statusCheckRollup,commits")
+            "--json", "number,headRefName,headRefOid,baseRefName,reviewDecision,statusCheckRollup,commits")
   end
 end
 
@@ -204,6 +204,7 @@ def github_activity(since, now)
   review_by_number = refs.to_h { [it["number"], REVIEW_STATES[it["reviewDecision"]]] }
   build_by_number = refs.to_h { [it["number"], build_state(it["statusCheckRollup"])] }
   head_by_number = refs.to_h { [it["number"], it["headRefName"]] }
+  head_sha_by_number = refs.to_h { [it["number"], it["headRefOid"]] }
   pushed_commit_by_number = refs.to_h { [it["number"], Array(it["commits"]).filter_map { it["committedDate"] }.max] }
   {
     shipped: merged.map do |pr|
@@ -221,6 +222,7 @@ def github_activity(since, now)
         review_state: review_by_number[pr["number"]],
         build_state: build_by_number[pr["number"]],
         head_branch: head_by_number[pr["number"]],
+        head_sha: head_sha_by_number[pr["number"]],
         pushed_commit_at: pushed_commit_by_number[pr["number"]],
         stack_base: base_by_number[pr["number"]] }
     end,
