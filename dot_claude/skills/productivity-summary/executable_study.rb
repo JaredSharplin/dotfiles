@@ -77,16 +77,6 @@ end
 # Everything a payaus title carries before it says what the PR does: its stack
 # position, its ticket reference, its type. They come in any order, so strip until
 # nothing more comes off.
-#   [7/7]                    ENG-4909              (feature) |
-LEADING_NOISE = %r{\A(?:\s*\[\d+/\d+\]|\s*[A-Z]{2,}-\d+|\s*\([^)]*\)\s*\|)+\s*}
-
-# "ENG-4909 (fix) | Hide non-payroll integrations" -> "Hide non-payroll
-# integrations". The number is on the plaque already, so the handle carries only
-# what the PR does.
-def handle(title) = title.to_s.sub(LEADING_NOISE, "").strip
-
-def days(value) = value.to_f.round
-
 def age_label(age_in_days)
   return "#{(age_in_days * 24).round}h" if age_in_days < 1
 
@@ -100,7 +90,9 @@ end
 def flowering?(pr) = pr["settled"]
 
 # How far past tending a PR is, 0 to 1. Six working days of silence is fully gone.
-def neglect(pr) = [pr["idle_days"].to_f / 6.0, 1.0].min
+# A PR set aside on purpose is overwintered, not neglected — it never wilts, because
+# wilting is what asks the developer for attention.
+def neglect(pr) = pr["on_hold"] ? 0.0 : [pr["idle_days"].to_f / 6.0, 1.0].min
 
 def blend(from, to, ratio)
   low, high = [from, to].map { it.scan(/\h\h/).map { |part| part.to_i(16) } }
@@ -166,37 +158,6 @@ end
 
 def bud(tip, colour) = %(<circle cx="#{tip[0].round(1)}" cy="#{tip[1].round(1)}" r="3.1" fill="#{colour}"/>)
 
-# The status wording follows the same rules the check-in used: read build_state
-# before settled, never review_state on its own, and never present a stack member
-# as the developer's next move.
-def state_label(pr, base_handles)
-  return "on hold" if pr["on_hold"]
-
-  base = pr["stack_base"]
-  return "blocked behind #{base_handles[base]} (##{base})" if base && base != pr["number"]
-  return draft_state(pr) if pr["isDraft"]
-
-  ready_state(pr)
-end
-
-def draft_state(pr)
-  pr["idle_days"].to_f >= 2 ? "draft, untouched #{days(pr['idle_days'])}d" : "draft, active"
-end
-
-def ready_state(pr)
-  case pr["build_state"]
-  when "failing" then "CI failing"
-  when "pending", "none" then "CI running"
-  else
-    case pr["review_state"]
-    when "approved" then "approved, ready to merge"
-    when "changes_requested" then "changes requested"
-    else
-      pr["settled"] ? "green and quiet #{days(pr['quiet_days'])}d, needs a reviewer" : "green, still yours"
-    end
-  end
-end
-
 # Every label the source asks for, so a silently-dropped line can be caught. The
 # renderer discards anything it can't parse without a word of complaint — a
 # reversed ER cardinality loses its whole relationship at exit 0.
@@ -253,7 +214,7 @@ end
 # to that PR's specimen sheet — the row is where you notice something needs
 # tending, the sheet below is where you tend it. The variety name links out to
 # GitHub.
-def title_html(pr) = escape(handle(pr["title"]))
+def title_html(pr) = escape(pr["handle"])
 
 def sown_label(pr) = age_label(pr["age_days"].to_f)
 
@@ -375,8 +336,7 @@ Planted = Data.define(:card, :sheet)
 # repeats what its stake already said and costs a screen of scroll, so the ones
 # still waiting are counted in a single line instead.
 def build_page(prs)
-  handles = handles_by_number(prs)
-  planted = prs.map { press(it, state_label(it, handles)) }
+  planted = prs.map { press(it) }
 
   page(cards: planted.map(&:card).join,
        sheets: planted.filter_map(&:sheet).join,
@@ -385,7 +345,8 @@ end
 
 # The stake for the row, and the pressed sheet behind it when there's a diagram to
 # press. Rendering the diagram is what decides whether a sheet exists at all.
-def press(pr, state)
+def press(pr)
+  state = pr["status"]
   written = entry(pr["number"]) || {}
   mmd = written.dig("diagram", "mmd")
   svg, error = mmd.to_s.strip.empty? ? [nil, nil] : render_svg(mmd)
@@ -441,13 +402,10 @@ def signature(prs)
   prs.map { "#{it['number']}:#{it['head_sha']}:#{entry(it['number'])&.dig('generated_at')}" }.sort.join("\n")
 end
 
-def handles_by_number(prs) = prs.to_h { [it["number"], handle(it["title"])] }
-
 def report_stale(prs)
   needing, fresh = prs.partition { stale?(it) }
   written = needing.map do |pr|
-    { number: pr["number"], title: pr["title"], handle: handle(pr["title"]), url: pr["url"],
-      repo: pr["repo"], isDraft: pr["isDraft"], head_sha: pr["head_sha"], head_branch: pr["head_branch"] }
+    pr.slice("number", "title", "handle", "url", "repo", "isDraft", "head_sha", "head_branch")
   end
   puts JSON.pretty_generate({ stale: written, fresh: fresh.map { it["number"] } })
 end

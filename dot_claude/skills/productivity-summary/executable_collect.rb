@@ -139,6 +139,71 @@ end
 
 def label_names(pr) = Array(pr["labels"]).map { it["name"] }
 
+# Everything a payaus title carries before it says what the PR does: stack
+# position, ticket reference, type. They come in any order.
+#   [7/7]                     ENG-4909              (feature) |
+TITLE_NOISE = %r{\A(?:\s*\[\d+/\d+\]|\s*[A-Z]{2,}-\d+|\s*\([^)]*\)\s*\|)+\s*}
+
+# The plain-English handle for a PR. A bare number tells the developer nothing —
+# they think in what the PR does — so everything that speaks about a PR speaks
+# through this.
+def handle(title) = title.to_s.sub(TITLE_NOISE, "").strip
+
+def days(value) = value.to_f.round
+
+def ordinal(count)
+  return "#{count}th" if (11..13).cover?(count % 100)
+
+  "#{count}#{{ 1 => 'st', 2 => 'nd', 3 => 'rd' }.fetch(count % 10, 'th')}"
+end
+
+# One PR's status in the words the check-in speaks. Derived here, next to the
+# fields it reads, so the page and the narration can never word it differently.
+# Read build_state before settled, and never review_state on its own: marking a PR
+# ready only starts CI.
+def status_line(pr, handles)
+  [status_phrase(pr, handles), *status_notes(pr)].join(" · ")
+end
+
+def status_phrase(pr, handles)
+  base = pr[:stack_base]
+  return "on hold" if pr[:on_hold]
+  return "blocked behind #{handles[base]} (##{base})" if base && base != pr[:number]
+  return draft_phrase(pr) if pr[:isDraft]
+
+  ready_phrase(pr)
+end
+
+def draft_phrase(pr)
+  pr[:idle_days].to_f >= 2 ? "draft, untouched #{days(pr[:idle_days])}d" : "draft, active"
+end
+
+def ready_phrase(pr)
+  case pr[:build_state]
+  when "failing" then "CI failing"
+  when "pending", "none" then "CI running"
+  else
+    case pr[:review_state]
+    when "approved" then "approved, ready to merge"
+    when "changes_requested" then "changes requested"
+    else
+      pr[:settled] ? "green and quiet #{days(pr[:quiet_days])}d, needs a reviewer" : "green, still yours"
+    end
+  end
+end
+
+# What the status phrase alone would leave out: the effort that went in this
+# period, so a PR worked on never reads as untouched, and repeated rounds of fixes
+# after CI went green, which mean the change isn't holding up.
+def status_notes(pr)
+  notes = []
+  if (work = pr[:work_this_period])
+    notes << "#{work[:count]} commit#{'s' if work[:count] != 1} this period (+#{work[:insertions]}/−#{work[:deletions]})"
+  end
+  notes << "#{ordinal(pr[:qa_rounds])} round of fixes since it went green" if pr[:qa_rounds].to_i >= 2
+  notes
+end
+
 # One PR's statusCheckRollup reduced to passing / pending / failing / none. An
 # empty rollup (a draft, or a ready PR whose CI hasn't reported yet) is "none".
 def build_state(rollup)
@@ -209,12 +274,14 @@ def github_activity(since, now)
   {
     shipped: merged.map do |pr|
       labels = label_names(pr)
-      { number: pr["number"], title: pr["title"], url: pr["url"], labels:,
+      { number: pr["number"], title: pr["title"], handle: handle(pr["title"]),
+        url: pr["url"], labels:,
         customer_facing: labels.intersect?(CUSTOMER_LABELS) }
     end,
     in_flight: open_prs.map do |pr|
       labels = label_names(pr)
-      { number: pr["number"], title: pr["title"], url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
+      { number: pr["number"], title: pr["title"], handle: handle(pr["title"]),
+        url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
         isDraft: pr["isDraft"], labels:,
         age_days: working_days_between(pr["createdAt"], now),
         idle_days: working_days_between(pr["updatedAt"], now),
@@ -350,6 +417,11 @@ github[:in_flight].each do |pr|
   pr[:settled] = !pr[:isDraft] && pr[:build_state] == "passing" &&
                  pr[:quiet_days].to_f >= SETTLED_QUIET_DAYS
 end
+
+# Last, because the wording reads every field above it. Handles are resolved for
+# the whole set first so a stack member can name the PR it waits on.
+handles = github[:in_flight].to_h { [it[:number], handle(it[:title])] }
+github[:in_flight].each { it[:status] = status_line(it, handles) }
 
 record = {
   ts: now.utc.iso8601,
