@@ -8,6 +8,7 @@ brew "diffnav"        # GitHub-style file-tree diff pager (used by lazygit PR-di
 brew "git-town"       # Git workflow automation
 brew "neovim"         # Text editor
 brew "lazygit"        # Git TUI
+brew "zellij"         # Terminal multiplexer
 
 # Shell enhancements
 brew "starship"             # Cross-shell prompt
