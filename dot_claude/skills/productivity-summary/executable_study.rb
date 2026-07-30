@@ -1,17 +1,17 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Builds the PR study page: every open PR with its status, a diagram of what the
-# change does, and the comprehension questions worth answering about it. The page
-# is plain HTML with no JavaScript — Vimium does the navigating, and each question
-# is a <details> so Enter reveals its answer.
+# Builds the PR study page: every open PR as a plant in a garden, each with a
+# diagram of what the change does and the comprehension questions worth answering
+# about it. Opening a plant's sheet is a plain link and `:target` CSS, so Vimium
+# does the navigating; the only script is Escape-to-close.
 #
 # Reads the status of each PR from the newest record collect.rb wrote, and the
 # diagram plus questions from ~/.local/share/productivity/study/<number>.json.
 #
-# Usage: study.rb --stale     list the PRs whose diagram/questions need writing
-#        study.rb --render    render diagrams, build the page, open it on change
-#          --no-open          build the page without ever opening it
+# Usage: study.rb             render diagrams, build the page, open it on change
+#        study.rb --stale     list the PRs whose diagram/questions need writing
+#        study.rb --no-open   build the page without ever opening it
 
 require "json"
 require "time"
@@ -25,12 +25,12 @@ PAGE_PATH = File.join(DATA_DIR, "study.html")
 SIGNATURE_PATH = File.join(STUDY_DIR, ".page-signature")
 RENDERER = File.join(Dir.home, ".local", "share", "mermaid-render", "render.mjs")
 
-# Mermaid headers beautiful-mermaid can render. Anything else it rejects at the
-# header, so refuse it here rather than writing a broken card.
-RENDERABLE = ["graph ", "flowchart ", "stateDiagram-v2", "sequenceDiagram", "classDiagram", "erDiagram"].freeze
-
 # Lines that configure the diagram rather than label anything in it.
-DIRECTIVE = /^\s*(classDef|class|style|linkStyle|participant|actor|%%)/
+DIRECTIVE = /^\s*(class|style|linkStyle|participant|actor|%%)/
+
+# Node text, and any quoted label, sits enclosed. Used both to collect labels and
+# to blank them out before looking for what follows an arrow.
+ENCLOSED = /\[[^\]\[]+\]|\{[^}{]+\}|\([^)(]+\)|"[^"]+"/
 
 def today = Time.now.strftime("%Y-%m-%d")
 
@@ -51,10 +51,13 @@ end
 
 def open_prs = Array(latest_tick.dig("github", "in_flight")).sort_by { it["pushed_commit_at"].to_s }.reverse
 
-def entry_path(number) = File.join(STUDY_DIR, "#{number}.json")
+# Read once per PR per run: both the page build and the change signature ask for
+# the same entries. `fetch` with a block memoises a nil result too, which `||=`
+# would re-read every time.
+def entry(number) = (@entries ||= {}).fetch(number) { @entries[number] = read_entry(number) }
 
-def entry(number)
-  path = entry_path(number)
+def read_entry(number)
+  path = File.join(STUDY_DIR, "#{number}.json")
   return nil unless File.exist?(path)
 
   JSON.parse(File.read(path))
@@ -74,45 +77,34 @@ end
 # Everything a payaus title carries before it says what the PR does: its stack
 # position, its ticket reference, its type. They come in any order, so strip until
 # nothing more comes off.
-LEADING_NOISE = [
-  %r{\A\s*\[\d+/\d+\]\s*},   # [7/7]
-  /\A\s*[A-Z]{2,}-\d+\s*/,   # ENG-4909
-  /\A\s*\([^)]*\)\s*\|\s*/   # (feature) |
-].freeze
+#   [7/7]                    ENG-4909              (feature) |
+LEADING_NOISE = %r{\A(?:\s*\[\d+/\d+\]|\s*[A-Z]{2,}-\d+|\s*\([^)]*\)\s*\|)+\s*}
 
 # "ENG-4909 (fix) | Hide non-payroll integrations" -> "Hide non-payroll
 # integrations". The number is on the plaque already, so the handle carries only
 # what the PR does.
-def handle(title)
-  text = title.to_s.strip
-  loop do
-    shorter = LEADING_NOISE.reduce(text) { |value, pattern| value.sub(pattern, "") }
-    break text if shorter == text
-
-    text = shorter
-  end.strip
-end
+def handle(title) = title.to_s.sub(LEADING_NOISE, "").strip
 
 def days(value) = value.to_f.round
 
-def age_label(days)
-  return "#{(days * 24).round}h" if days < 1
+def age_label(age_in_days)
+  return "#{(age_in_days * 24).round}h" if age_in_days < 1
 
-  "#{days.round}d"
+  "#{age_in_days.round}d"
 end
 
-# A flowering PR is one that's genuinely done with the developer: green, and
-# nothing left for them to do on it. Everything still theirs is a plant that
-# wilts the longer it goes untended.
-def flowering?(pr) = !pr["isDraft"] && pr["build_state"] == "passing"
+# A flowering PR is one that's genuinely done with the developer: ready, green and
+# quiet. That is exactly what the collector's `settled` means, so read it rather
+# than re-deriving a weaker version. Everything still theirs is a plant that wilts
+# the longer it goes untended.
+def flowering?(pr) = pr["settled"]
 
 # How far past tending a PR is, 0 to 1. Six working days of silence is fully gone.
 def neglect(pr) = [pr["idle_days"].to_f / 6.0, 1.0].min
 
 def blend(from, to, ratio)
-  pair = [from, to].map { it.scan(/\h\h/).map { |part| part.to_i(16) } }
-  mixed = pair[0].zip(pair[1]).map { |low, high| (low + ((high - low) * ratio)).round }
-  format("#%02x%02x%02x", *mixed)
+  low, high = [from, to].map { it.scan(/\h\h/).map { |part| part.to_i(16) } }
+  format("#%02x%02x%02x", *low.zip(high).map { |start, finish| (start + ((finish - start) * ratio)).round })
 end
 
 def soil_style(pr)
@@ -124,8 +116,8 @@ end
 # however far it has bent over.
 def along(origin, control, tip, ratio)
   inverse = 1 - ratio
-  [0, 1].map do |axis|
-    (inverse**2 * origin[axis]) + (2 * inverse * ratio * control[axis]) + (ratio**2 * tip[axis])
+  origin.zip(control, tip).map do |from, via, to|
+    (inverse**2 * from) + (2 * inverse * ratio * via) + (ratio**2 * to)
   end
 end
 
@@ -205,11 +197,6 @@ def ready_state(pr)
   end
 end
 
-def diagram_type(mmd)
-  first = mmd.to_s.lines.map(&:strip).find { !it.empty? }
-  RENDERABLE.find { first.to_s.start_with?(it) }&.strip
-end
-
 # Every label the source asks for, so a silently-dropped line can be caught. The
 # renderer discards anything it can't parse without a word of complaint — a
 # reversed ER cardinality loses its whole relationship at exit 0.
@@ -227,11 +214,11 @@ end
 # message label.
 def line_labels(raw)
   line = raw.rstrip
-  bracketed = line.scan(/\[([^\]\[]+)\]|\{([^}{]+)\}|\(([^)(]+)\)|"([^"]+)"/).flatten.compact
-  bare = line.gsub(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)|"[^"]*"/, "")
+  enclosed = line.scan(ENCLOSED).map { it[1..-2] }
+  bare = line.gsub(ENCLOSED, "")
   after_arrow = bare[/(?:-->>|->>|-->|--x|-x|--\)|==>|--)[^:]*:\s*(.+)\z/, 1]
   note = line[/\A\s*[Nn]ote\s[^:]*:\s*(.+)\z/, 1]
-  bracketed + [after_arrow, note].compact
+  enclosed + [after_arrow, note].compact
 end
 
 def svg_labels(svg) = svg.scan(%r{<text[^>]*>(.*?)</text>}m).flatten.map { CGI.unescapeHTML(it.gsub(/<[^>]+>/, "")) }
@@ -266,16 +253,21 @@ end
 # to that PR's specimen sheet — the row is where you notice something needs
 # tending, the sheet below is where you tend it. The variety name links out to
 # GitHub.
-def plant_card(pr, state, count, sheet:)
+def title_html(pr) = escape(handle(pr["title"]))
+
+def sown_label(pr) = age_label(pr["age_days"].to_f)
+
+def plant_card(pr, state:, written:, sheet:)
+  count = Array(written["questions"]).size
   label = count.zero? ? "no notes yet" : "#{count} note#{'s' if count > 1}"
   notes = sheet ? "<a class=\"notes\" href=\"#pr-#{pr['number']}\">#{label}</a>" : "<div class=\"notes idle\">#{label}</div>"
 
   <<~HTML
     <div class="stake#{' bloomed' if flowering?(pr)}" style="#{soil_style(pr)}">
-      <a class="specimen" href="#{sheet ? "#pr-#{pr['number']}" : escape(pr['url'])}" title="#{escape(handle(pr['title']))}">#{plant_svg(pr)}</a>
+      <a class="specimen" href="#{sheet ? "#pr-#{pr['number']}" : escape(pr['url'])}" title="#{title_html(pr)}">#{plant_svg(pr)}</a>
       <div class="plaque">
-        <a class="variety" href="#{escape(pr['url'])}">#{escape(handle(pr['title']))}</a>
-        <div class="sown">##{pr['number']} · sown #{age_label(pr['age_days'].to_f)}</div>
+        <a class="variety" href="#{escape(pr['url'])}">#{title_html(pr)}</a>
+        <div class="sown">##{pr['number']} · sown #{sown_label(pr)}</div>
         <div class="state">#{escape(state)}</div>
         #{notes}
       </div>
@@ -283,7 +275,7 @@ def plant_card(pr, state, count, sheet:)
   HTML
 end
 
-def section_html(pr, state, written, svg, warning)
+def section_html(pr, state:, written:, svg:, warning:)
   questions = Array(written["questions"]).map { question_html(it) }.join
   notes = questions.empty? ? "" : "<p class=\"eyebrow\">Field notes</p>#{questions}"
   body = svg ? "#{warning}<div class=\"diagram\">#{svg}</div>#{notes}" : warning
@@ -293,8 +285,8 @@ def section_html(pr, state, written, svg, warning)
       <a class="scrim" href="#" aria-label="Close"></a>
       <article>
       <a class="close" href="#" aria-label="Close">&times;</a>
-      <h2><a href="#{escape(pr['url'])}">#{escape(handle(pr['title']))}<span class="num">##{pr['number']}</span></a></h2>
-      <p class="meta">#{escape(pr['head_branch'])} · #{escape(state)} · sown #{age_label(pr['age_days'].to_f)}</p>
+      <h2><a href="#{escape(pr['url'])}">#{title_html(pr)}<span class="num">##{pr['number']}</span></a></h2>
+      <p class="meta">#{escape(pr['head_branch'])} · #{escape(state)} · sown #{sown_label(pr)}</p>
       #{body}
       </article>
     </div>
@@ -377,28 +369,33 @@ def styles
   CSS
 end
 
-# Every PR gets a row; only a PR with a diagram gets a section. A placeholder
-# section repeats what its row already said and costs a screen of scroll, so the
-# ones still waiting are counted in a single line instead.
-def build_page(prs, base_handles)
-  cards = []
-  sections = []
+Planted = Data.define(:card, :sheet)
 
-  prs.each do |pr|
-    state = state_label(pr, base_handles)
-    written = entry(pr["number"]) || {}
-    mmd = written.dig("diagram", "mmd")
-    svg, error = mmd.to_s.strip.empty? ? [nil, nil] : render_svg(mmd)
-    dropped = svg ? missing_labels(mmd, svg) : []
+# Every PR gets a stake; only a PR with a diagram gets a sheet. A placeholder sheet
+# repeats what its stake already said and costs a screen of scroll, so the ones
+# still waiting are counted in a single line instead.
+def build_page(prs)
+  handles = handles_by_number(prs)
+  planted = prs.map { press(it, state_label(it, handles)) }
 
-    sheet = !(svg || error).nil?
-    cards << plant_card(pr, state, Array(written["questions"]).size, sheet:)
-    next unless sheet
+  page(cards: planted.map(&:card).join,
+       sheets: planted.filter_map(&:sheet).join,
+       waiting: planted.count { it.sheet.nil? })
+end
 
-    sections << section_html(pr, state, written, svg, warning_html(error, dropped))
-  end
+# The stake for the row, and the pressed sheet behind it when there's a diagram to
+# press. Rendering the diagram is what decides whether a sheet exists at all.
+def press(pr, state)
+  written = entry(pr["number"]) || {}
+  mmd = written.dig("diagram", "mmd")
+  svg, error = mmd.to_s.strip.empty? ? [nil, nil] : render_svg(mmd)
+  sheet = svg || error
 
-  page(cards.join, sections.join, prs.size - sections.size)
+  Planted.new(
+    card: plant_card(pr, state:, written:, sheet:),
+    sheet: sheet && section_html(pr, state:, written:, svg:,
+                                 warning: warning_html(error, svg ? missing_labels(mmd, svg) : []))
+  )
 end
 
 def warning_html(error, dropped)
@@ -408,8 +405,8 @@ def warning_html(error, dropped)
   "<p class=\"warn\">Dropped by the renderer: #{dropped.map { escape(it) }.join(', ')}</p>"
 end
 
-def page(cards, sections, waiting)
-  bed = cards.empty? ? '<p class="empty">Nothing planted. The garden is clear.</p>' : "<div class=\"row\">#{cards}</div>"
+def page(cards:, sheets:, waiting:)
+  row = cards.empty? ? '<p class="empty">Nothing planted. The garden is clear.</p>' : "<div class=\"row\">#{cards}</div>"
   waiting_line = waiting.positive? ? "<p class=\"waiting\">#{waiting} still to press</p>" : ""
 
   <<~HTML
@@ -424,9 +421,9 @@ def page(cards, sections, waiting)
     </head>
     <body>
     <h1>PR Garden<span class="when">#{Time.now.strftime('%a %-d %b · %H:%M')}</span></h1>
-    #{bed}
+    #{row}
     #{waiting_line}
-    #{sections}
+    #{sheets}
     <script>
       // :target already opens and closes a sheet; this only adds Escape.
       document.addEventListener("keydown", (event) => {
@@ -444,27 +441,30 @@ def signature(prs)
   prs.map { "#{it['number']}:#{it['head_sha']}:#{entry(it['number'])&.dig('generated_at')}" }.sort.join("\n")
 end
 
-def base_handles(prs)
-  prs.to_h { [it["number"], handle(it["title"])] }
-end
+def handles_by_number(prs) = prs.to_h { [it["number"], handle(it["title"])] }
 
 def report_stale(prs)
-  needing = prs.select { stale?(it) }.map do |pr|
+  needing, fresh = prs.partition { stale?(it) }
+  written = needing.map do |pr|
     { number: pr["number"], title: pr["title"], handle: handle(pr["title"]), url: pr["url"],
       repo: pr["repo"], isDraft: pr["isDraft"], head_sha: pr["head_sha"], head_branch: pr["head_branch"] }
   end
-  puts JSON.pretty_generate({ stale: needing, fresh: prs.map { it["number"] } - needing.map { it[:number] } })
+  puts JSON.pretty_generate({ stale: written, fresh: fresh.map { it["number"] } })
 end
 
+# The signature depends on nothing the render produces, so check it first: an
+# unchanged tick then costs a couple of file reads instead of one node process per
+# diagram plus a page rewrite. Ten of these fire every weekday.
 def render_page(prs)
-  FileUtils.mkdir_p(STUDY_DIR)
-  File.write(PAGE_PATH, build_page(prs, base_handles(prs)))
-  puts PAGE_PATH
-
   current = signature(prs)
-  changed = !File.exist?(SIGNATURE_PATH) || File.read(SIGNATURE_PATH) != current
+  unchanged = File.exist?(SIGNATURE_PATH) && File.read(SIGNATURE_PATH) == current
+  puts PAGE_PATH
+  return if unchanged && File.exist?(PAGE_PATH)
+
+  FileUtils.mkdir_p(STUDY_DIR)
+  File.write(PAGE_PATH, build_page(prs))
   File.write(SIGNATURE_PATH, current)
-  system("open", PAGE_PATH) if changed && !ARGV.include?("--no-open")
+  system("open", PAGE_PATH) unless ARGV.include?("--no-open")
 end
 
 if __FILE__ == $PROGRAM_NAME

@@ -4,6 +4,7 @@
 // Colours match the study page's gruvbox palette. The SVG carries them as CSS
 // custom properties, so it only looks right in a browser — librsvg and other
 // rasterisers resolve neither var() nor color-mix() and render the nodes black.
+import { readFileSync } from "node:fs";
 import { renderMermaidSVG } from "beautiful-mermaid";
 
 const COLORS = {
@@ -22,13 +23,7 @@ const COLORS = {
 // offline and the font is a system one, so drop the fetch.
 const withoutWebfont = (svg) => svg.replace(/\s*@import url\([^)]*\);/, "");
 
-const source = await new Promise((resolve, reject) => {
-  let text = "";
-  process.stdin.setEncoding("utf8");
-  process.stdin.on("data", (chunk) => (text += chunk));
-  process.stdin.on("end", () => resolve(text));
-  process.stdin.on("error", reject);
-});
+const source = readFileSync(0, "utf8");
 
 try {
   process.stdout.write(withoutWebfont(renderMermaidSVG(source, COLORS)));
