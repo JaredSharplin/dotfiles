@@ -8,7 +8,9 @@ description: >
   ~/.local/share/productivity/<date>.jsonl for end-of-day reflection. Use when the
   user invokes /productivity-summary, asks "what have I done", or wants a productivity
   check-in. Also arms the recurring schedule when the user asks to "schedule the
-  productivity summary", "run it on weekdays", or "automate the check-in" (see Scheduling).
+  productivity summary", "run it on weekdays", or "automate the check-in" (see Scheduling). Also
+  rebuilds the PR garden page — every open PR as a plant, with a diagram of what it changes and
+  comprehension questions on its specimen sheet.
 ---
 
 # Productivity check-in
@@ -24,11 +26,10 @@ line", "motion vs progress", "under your hands", "scatter". Say the plain thing 
 rewrite it.
 
 **Never name a PR by its number alone.** A bare `#56263` tells the developer nothing — they think in
-what the PR *does*, not its number. Always lead with a short plain-English handle from the PR's title
-(drop the `(feature) |` / `(internal) |`-style prefix and any noise), with the number in parentheses
-after: `the reimport-window selector (#56524)`, `the flag removal (#56263)`. This holds everywhere —
-the status list, the next action, and the notification. The number is a secondary reference, never
-the way you refer to the PR.
+what the PR *does*, not its number. Every PR in the record carries a `handle`: its title with the
+`[7/7]`, `ENG-4909` and `(feature) |` noise already stripped. Use it, with the number in parentheses
+after — `the reimport window selector (#56524)` — in the next action and in the notification. Don't
+re-derive a handle of your own; the number is a secondary reference, never the way you name a PR.
 
 What actually counts as work finished:
 
@@ -50,7 +51,8 @@ Two rules about drafts:
 - Marking a PR ready happens after testing, on the developer's explicit request — not something to
   do or suggest from this summary.
 
-The collector does all the data gathering; you just read its JSON and talk. Don't gather data yourself.
+The collector does all the data gathering and all the status wording; you read its JSON, build the
+page, and choose the one next thing. Don't gather data yourself and don't re-word what it already said.
 
 ## Step 1 — collect
 
@@ -66,7 +68,13 @@ started on them, not necessarily that review is wanted), `github.in_flight` (all
 status list, not "changed this period"), `github.reviews_given` (PRs you reviewed this period, each
 with a `comments` count), `git.commits`, `sessions`.
 
-Each `github.in_flight` entry carries: `isDraft`; `age_days` (working days the PR has existed —
+Each `github.in_flight` entry carries: `handle` and `status` — the plain-English name and the
+already-worded status line (`green, still yours · 2 commits this period (+103/−7)`, `blocked behind
+the POS vendor failures (#57257)`, `draft, untouched 4d`). **Both are derived by the collector from
+the fields below, so read them rather than wording your own.** The page prints `status` verbatim;
+your job is to choose which PR to point at, not to re-describe its state.
+
+The fields `status` is built from, which the next-action rules still need: `isDraft`; `age_days` (working days the PR has existed —
 weekday 9–6 only, so an overnight or weekend doesn't inflate it); `idle_days` (working days since it
 last changed, same basis — a PR ready since yesterday afternoon reads well under 1, not "a full day");
 `on_hold` (true when it wears the `on-hold` label — a PR you
@@ -95,45 +103,73 @@ PR that isn't settled is still the developer's own work in progress** — say "g
 "waiting on review" and never anything about a reviewer. Marking a PR ready is how this developer
 starts CI, so a fresh ready PR means the work is mid-flight, not finished.
 
-## Step 2 — what happened
+## Step 2 — the page
 
-Only this period. No day totals. Put the most important first:
+The status of every PR, a diagram of what each one changes, and the questions worth answering about
+it all live on one page. You don't narrate any of it — the page carries it. Ask what needs writing:
 
-1. **Merged for customers** — `Shipped: #N <title>`. Any internal (non-customer-facing) merges
-   after, one line, marked internal.
-2. **Started CI** — from `started_ci`: `Started CI: <handle> (#N)` — flipped draft→ready this period,
-   which for this developer means the build is now running, not that it's finished. If such a PR is
-   already `build_state: passing`, say so — a green build is the real progress, not the flip itself.
-3. **Your open PRs** — current status of each, not a claim you touched it this period. Read the
-   in-flight fields instead of treating every PR as an independent line:
-   - **On hold** (`on_hold: true`): list once as `<handle> (#N) — on hold`. Never nag about it,
-     never count it as waiting on the developer. It's set aside on purpose.
-   - **In a stack** (`stack_base` set / see `github.stacks`): show the members together, base first,
-     each by its handle. Only the base can move next; the ones above it are `blocked behind <base
-     handle> (#<base>)`, not stalled by the developer. Don't give a member its own "waiting" line.
-   - **A standalone draft**: `<handle> (#N) — draft, active` when `idle_days` is small; when it's been
-     idle a while (say ≥ 2 days), `<handle> (#N) — draft, untouched Nd`.
-   - **A standalone ready PR**: read `build_state` first. `failing` → `<handle> (#N) — CI failing`;
-     `pending`/`none` → `<handle> (#N) — CI running`. When `passing`, a real review outcome wins:
-     `approved` → `<handle> (#N) — approved, ready to merge`; `changes_requested` → `<handle> (#N) —
-     changes requested`. Otherwise go by `settled`: `settled: false` → `<handle> (#N) — green, still
-     yours`; `settled: true` → `<handle> (#N) — green and quiet Nd, needs a reviewer` (using
-     `quiet_days`).
-   Any PR with `work_this_period` gets its effort on the same line, after the status — that's the PR
-   the developer actually worked on and it should never read as untouched: `<handle> (#N) — green,
-   3 commits this period (+339/−197)`. When `qa_rounds` is 2 or more, add it: `4th round of fixes
-   since it went green`.
-4. **Other activity** — short: PRs you reviewed this period (`#N (N comments)`), commits on branches
-   with no PR yet (`count > 0`), which worktrees were active (`<worktree>: N turns, active` or `no
-   code changed`).
+```bash
+~/.claude/skills/productivity-summary/study.rb --stale
+```
 
-If nothing was merged and nothing was marked ready, say it in one plain line: `Nothing merged or
-marked ready in <window>.` A dozen lines at most. Skip empty sections.
+That prints `{stale: [...], fresh: [...]}`. A stale PR has no diagram yet, or has one describing an
+older head commit. **For each stale PR, dispatch one `general-purpose` subagent, all in a single
+message so they run concurrently** — a handful on a first run, usually none or one. Reading a PR diff
+costs thousands of lines and it has to stay out of this conversation. Give each the brief below.
+
+Then build the page:
+
+```bash
+~/.claude/skills/productivity-summary/study.rb
+```
+
+It renders every diagram, writes `~/.local/share/productivity/study.html`, and opens it only when
+something actually changed. **Print the path it prints, and nothing else.** No status list, no
+per-PR lines, no description of the garden — it speaks for itself.
+
+### The brief for each subagent
+
+Read `gh pr view <number> --json title,body,additions,deletions` and then the diff, following the
+size rules in the global CLAUDE.md (`--name-only` first when it's large). Write
+`~/.local/share/productivity/study/<number>.json`:
+
+```json
+{"number": 57310, "title": "...", "url": "...", "repo": "TandaHQ/payaus",
+ "head_sha": "<the head_sha from --stale>", "generated_at": "<ISO8601>",
+ "diagram": {"type": "graph", "mmd": "graph TD\n    ..."},
+ "questions": [{"question": "...", "answer": "...", "evidence": ["app/models/shift.rb:212"]}]}
+```
+
+Return only the diagram type and a one-line note. Nothing else comes back.
+
+**The questions are the point of the page.** Two to four. Every one must be answerable *only by
+reading the code* — if the diagram or the PR title answers it, it's dead. Ask about consequences:
+what breaks, what happens when a precondition is false, what order things happen in, what the change
+now silently permits that it didn't before. Every answer cites `file:line` from this PR's own diff, so
+the answer can be checked. Banned: naming trivia, "what does this class do", anything restating the
+diagram, anything answerable without opening a file.
+
+**The diagram, one per PR, never skipped** — a config-only PR still gets a flowchart of what changed
+and what depends on it. Default to `sequenceDiagram`; `stateDiagram-v2` only when a lifecycle really
+changes; `graph TD` for structural work; `erDiagram` only for a real schema change. At most 8 nodes,
+and nodes are boundaries and domain objects — never one per changed file. Keep node labels short:
+a long label inside a `{diamond}` explodes the shape. Mark what the PR changes, so it reads in
+context: in flowcharts `classDef changed fill:#b8bb26,stroke:#98971a,color:#1d2021` plus
+`class <node> changed`; elsewhere a `* ` prefix on the label.
+
+Two renderer traps, both silent — the page will warn about a dropped label, but avoid them:
+
+- **ER relationships must put the "one" side on the left.** `USER ||--o{ SHIFT : assigned_to` renders;
+  `SHIFT }o--|| USER : assigned_to` deletes the relationship, its label *and* the `USER` entity, with
+  no error at all.
+- Only `graph`/`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `classDiagram`, `erDiagram` render.
+  `gitGraph`, `pie`, `mindmap`, `gantt` and `timeline` fail outright.
 
 ## Step 3 — the one next thing
 
-End with a single clear next action — the most useful thing to do next. Match it to the PR's status.
-Never suggest reviewing or merging a draft. **Never point at an on-hold PR, and never point at a stack
+Choose a single next action — the most useful thing to do next. **Don't print it in the terminal.** It
+goes in the notification in Step 4, which is the only channel that reaches the developer while their
+hands are elsewhere. Match it to the PR's status. Never suggest reviewing or merging a draft. **Never point at an on-hold PR, and never point at a stack
 member that isn't the base** — those aren't the developer's move.
 
 **Read `build_state` first, then `settled` — never `awaiting_review`.** Marking a PR ready just starts
@@ -169,8 +205,9 @@ red, never on an unsettled PR, and only ever say "merge it" on a green, `approve
 - A worktree active but no code changed → `#N was active but no code changed — it might be stuck. Unblock it or set it aside.`
 
 If every open PR is on hold or blocked behind an on-hold base, there may be nothing to push — say that
-plainly rather than inventing a next step. Otherwise always end with one concrete action. If a PR was
-merged or marked ready, say so in one line and still give the next thing.
+plainly rather than inventing a next step. Otherwise always land on one concrete action. A PR merged or
+marked ready this period is the "what happened" half of the notification, and the action is still the
+other half.
 
 ## Step 4 — notify
 
@@ -195,7 +232,8 @@ osascript -e 'display notification "The payroll filter (#4830) has been green an
 osascript -e 'display notification "Nothing merged. The payroll filter (#4830) is a draft — finish testing it and mark it ready." with title "Productivity check-in" subtitle "<window>"'
 ```
 
-That's the whole tick. End the turn — the next tick fires on its own schedule (see Scheduling).
+That's the whole tick: the page path in the terminal, everything else on the page, one notification.
+End the turn — the next tick fires on its own schedule (see Scheduling).
 
 ## Scheduling
 

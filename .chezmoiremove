@@ -1,0 +1,5 @@
+{{/* Targets to delete from $HOME. Deleting a source file stops chezmoi managing
+     it, but leaves the deployed copy behind — this removes it. */}}
+
+{{/* Absorbed into productivity-summary: its garden is now study.rb's page. */}}
+.claude/skills/get-moving
