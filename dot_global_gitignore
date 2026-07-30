@@ -13,3 +13,5 @@ backlog
 # Native local dev — deployed files (source of truth is chezmoi)
 .pumaenv
 config/initializers/99_local_native_dev.rb
+
+**/.claude/settings.local.json
