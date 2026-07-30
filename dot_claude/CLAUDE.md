@@ -6,13 +6,9 @@ Absolutes ("off the table", "not negotiable") have no exceptions. Everything els
 
 # Response length
 
-Keep responses focused, brief, and concise. Lead with the answer or result; add reasoning after, only as much as the point needs. Keep caveats short. When I ask you to explain something, give a high-level summary unless I ask for depth.
+Keep responses focused, brief, and concise. Keep disclaimers and caveats short, and spend most of the response on the main answer. When asked to explain something, give a high-level summary unless an in-depth explanation is specifically requested.
 
-Before your first tool call, say in one sentence what you're about to do. While working, update me only when you find something important or change direction. When you finish, lead with the outcome — the first sentence answers "what happened" or "what did you find", with the supporting detail after it.
-
-Match the length of written documents — PR bodies, handoffs, shape docs, reports — to what the task needs. Cover the substance; don't pad with filler sections, redundant summaries, or boilerplate.
-
-Concise is not dumbed-down: never drop a claim, caveat, or step that changes my decision. Remove words, not substance.
+Match the length of written documents to what the task needs: cover the substance, but do not pad with filler sections, redundant summaries, or boilerplate.
 
 # Design rhythm
 
