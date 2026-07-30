@@ -1,0 +1,26 @@
+#!/bin/bash
+# Install the study page's Mermaid renderer dependencies.
+#
+# chezmoi re-runs this whenever package.json changes, via the hash below
+# (run_onchange_). It is named run_onchange_after_ so it runs *after* the
+# packages script, which installs mise — and therefore node — on a fresh machine.
+#
+# package.json hash: {{ include "dot_local/share/mermaid-render/package.json" | sha256sum }}
+#
+# Without this, `chezmoi apply` leaves ~/.local/share/mermaid-render/ with no
+# node_modules, and study.rb reports "Diagram failed" for every PR.
+
+set -e
+
+renderer="$HOME/.local/share/mermaid-render"
+
+command -v node >/dev/null 2>&1 || { echo "node not installed — skipping mermaid renderer"; exit 0; }
+[ -f "$renderer/package.json" ] || { echo "no $renderer/package.json — skipping"; exit 0; }
+
+echo "Installing mermaid renderer dependencies..."
+if [ -f "$renderer/package-lock.json" ]; then
+  npm ci --prefix "$renderer" --silent
+else
+  npm install --prefix "$renderer" --silent
+fi
+echo "mermaid renderer ready"
