@@ -131,7 +131,7 @@ def plant_svg(pr)
 
   <<~SVG
     <svg viewBox="0 0 68 92" width="100%" height="100%" aria-hidden="true">
-      <path d="M#{origin[0]} #{origin[1]} Q#{control.join(' ')} #{tip.join(' ')}"
+      <path d="M#{origin[0]} #{origin[1]} Q#{control.join(" ")} #{tip.join(" ")}"
             fill="none" stroke="#{stem}" stroke-width="2.4" stroke-linecap="round"/>
       #{leaves(origin, control, tip, leaf, bend)}
       #{bloom ? blossom(tip) : bud(tip, stem)}
@@ -203,8 +203,8 @@ def question_html(question)
   cited = evidence.empty? ? "" : "<ul class=\"evidence\">#{evidence}</ul>"
   <<~HTML
     <details>
-      <summary>#{escape(question['question'])}</summary>
-      <p class="answer">#{escape(question['answer'])}</p>
+      <summary>#{escape(question["question"])}</summary>
+      <p class="answer">#{escape(question["answer"])}</p>
       #{cited}
     </details>
   HTML
@@ -220,15 +220,15 @@ def sown_label(pr) = age_label(pr["age_days"].to_f)
 
 def plant_card(pr, state:, written:, sheet:)
   count = Array(written["questions"]).size
-  label = count.zero? ? "no notes yet" : "#{count} note#{'s' if count > 1}"
-  notes = sheet ? "<a class=\"notes\" href=\"#pr-#{pr['number']}\">#{label}</a>" : "<div class=\"notes idle\">#{label}</div>"
+  label = count.zero? ? "no notes yet" : "#{count} note#{"s" if count > 1}"
+  notes = sheet ? "<a class=\"notes\" href=\"#pr-#{pr["number"]}\">#{label}</a>" : "<div class=\"notes idle\">#{label}</div>"
 
   <<~HTML
-    <div class="stake#{' bloomed' if flowering?(pr)}" style="#{soil_style(pr)}">
-      <a class="specimen" href="#{sheet ? "#pr-#{pr['number']}" : escape(pr['url'])}" title="#{title_html(pr)}">#{plant_svg(pr)}</a>
+    <div class="stake#{" bloomed" if flowering?(pr)}" style="#{soil_style(pr)}">
+      <a class="specimen" href="#{sheet ? "#pr-#{pr["number"]}" : escape(pr["url"])}" title="#{title_html(pr)}">#{plant_svg(pr)}</a>
       <div class="plaque">
-        <a class="variety" href="#{escape(pr['url'])}">#{title_html(pr)}</a>
-        <div class="sown">##{pr['number']} · sown #{sown_label(pr)}</div>
+        <a class="variety" href="#{escape(pr["url"])}">#{title_html(pr)}</a>
+        <div class="sown">##{pr["number"]} · sown #{sown_label(pr)}</div>
         <div class="state">#{escape(state)}</div>
         #{notes}
       </div>
@@ -242,12 +242,12 @@ def section_html(pr, state:, written:, svg:, warning:)
   body = svg ? "#{warning}<div class=\"diagram\">#{svg}</div>#{notes}" : warning
 
   <<~HTML
-    <div class="sheet" id="pr-#{pr['number']}">
+    <div class="sheet" id="pr-#{pr["number"]}">
       <a class="scrim" href="#" aria-label="Close"></a>
       <article>
       <a class="close" href="#" aria-label="Close">&times;</a>
-      <h2><a href="#{escape(pr['url'])}">#{title_html(pr)}<span class="num">##{pr['number']}</span></a></h2>
-      <p class="meta">#{escape(pr['head_branch'])} · #{escape(state)} · sown #{sown_label(pr)}</p>
+      <h2><a href="#{escape(pr["url"])}">#{title_html(pr)}<span class="num">##{pr["number"]}</span></a></h2>
+      <p class="meta">#{escape(pr["head_branch"])} · #{escape(state)} · sown #{sown_label(pr)}</p>
       #{body}
       </article>
     </div>
@@ -339,8 +339,8 @@ def build_page(prs)
   planted = prs.map { press(it) }
 
   page(cards: planted.map(&:card).join,
-       sheets: planted.filter_map(&:sheet).join,
-       waiting: planted.count { it.sheet.nil? })
+    sheets: planted.filter_map(&:sheet).join,
+    waiting: planted.count { it.sheet.nil? })
 end
 
 # The stake for the row, and the pressed sheet behind it when there's a diagram to
@@ -355,7 +355,7 @@ def press(pr)
   Planted.new(
     card: plant_card(pr, state:, written:, sheet:),
     sheet: sheet && section_html(pr, state:, written:, svg:,
-                                 warning: warning_html(error, svg ? missing_labels(mmd, svg) : []))
+      warning: warning_html(error, svg ? missing_labels(mmd, svg) : []))
   )
 end
 
@@ -363,7 +363,7 @@ def warning_html(error, dropped)
   return "<p class=\"warn\">Diagram failed: #{escape(error)}</p>" if error
   return "" if dropped.empty?
 
-  "<p class=\"warn\">Dropped by the renderer: #{dropped.map { escape(it) }.join(', ')}</p>"
+  "<p class=\"warn\">Dropped by the renderer: #{dropped.map { escape(it) }.join(", ")}</p>"
 end
 
 def page(cards:, sheets:, waiting:)
@@ -381,7 +381,7 @@ def page(cards:, sheets:, waiting:)
     </style>
     </head>
     <body>
-    <h1>PR Garden<span class="when">#{Time.now.strftime('%a %-d %b · %H:%M')}</span></h1>
+    <h1>PR Garden<span class="when">#{Time.now.strftime("%a %-d %b · %H:%M")}</span></h1>
     #{row}
     #{waiting_line}
     #{sheets}
@@ -399,7 +399,7 @@ end
 # What the page is about, so an unchanged tick can stay quiet. Content changes
 # only when a PR appears, closes, moves its head commit, or gets rewritten.
 def signature(prs)
-  prs.map { "#{it['number']}:#{it['head_sha']}:#{entry(it['number'])&.dig('generated_at')}" }.sort.join("\n")
+  prs.map { "#{it["number"]}:#{it["head_sha"]}:#{entry(it["number"])&.dig("generated_at")}" }.sort.join("\n")
 end
 
 def report_stale(prs)
@@ -407,7 +407,7 @@ def report_stale(prs)
   written = needing.map do |pr|
     pr.slice("number", "title", "handle", "url", "repo", "isDraft", "head_sha", "head_branch")
   end
-  puts JSON.pretty_generate({ stale: written, fresh: fresh.map { it["number"] } })
+  puts JSON.pretty_generate({stale: written, fresh: fresh.map { it["number"] }})
 end
 
 # The signature depends on nothing the render produces, so check it first: an

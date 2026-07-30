@@ -150,8 +150,8 @@ file_path = input.dig("tool_input", "file_path").to_s
 exit 0 if file_path.empty? && bash_command.nil?
 
 new_content = case tool
-when "Bash"   then nil
-when "Edit"   then input.dig("tool_input", "new_string").to_s
+when "Bash" then nil
+when "Edit" then input.dig("tool_input", "new_string").to_s
 when "MultiEdit"
   Array(input.dig("tool_input", "edits")).map { |edit| edit["new_string"].to_s }.join("\n")
 when "Write" then input.dig("tool_input", "content").to_s

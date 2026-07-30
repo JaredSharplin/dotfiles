@@ -11,16 +11,22 @@ date = ARGV[0] || Time.now.strftime("%Y-%m-%d")
 path = File.join(Dir.home, ".local", "share", "productivity", "#{date}.jsonl")
 abort "No productivity log for #{date}" unless File.exist?(path)
 
-records = File.readlines(path).filter_map { JSON.parse(it) rescue nil }
+records = File.readlines(path).filter_map {
+  begin
+    JSON.parse(it)
+  rescue
+    nil
+  end
+}
 abort "Empty productivity log for #{date}" if records.empty?
 
-hours = Hash.new { |hash, key| hash[key] = { shipped: 0, ci: 0, commits: 0, turns: 0 } }
+hours = Hash.new { |hash, key| hash[key] = {shipped: 0, ci: 0, commits: 0, turns: 0} }
 worktrees = Hash.new(0)
 
 records.each do |record|
   hour = Time.iso8601(record["ts"]).localtime.hour
   hours[hour][:commits] += record.dig("git", "total_commits").to_i
-  hours[hour][:shipped] += Array(record.dig("github", "shipped")).count { it["customer_facing"] }
+  hours[hour][:shipped] += Array(record.dig("github", "shipped")).size { it["customer_facing"] }
   hours[hour][:ci] += Array(record.dig("github", "started_ci")).size
   Array(record["sessions"]).each do |session|
     turns = session["assistant_turns"].to_i
@@ -54,10 +60,10 @@ puts "Shipped        : #{shipped.size} (#{customer_shipped} customer-facing)"
 puts "CI started     : #{ci_started.size}"
 puts "Commits        : #{total_commits}"
 puts "Reviews given  : #{reviews}"
-puts "Peak window    : #{format('%02d:00', peak_hour)}" if peak_hour
+puts "Peak window    : #{format("%02d:00", peak_hour)}" if peak_hour
 puts
-shipped.each { puts "  🚢 ##{it['number']} #{it['title']}" if it["customer_facing"] }
-ci_started.each { puts "  ▶️ ##{it['number']} #{it['title']}" }
+shipped.each { puts "  🚢 ##{it["number"]} #{it["title"]}" if it["customer_facing"] }
+ci_started.each { puts "  ▶️ ##{it["number"]} #{it["title"]}" }
 puts unless customer_shipped.zero? && ci_started.empty?
 puts "Activity by hour (ship×10 + CI×5 + commits×3 + turns):"
 scores.keys.min.upto(scores.keys.max) do |hour|

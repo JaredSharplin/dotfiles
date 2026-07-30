@@ -12,21 +12,21 @@
 # All devbox logic stays in bin/tunnel and bin/dev; this script only
 # orchestrates zellij and polls files/URLs for readiness.
 
-require 'English'
-require 'fileutils'
-require 'json'
-require 'open3'
-require 'optparse'
+require "English"
+require "fileutils"
+require "json"
+require "open3"
+require "optparse"
 
-PAYAUS = File.expand_path('~/programming/payaus')
-CACHE = File.expand_path('~/.cache/qa-up')
-STATE_FILE = File.join(CACHE, 'state.json')
-LAYOUT_FILE = File.join(CACHE, 'layout.kdl')
-SESSION_PREFIX = 'qa-'
+PAYAUS = File.expand_path("~/programming/payaus")
+CACHE = File.expand_path("~/.cache/qa-up")
+STATE_FILE = File.join(CACHE, "state.json")
+LAYOUT_FILE = File.join(CACHE, "layout.kdl")
+SESSION_PREFIX = "qa-"
 # Single-region developer; stated once so the pgrep pattern, ssh config, and app
 # domain can't drift apart. Make it env-derived if this ever goes multi-region.
-REGION = 'apac'
-DEVELOPER = 'jaredsharplin'
+REGION = "apac"
+DEVELOPER = "jaredsharplin"
 ENTANGLER_PGREP = "entangler.*payaus_dev_config_#{REGION}".freeze
 SSH_CONFIG = File.expand_path("~/.ssh/payaus_dev_config_#{REGION}")
 APP_URL = "https://#{DEVELOPER}.dev.#{REGION}.adnat.co".freeze
@@ -47,21 +47,21 @@ BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
 # zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
 # background Claude task's $TMPDIR is longer still — either can exceed the ~103-byte
 # AF_UNIX limit. Pin a short one so bring-up, teardown, and attach share one socket path.
-ENV['TMPDIR'] = '/tmp'
+ENV["TMPDIR"] = "/tmp"
 # bin/tunnel prompts interactively for a developer name when neither .env nor $DEV_NAME
 # has one; in a detached pane that read blocks forever. Supply it so the pane never stalls.
-ENV['DEV_NAME'] = DEVELOPER
+ENV["DEV_NAME"] = DEVELOPER
 # Agent harnesses (e.g. Claude Code) export BROWSER=true — a shell no-op. Python's
 # webbrowser honours $BROWSER first, so `aws sso login` in the tunnel pane would
 # "open" its login page into nothing. The session must reach the developer's real
 # browser; drop the no-op and let macOS pick the default.
-ENV.delete('BROWSER') if ENV['BROWSER'] == 'true'
+ENV.delete("BROWSER") if ENV["BROWSER"] == "true"
 # Flush milestone output promptly even when stdout is a pipe (e.g. the /qa skill).
 $stdout.sync = true
 
 def run(*args, allow_failure: false)
   stdout, stderr, status = Open3.capture3(*args)
-  raise "#{args.join(' ')} failed: #{stderr.strip}" unless status.success? || allow_failure
+  raise "#{args.join(" ")} failed: #{stderr.strip}" unless status.success? || allow_failure
 
   stdout.strip
 end
@@ -74,7 +74,7 @@ def exit_path(role) = File.join(CACHE, "#{role}.exit")
 def state = @state ||= JSON.parse(File.read(STATE_FILE), symbolize_names: true)
 
 def worktrees
-  run('git', '-C', PAYAUS, 'worktree', 'list', '--porcelain')
+  run("git", "-C", PAYAUS, "worktree", "list", "--porcelain")
     .split("\n\n")
     .filter_map { it[/^worktree (.+)$/, 1] }
 end
@@ -82,7 +82,7 @@ end
 def resolve_worktree(arg)
   return pick_worktree_by_name(arg) if arg
 
-  toplevel = run('git', 'rev-parse', '--show-toplevel', allow_failure: true)
+  toplevel = run("git", "rev-parse", "--show-toplevel", allow_failure: true)
   return toplevel if worktrees.include?(toplevel)
 
   pick_worktree_with_fzf
@@ -94,38 +94,38 @@ def pick_worktree_by_name(name)
 end
 
 def pick_worktree_with_fzf
-  abort 'Not inside a payaus worktree, and no TTY for the fzf picker. Pass a worktree name.' unless $stdout.tty?
+  abort "Not inside a payaus worktree, and no TTY for the fzf picker. Pass a worktree name." unless $stdout.tty?
 
   choices = worktrees.map { File.basename(it) }.join("\n")
-  choice, _, status = Open3.capture3('fzf', '--prompt', 'QA worktree> ', stdin_data: choices)
-  abort 'No worktree selected.' unless status.success?
+  choice, _, status = Open3.capture3("fzf", "--prompt", "QA worktree> ", stdin_data: choices)
+  abort "No worktree selected." unless status.success?
 
   pick_worktree_by_name(choice.strip)
 end
 
 # Includes sessions zellij keeps listed as resurrectable after a kill.
 def qa_sessions
-  stdout, _, status = Open3.capture3('zellij', 'list-sessions', '--no-formatting')
+  stdout, _, status = Open3.capture3("zellij", "list-sessions", "--no-formatting")
   return [] unless status.success?
 
   stdout.split("\n").filter_map do |line|
     name = line.split.first
-    { name:, exited: line.include?('EXITED') } if name&.start_with?(SESSION_PREFIX)
+    {name:, exited: line.include?("EXITED")} if name&.start_with?(SESSION_PREFIX)
   end
 end
 
 def remove_session(name)
-  run('zellij', 'kill-session', name, allow_failure: true)
-  run('zellij', 'delete-session', '--force', name, allow_failure: true)
+  run("zellij", "kill-session", name, allow_failure: true)
+  run("zellij", "delete-session", "--force", name, allow_failure: true)
 end
 
 def stop_remote_containers
-  _, _, status = Open3.capture3('ssh', '-F', SSH_CONFIG, '-o', 'ConnectTimeout=5', 'devbox',
-                                "docker rm -f #{REMOTE_APP_CONTAINERS.join(' ')}")
+  _, _, status = Open3.capture3("ssh", "-F", SSH_CONFIG, "-o", "ConnectTimeout=5", "devbox",
+    "docker rm -f #{REMOTE_APP_CONTAINERS.join(" ")}")
   if status.success?
-    puts 'stopped remote app containers'
+    puts "stopped remote app containers"
   else
-    puts 'could not reach devbox to stop app containers (the next bin/dev run replaces them)'
+    puts "could not reach devbox to stop app containers (the next bin/dev run replaces them)"
   end
 end
 
@@ -133,10 +133,10 @@ def kill_tunnel!
   pids = `pgrep -f "#{ENTANGLER_PGREP}"`.split.map(&:to_i)
   return if pids.empty?
 
-  signal_process_groups('TERM', pids)
+  signal_process_groups("TERM", pids)
   sleep 2
   survivors = `pgrep -f "#{ENTANGLER_PGREP}"`.split.map(&:to_i)
-  signal_process_groups('KILL', survivors)
+  signal_process_groups("KILL", survivors)
 end
 
 def signal_process_groups(signal, pids)
@@ -166,7 +166,7 @@ end
 
 def announce_removal(existing, session)
   if existing[:name] == session
-    puts 'relaunching (previous run was not healthy)'
+    puts "relaunching (previous run was not healthy)"
   else
     puts "switched from #{existing[:name].delete_prefix(SESSION_PREFIX)}"
   end
@@ -212,12 +212,12 @@ def write_layout
     KDL
   end
 
-  File.write(LAYOUT_FILE, "layout {\n#{tabs.join.gsub(/^/, '    ')}}\n")
+  File.write(LAYOUT_FILE, "layout {\n#{tabs.join.gsub(/^/, "    ")}}\n")
 end
 
 def launch_session(session)
-  run('zellij', 'attach', '--create-background', session)
-  run('zellij', '--session', session, '--layout', LAYOUT_FILE)
+  run("zellij", "attach", "--create-background", session)
+  run("zellij", "--session", session, "--layout", LAYOUT_FILE)
 end
 
 # --- readiness signals (shared by the foreground monitor and the pane gates) ---
@@ -231,10 +231,10 @@ def log_reached?(role, marker)
 end
 
 # entangler mirrors "INFO: Ready!" to stdout when its initial sync reaches steady state.
-def sync_ready? = log_reached?('tunnel', 'INFO: Ready!')
+def sync_ready? = log_reached?("tunnel", "INFO: Ready!")
 
 def http_ready?(url)
-  code, = Open3.capture3('curl', '-so', File::NULL, '-w', '%{http_code}', '--max-time', '5', url)
+  code, = Open3.capture3("curl", "-so", File::NULL, "-w", "%{http_code}", "--max-time", "5", url)
   code.match?(/^[23]/)
 end
 
@@ -269,16 +269,16 @@ def run_role(role)
   Dir.chdir(PAYAUS)
   command =
     case role
-    when 'tunnel'
+    when "tunnel"
       "bin/tunnel #{state[:worktree]}"
-    when 'server'
-      gate(role, 'tunnel sync', timeout: SYNC_TIMEOUT) { sync_ready? }
-      'bin/dev server'
-    when 'worker', 'webpack'
+    when "server"
+      gate(role, "tunnel sync", timeout: SYNC_TIMEOUT) { sync_ready? }
+      "bin/dev server"
+    when "worker", "webpack"
       # Wait for the server to actually serve HTTP, not just finish its deps step:
       # "Running server at" prints before the server's docker compose run pulls the
       # app image, and concurrent pulls of a missing image corrupt containerd's ingest.
-      gate(role, 'server to respond', timeout: BRINGUP_TIMEOUT) do
+      gate(role, "server to respond", timeout: BRINGUP_TIMEOUT) do
         http_ready?(APP_URL)
       end
       "bin/dev #{role}"
@@ -286,7 +286,7 @@ def run_role(role)
       abort "Unknown role '#{role}'"
     end
 
-  system('bash', '-o', 'pipefail', '-c', "#{command} 2>&1 | tee #{log_path(role)}")
+  system("bash", "-o", "pipefail", "-c", "#{command} 2>&1 | tee #{log_path(role)}")
   status = $CHILD_STATUS.exitstatus
   File.write(exit_path(role), status.to_s)
   exit status
@@ -298,7 +298,7 @@ def gate(role, label, timeout:)
   until yield
     elapsed = (Time.now - started).to_i
     if elapsed > timeout
-      File.write(exit_path(role), '1')
+      File.write(exit_path(role), "1")
       abort "#{role}: timed out after #{timeout}s waiting for #{label}"
     end
     if elapsed >= next_heartbeat
@@ -316,48 +316,48 @@ def down!
   sessions = qa_sessions
   clear_run_artifacts
   if sessions.empty?
-    puts 'No qa- session running.'
+    puts "No qa- session running."
     return
   end
 
   teardown(sessions)
-  puts "killed #{sessions.map { it[:name] }.join(', ')}"
+  puts "killed #{sessions.map { it[:name] }.join(", ")}"
 end
 
 def status!
   sessions = qa_sessions
-  puts sessions.empty? ? 'No qa- session.' : sessions.map { "session #{it[:name]}#{' (EXITED)' if it[:exited]}" }
+  puts sessions.empty? ? "No qa- session." : sessions.map { "session #{it[:name]}#{" (EXITED)" if it[:exited]}" }
   ROLES.each do |role|
-    exited = File.exist?(exit_path(role)) ? " [exited #{File.read(exit_path(role)).strip}]" : ''
+    exited = File.exist?(exit_path(role)) ? " [exited #{File.read(exit_path(role)).strip}]" : ""
     log = log_path(role)
-    tail = File.exist?(log) && !File.empty?(log) ? File.readlines(log).last(12).join.rstrip : '(no output yet)'
+    tail = (File.exist?(log) && !File.empty?(log)) ? File.readlines(log).last(12).join.rstrip : "(no output yet)"
     puts "\n── #{role}#{exited} ──\n#{tail}"
   end
 end
 
 # --- main ---
 
-if ARGV.first == 'run'
-  run_role(ARGV.fetch(1) { abort 'Usage: qa-up run <role>' })
+if ARGV.first == "run"
+  run_role(ARGV.fetch(1) { abort "Usage: qa-up run <role>" })
   exit
 end
 
-if ARGV.first == 'attach'
+if ARGV.first == "attach"
   worktree = File.basename(ARGV[1] || resolve_worktree(nil))
-  exec('zellij', 'attach', "#{SESSION_PREFIX}#{worktree}")
+  exec("zellij", "attach", "#{SESSION_PREFIX}#{worktree}")
 end
 
-if ARGV.first == 'status'
+if ARGV.first == "status"
   status!
   exit
 end
 
-options = { attach: $stdout.tty? }
+options = {attach: $stdout.tty?}
 OptionParser.new do |o|
-  o.banner = 'Usage: qa-up [worktree] [--down | attach [worktree] | status] [--no-attach]'
-  o.on('--down', 'Tear down the QA session and tunnel') { options[:down] = true }
-  o.on('--no-attach', 'Do not attach to the zellij session when ready') { options[:attach] = false }
-  o.on('-h', '--help') do
+  o.banner = "Usage: qa-up [worktree] [--down | attach [worktree] | status] [--no-attach]"
+  o.on("--down", "Tear down the QA session and tunnel") { options[:down] = true }
+  o.on("--no-attach", "Do not attach to the zellij session when ready") { options[:attach] = false }
+  o.on("-h", "--help") do
     puts o
     exit
   end
@@ -377,29 +377,29 @@ kill_tunnel!
 prepare_state(worktree_dir)
 write_layout
 launch_session(session)
-puts "Launched #{session} (tabs: #{ROLES.join(', ')} + scratch shell)"
+puts "Launched #{session} (tabs: #{ROLES.join(", ")} + scratch shell)"
 
 # The tunnel connects and does its initial sync in seconds; silence here means trouble —
 # unless bin/tunnel just opened a browser SSO prompt that's awaiting approval.
-wait_for('tunnel sync', timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 30,
-                        hint: 'this should be quick unless a browser SSO prompt is awaiting approval — ' \
-                              'run `qa-up status` to see the tunnel tab; if the dev box is down, `bin/dev start`') do
+wait_for("tunnel sync", timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 30,
+  hint: "this should be quick unless a browser SSO prompt is awaiting approval — " \
+        "run `qa-up status` to see the tunnel tab; if the dev box is down, `bin/dev start`") do
   sync_ready?
 end
-puts 'Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected).'
-wait_for('server to respond', timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
-puts 'Server up — waiting for webpack to finish its first compile (assets hang until then).'
-wait_for('webpack assets', timeout: WEBPACK_TIMEOUT, failed_if_exited: %w[tunnel server webpack]) do
+puts "Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected)."
+wait_for("server to respond", timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
+puts "Server up — waiting for webpack to finish its first compile (assets hang until then)."
+wait_for("webpack assets", timeout: WEBPACK_TIMEOUT, failed_if_exited: %w[tunnel server webpack]) do
   http_ready?(ASSET_PROBE_URL)
 end
 
-branch = run('git', '-C', worktree_dir, 'rev-parse', '--abbrev-ref', 'HEAD')
+branch = run("git", "-C", worktree_dir, "rev-parse", "--abbrev-ref", "HEAD")
 puts
 puts "Worktree: #{worktree} (#{branch})"
 puts "App:      #{APP_URL}"
 puts "Session:  #{session} (qa-up attach #{worktree})"
-puts 'Teardown: qa-up --down'
+puts "Teardown: qa-up --down"
 puts
 puts "QA_READY url=#{APP_URL} session=#{session}"
 
-exec('zellij', 'attach', session) if options[:attach] && ENV['ZELLIJ'].nil?
+exec("zellij", "attach", session) if options[:attach] && ENV["ZELLIJ"].nil?

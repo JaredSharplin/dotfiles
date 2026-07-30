@@ -14,7 +14,7 @@ HOME = Dir.home
 DATA_DIR = File.join(HOME, ".local", "share", "productivity")
 PROJECTS_DIR = File.join(HOME, ".claude", "projects")
 REPOS = [File.join(HOME, "programming", "payaus")] +
-        Dir.glob(File.join(HOME, "programming", "worktrees", "*")).select { File.directory?(it) }
+  Dir.glob(File.join(HOME, "programming", "worktrees", "*")).select { File.directory?(it) }
 # The first tick of the day floors its window here instead of midnight, so it
 # reports the workday — not a dump of everything since 00:00. Also the start of
 # the working day used to age PRs (see working_days_between).
@@ -111,8 +111,8 @@ def reviews_given(since)
   events.group_by { it.dig("payload", "pull_request", "number") }.filter_map do |number, grouped|
     next unless number
 
-    { number:, repo: grouped.first.dig("repo", "name"),
-      comments: grouped.count { it["type"] == "PullRequestReviewCommentEvent" } }
+    {number:, repo: grouped.first.dig("repo", "name"),
+     comments: grouped.count { it["type"] == "PullRequestReviewCommentEvent" }}
   end
 end
 
@@ -154,7 +154,7 @@ def days(value) = value.to_f.round
 def ordinal(count)
   return "#{count}th" if (11..13).cover?(count % 100)
 
-  "#{count}#{{ 1 => 'st', 2 => 'nd', 3 => 'rd' }.fetch(count % 10, 'th')}"
+  "#{count}#{{1 => "st", 2 => "nd", 3 => "rd"}.fetch(count % 10, "th")}"
 end
 
 # One PR's status in the words the check-in speaks. Derived here, next to the
@@ -175,7 +175,7 @@ def status_phrase(pr, handles)
 end
 
 def draft_phrase(pr)
-  pr[:idle_days].to_f >= 2 ? "draft, untouched #{days(pr[:idle_days])}d" : "draft, active"
+  (pr[:idle_days].to_f >= 2) ? "draft, untouched #{days(pr[:idle_days])}d" : "draft, active"
 end
 
 def ready_phrase(pr)
@@ -198,7 +198,7 @@ end
 def status_notes(pr)
   notes = []
   if (work = pr[:work_this_period])
-    notes << "#{work[:count]} commit#{'s' if work[:count] != 1} this period (+#{work[:insertions]}/−#{work[:deletions]})"
+    notes << "#{work[:count]} commit#{"s" if work[:count] != 1} this period (+#{work[:insertions]}/−#{work[:deletions]})"
   end
   notes << "#{ordinal(pr[:qa_rounds])} round of fixes since it went green" if pr[:qa_rounds].to_i >= 2
   notes
@@ -222,7 +222,7 @@ def open_pr_details(open_prs)
   repos = open_prs.filter_map { it.dig("repository", "nameWithOwner") }.uniq
   repos.flat_map do |repo|
     gh_json("pr", "list", "--repo", repo, "--author", "@me", "--state", "open",
-            "--json", "number,headRefName,headRefOid,baseRefName,reviewDecision,statusCheckRollup,commits")
+      "--json", "number,headRefName,headRefOid,baseRefName,reviewDecision,statusCheckRollup,commits")
   end
 end
 
@@ -254,16 +254,16 @@ def pr_stacks(refs)
   end
 
   grouped = refs.map { it["number"] }.group_by { root_of.call(it) }.select { |_base, members| members.size > 1 }
-  stacks = grouped.keys.map { { base: it, members: order_from.call(it) } }
+  stacks = grouped.keys.map { {base: it, members: order_from.call(it)} }
   base_by_number = grouped.flat_map { |base, members| members.map { [it, base] } }.to_h
   [stacks, base_by_number]
 end
 
 def github_activity(since, now)
   merged = gh_json("search", "prs", "--author=@me", "--merged-at", ">=#{since.utc.iso8601}", "--limit", "40",
-                   "--json", "number,title,url,labels")
+    "--json", "number,title,url,labels")
   open_prs = gh_json("search", "prs", "--author=@me", "--state", "open", "--limit", "40",
-                     "--json", "number,title,url,isDraft,createdAt,updatedAt,labels,repository")
+    "--json", "number,title,url,isDraft,createdAt,updatedAt,labels,repository")
   refs = open_pr_details(open_prs)
   stacks, base_by_number = pr_stacks(refs)
   review_by_number = refs.to_h { [it["number"], REVIEW_STATES[it["reviewDecision"]]] }
@@ -274,24 +274,24 @@ def github_activity(since, now)
   {
     shipped: merged.map do |pr|
       labels = label_names(pr)
-      { number: pr["number"], title: pr["title"], handle: handle(pr["title"]),
-        url: pr["url"], labels:,
-        customer_facing: labels.intersect?(CUSTOMER_LABELS) }
+      {number: pr["number"], title: pr["title"], handle: handle(pr["title"]),
+       url: pr["url"], labels:,
+       customer_facing: labels.intersect?(CUSTOMER_LABELS)}
     end,
     in_flight: open_prs.map do |pr|
       labels = label_names(pr)
-      { number: pr["number"], title: pr["title"], handle: handle(pr["title"]),
-        url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
-        isDraft: pr["isDraft"], labels:,
-        age_days: working_days_between(pr["createdAt"], now),
-        idle_days: working_days_between(pr["updatedAt"], now),
-        on_hold: labels.include?(ON_HOLD_LABEL),
-        review_state: review_by_number[pr["number"]],
-        build_state: build_by_number[pr["number"]],
-        head_branch: head_by_number[pr["number"]],
-        head_sha: head_sha_by_number[pr["number"]],
-        pushed_commit_at: pushed_commit_by_number[pr["number"]],
-        stack_base: base_by_number[pr["number"]] }
+      {number: pr["number"], title: pr["title"], handle: handle(pr["title"]),
+       url: pr["url"], repo: pr.dig("repository", "nameWithOwner"),
+       isDraft: pr["isDraft"], labels:,
+       age_days: working_days_between(pr["createdAt"], now),
+       idle_days: working_days_between(pr["updatedAt"], now),
+       on_hold: labels.include?(ON_HOLD_LABEL),
+       review_state: review_by_number[pr["number"]],
+       build_state: build_by_number[pr["number"]],
+       head_branch: head_by_number[pr["number"]],
+       head_sha: head_sha_by_number[pr["number"]],
+       pushed_commit_at: pushed_commit_by_number[pr["number"]],
+       stack_base: base_by_number[pr["number"]]}
     end,
     stacks:,
     reviews_given: reviews_given(since)
@@ -300,14 +300,18 @@ end
 
 def session_activity(checkpoint)
   by_session = Hash.new do |hash, key|
-    hash[key] = { user: 0, assistant: 0, tools: Hash.new(0), cwd: nil, branch: nil, title: nil }
+    hash[key] = {user: 0, assistant: 0, tools: Hash.new(0), cwd: nil, branch: nil, title: nil}
   end
 
   Dir.glob(File.join(PROJECTS_DIR, "*", "*.jsonl")).each do |file|
     next if File.mtime(file) < checkpoint
 
     File.foreach(file) do |line|
-      entry = JSON.parse(line) rescue next
+      entry = begin
+        JSON.parse(line)
+      rescue
+        next
+      end
       session_id = entry["sessionId"]
       next unless session_id
 
@@ -384,8 +388,8 @@ previous_flight = Array(previous&.dig("github", "in_flight")).to_h { [it["number
 # CI was started (drafts run no CI), not that review is wanted — the build state
 # tells the real story.
 github[:started_ci] = github[:in_flight]
-                      .reject { it[:isDraft] }
-                      .select { previous_flight[it[:number]]&.fetch("isDraft", false) }
+  .reject { it[:isDraft] }
+  .select { previous_flight[it[:number]]&.fetch("isDraft", false) }
 
 # The work this period joined onto the PR it went into, so a PR line can show the
 # effort going in rather than reading as untouched. Matched on branch name — a
@@ -402,7 +406,11 @@ github[:in_flight].each do |pr|
   was = previous_flight[pr[:number]]
   carried = was ? was.fetch("qa_rounds", 0).to_i : 0
   landed_on_green = pr[:work_this_period] && was && !was["isDraft"] && was["build_state"] == "passing"
-  pr[:qa_rounds] = pr[:isDraft] ? 0 : carried + (landed_on_green ? 1 : 0)
+  pr[:qa_rounds] = if pr[:isDraft]
+    0
+  else
+    carried + (landed_on_green ? 1 : 0)
+  end
 
   # How long since the developer last committed to this PR, in working days. The
   # local commit usually leads the pushed one (they commit far more than they push),
@@ -415,7 +423,7 @@ github[:in_flight].each do |pr|
   # When those stop, the work is actually finished — that, not the ready flip and
   # not GitHub's reviewDecision, is what means a PR is ready for someone else.
   pr[:settled] = !pr[:isDraft] && pr[:build_state] == "passing" &&
-                 pr[:quiet_days].to_f >= SETTLED_QUIET_DAYS
+    pr[:quiet_days].to_f >= SETTLED_QUIET_DAYS
 end
 
 # Last, because the wording reads every field above it. Handles are resolved for
@@ -426,8 +434,8 @@ github[:in_flight].each { it[:status] = status_line(it, handles) }
 record = {
   ts: now.utc.iso8601,
   since: checkpoint.utc.iso8601,
-  window: "#{checkpoint.localtime.strftime('%H:%M')}–#{now.localtime.strftime('%H:%M')}",
-  git: { commits:, total_commits: commits.sum { it[:count] } },
+  window: "#{checkpoint.localtime.strftime("%H:%M")}–#{now.localtime.strftime("%H:%M")}",
+  git: {commits:, total_commits: commits.sum { it[:count] }},
   github:,
   sessions: session_activity(checkpoint)
 }

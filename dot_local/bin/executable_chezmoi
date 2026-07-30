@@ -30,7 +30,7 @@ def resolve_real_chezmoi
 
     resolved = begin
       File.realpath(candidate)
-    rescue StandardError
+    rescue
       nil
     end
     return candidate if resolved && resolved != self_path

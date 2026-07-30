@@ -15,7 +15,11 @@
 
 require "json"
 
-input = JSON.parse($stdin.read) rescue exit(0)
+input = begin
+  JSON.parse($stdin.read)
+rescue
+  exit(0)
+end
 
 tool = input["tool_name"].to_s
 exit 0 unless %w[Edit MultiEdit Write].include?(tool)
@@ -43,12 +47,12 @@ exit 0 if wrappers.empty?
 
 # Cap inline list at 15 names; payaus's biggest model (payroll) has ~90.
 LIST_CAP = 15
-listed = wrappers.length > LIST_CAP ?
+listed = (wrappers.length > LIST_CAP) ?
   "#{wrappers.first(LIST_CAP).join(", ")} (+#{wrappers.length - LIST_CAP} more)" :
   wrappers.join(", ")
 
 advisory = <<~MSG.strip
-  Editing root model `#{model_name}` — #{wrappers.length} existing wrapper#{'s' if wrappers.length != 1} under `app/models/#{model_name}/`: #{listed}.
+  Editing root model `#{model_name}` — #{wrappers.length} existing wrapper#{"s" if wrappers.length != 1} under `app/models/#{model_name}/`: #{listed}.
 
   Before adding the new behaviour to the root model, ask:
   - Does this duplicate logic already in one of the wrappers above?
@@ -61,6 +65,6 @@ MSG
 puts JSON.generate(
   hookSpecificOutput: {
     hookEventName: "PreToolUse",
-    additionalContext: advisory,
+    additionalContext: advisory
   }
 )

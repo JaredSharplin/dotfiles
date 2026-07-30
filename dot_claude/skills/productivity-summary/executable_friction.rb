@@ -82,8 +82,8 @@ module Friction
       # `use` throughout means what Claude was doing when the marker landed, which
       # holds for a correction as much as a rejection — it's what makes "corrections
       # after a `chezmoi apply`" a group worth reading.
-      context = { entry:, use:,
-                  skill: entry["attributionSkill"] || ancestor(entry, by_uuid) { it["attributionSkill"] }&.dig("attributionSkill") }
+      context = {entry:, use:,
+                 skill: entry["attributionSkill"] || ancestor(entry, by_uuid) { it["attributionSkill"] }&.dig("attributionSkill")}
 
       found = []
       found << marker(kind: "rejection", **context) if DENIAL_KINDS.include?(entry["toolDenialKind"])
@@ -149,9 +149,9 @@ module Friction
   def self.marker(kind:, entry:, use:, skill:, text: nil)
     tool = use&.fetch("name", nil)
     sample = sample_of(use)
-    { kind:, skill:, text:, tool:, sample:, signature: signature_of(tool:, sample:), at: entry[:at],
-      cwd: entry["cwd"], branch: entry["gitBranch"], session: entry["sessionId"],
-      pointer: { file: entry[:path], uuid: entry["uuid"] } }
+    {kind:, skill:, text:, tool:, sample:, signature: signature_of(tool:, sample:), at: entry[:at],
+     cwd: entry["cwd"], branch: entry["gitBranch"], session: entry["sessionId"],
+     pointer: {file: entry[:path], uuid: entry["uuid"]}}
   end
 
   # What a cluster is really about. Grouping on the tool alone is too coarse to act
@@ -166,7 +166,7 @@ module Friction
     when "Read", "Edit", "Write", "NotebookEdit" then File.extname(sample).then { it.empty? ? nil : it }
     # A short argument is already a label — a Skill call's skill name, say. A long
     # one is content, and content doesn't group.
-    else sample.length <= LABEL_LENGTH ? sample : nil
+    else (sample.length <= LABEL_LENGTH) ? sample : nil
     end
   end
 
@@ -193,7 +193,7 @@ module Friction
 
   def self.feedback_text(entry)
     text = entry["userFeedback"].to_s.strip
-    text.empty? || text.start_with?(BOILERPLATE_FEEDBACK) ? nil : text
+    (text.empty? || text.start_with?(BOILERPLATE_FEEDBACK)) ? nil : text
   end
 
   # True on the second and each later failure of the same tool in a row. Mutates
@@ -212,18 +212,18 @@ module Friction
     end
 
     streak = streaks[session]
-    streaks[session] = { tool:, count: streak && streak[:tool] == tool ? streak[:count] + 1 : 1 }
+    streaks[session] = {tool:, count: (streak && streak[:tool] == tool) ? streak[:count] + 1 : 1}
     streaks[session][:count] >= 2
   end
 
   def self.totals(entries:, markers:)
     counts = markers.group_by { it[:kind] }.transform_values(&:size)
-    { user_turns: entries.count { real_user_turn?(it) },
-      interrupts: counts.fetch("interrupt", 0),
-      rejections: counts.fetch("rejection", 0),
-      feedback: counts.fetch("feedback", 0),
-      corrections: counts.fetch("correction", 0),
-      repeat_failures: counts.fetch("repeat_failure", 0) }
+    {user_turns: entries.count { real_user_turn?(it) },
+     interrupts: counts.fetch("interrupt", 0),
+     rejections: counts.fetch("rejection", 0),
+     feedback: counts.fetch("feedback", 0),
+     corrections: counts.fetch("correction", 0),
+     repeat_failures: counts.fetch("repeat_failure", 0)}
   end
 
   def self.real_user_turn?(entry)
@@ -235,19 +235,19 @@ module Friction
 
   def self.clusters(markers:, limit:)
     markers.group_by { it.values_at(:kind, :tool, :signature, :skill) }
-           .map do |(kind, tool, signature, skill), group|
-             { kind:, tool:, signature:, skill:, count: group.size,
-               samples: group.filter_map { it[:sample] }.uniq.first(3),
-               pointers: group.map { it[:pointer] } }
-           end
-           .sort_by { [-it[:count], it[:kind], it[:tool].to_s, it[:signature].to_s] }
-           .first(limit)
+      .map do |(kind, tool, signature, skill), group|
+        {kind:, tool:, signature:, skill:, count: group.size,
+         samples: group.filter_map { it[:sample] }.uniq.first(3),
+         pointers: group.map { it[:pointer] }}
+      end
+      .sort_by { [-it[:count], it[:kind], it[:tool].to_s, it[:signature].to_s] }
+      .first(limit)
   end
 
   def self.breakdown(markers:, by:)
     markers.group_by(&GROUPERS.fetch(by))
-           .map { |name, group| { name:, count: group.size, kinds: group.group_by { it[:kind] }.transform_values(&:size) } }
-           .sort_by { [-it[:count], it[:name].to_s] }
+      .map { |name, group| {name:, count: group.size, kinds: group.group_by { it[:kind] }.transform_values(&:size)} }
+      .sort_by { [-it[:count], it[:name].to_s] }
   end
 
   # The day's sessions ranked by how much work went through them. The busiest are
@@ -256,19 +256,19 @@ module Friction
   def self.sessions(entries:, markers:)
     marker_counts = markers.group_by { it[:session] }.transform_values(&:size)
     entries.group_by { it["sessionId"] }
-           .map do |session, group|
-             { session:, cwd: group.filter_map { it["cwd"] }.first, branch: group.filter_map { it["gitBranch"] }.first,
-               file: group.first[:path],
-               turns: group.count { it["type"] == "assistant" }, markers: marker_counts.fetch(session, 0) }
-           end
-           .sort_by { [-it[:turns], it[:session].to_s] }
+      .map do |session, group|
+        {session:, cwd: group.filter_map { it["cwd"] }.first, branch: group.filter_map { it["gitBranch"] }.first,
+         file: group.first[:path],
+         turns: group.count { it["type"] == "assistant" }, markers: marker_counts.fetch(session, 0)}
+      end
+      .sort_by { [-it[:turns], it[:session].to_s] }
   end
 
   # What gets kept on disk: counts, skill and tool names, and pointers. No
   # conversation text ever — the samples and feedback stay in stdout only.
   def self.record(date:, totals:, skills:, worktrees:, clusters:)
-    { date:, totals:, skills:, worktrees:,
-      clusters: clusters.map { it.slice(:kind, :tool, :signature, :skill, :count, :pointers) } }
+    {date:, totals:, skills:, worktrees:,
+     clusters: clusters.map { it.slice(:kind, :tool, :signature, :skill, :count, :pointers) }}
   end
 
   def self.trend(dir:, date:, days:)
@@ -277,7 +277,7 @@ module Friction
       path = File.join(dir, "#{day}.json")
       next unless File.exist?(path)
 
-      { date: day.to_s, **JSON.parse(File.read(path), symbolize_names: true).fetch(:totals, {}) }
+      {date: day.to_s, **JSON.parse(File.read(path), symbolize_names: true).fetch(:totals, {})}
     end
   end
 end
@@ -291,8 +291,8 @@ if __FILE__ == $PROGRAM_NAME
   # A file untouched since the day began can hold nothing from that day, so skip it
   # without reading — the corpus is hundreds of megabytes.
   entries = Dir.glob(File.join(Friction::PROJECTS_DIR, "*", "*.jsonl"))
-               .reject { File.mtime(it) < start }
-               .flat_map { Friction.entries(path: it, lines: File.readlines(it), window:) }
+    .reject { File.mtime(it) < start }
+    .flat_map { Friction.entries(path: it, lines: File.readlines(it), window:) }
   # Safe across files in one call: every piece of state markers tracks is keyed by
   # session, and a session never spans two transcripts.
   markers = Friction.markers(entries)
