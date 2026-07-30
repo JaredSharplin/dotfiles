@@ -215,7 +215,7 @@ JSON: `require 'json'` — `JSON.parse(...)` and `.to_json`.
 
 # Commands that cause real damage
 
-Git operations (`git push`, `git push --force`, `git commit --amend`) are blocked by a Claude Code hook — see `dot_claude/hooks/executable_block-forbidden-git.sh`. Use `git town sync` / `git town propose` for pushing, and create new commits rather than amending.
+Use `git town sync` / `git town propose` for pushing rather than `git push`, and create new commits rather than amending (`git push --force` and `git commit --amend` are off the table). No hook enforces this — it's a convention to follow.
 
 For everything else, use the alternative — these aren't judgment calls:
 

@@ -8,15 +8,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/block-forbidden-git.sh"
-          }
-        ]
-      },
-      {
         "matcher": "Edit|MultiEdit|Write",
         "hooks": [
           {
