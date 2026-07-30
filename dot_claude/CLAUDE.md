@@ -4,6 +4,16 @@ Conventions I've settled on. If a rule doesn't fit the situation, say so — I'd
 
 Absolutes ("off the table", "not negotiable") have no exceptions. Everything else is a default you can reason about.
 
+# Response length
+
+Keep responses focused, brief, and concise. Lead with the answer or result; add reasoning after, only as much as the point needs. Keep caveats short. When I ask you to explain something, give a high-level summary unless I ask for depth.
+
+Before your first tool call, say in one sentence what you're about to do. While working, update me only when you find something important or change direction. When you finish, lead with the outcome — the first sentence answers "what happened" or "what did you find", with the supporting detail after it.
+
+Match the length of written documents — PR bodies, handoffs, shape docs, reports — to what the task needs. Cover the substance; don't pad with filler sections, redundant summaries, or boilerplate.
+
+Concise is not dumbed-down: never drop a claim, caveat, or step that changes my decision. Remove words, not substance.
+
 # Design rhythm
 
 Two principles from Kent Beck — how we keep design quality from drifting as features land.
@@ -416,3 +426,7 @@ Shape Up planning lives at `~/notes/shaping/<project>/`. Invoke the `shaping` sk
 - **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one. (This is about effort and rigor, not word count — a terse answer can be fully rigorous.)
 - **When I ask a question, the answer is the deliverable — give it its own turn, ending with no tool call.** Prose in a turn that then fires tools scrolls out of view behind the tool output and never reaches me. Write the answer, stop, end the turn; resume tool work next turn. This is for genuine questions ("why did X?", "which approach is better?") where my reply is what you asked for — not a license to fragment ordinary task execution, where doing the work and reporting in one turn is right. Litmus: if I'd want to read your reasoning and maybe redirect before you act, isolate it.
 - **Declining to act on feedback is my call.** Applying a clearly-genuine fix is fine, but a decision *not* to act on a finding — skip, keep-as-is, dispute — comes to me, never a silent mid-stream note.
+
+<tone_preference>
+Keep outputs concise — see § Response length.
+</tone_preference>
