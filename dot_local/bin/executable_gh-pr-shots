@@ -133,18 +133,13 @@ def slug(caption)
   trimmed.empty? ? "image" : trimmed
 end
 
-# Zellij carries no kitty graphics and Ghostty renders no sixel, so inside a zellij
-# session character art is the ceiling. Degrade to it rather than drawing nothing.
-def pixelation
-  ENV["ZELLIJ"] ? "quarter" : "k"
-end
-
 # timg's default is to fit width and height, but "height" means the whole terminal —
 # which would push the header off the top and scroll the frame. Reserve the header rows
-# explicitly so a frame always lands inside one screen.
+# explicitly so a frame always lands inside one screen. `-p k` asks for kitty graphics
+# outright rather than leaning on timg's terminal detection.
 def viewer_command(path)
   rows, columns = IO.console.winsize
-  command = ["timg", "-p", pixelation, "--center", "-g", "#{columns}x#{rows - HEADER_ROWS}"]
+  command = ["timg", "-p", "k", "--center", "-g", "#{columns}x#{rows - HEADER_ROWS}"]
   command << "-V" if File.extname(path) == ".mp4"
   command << path
 end
@@ -198,7 +193,6 @@ if shots.empty?
   exit
 end
 
-warn("Inside zellij, which carries no kitty graphics — rendering as character art.") if ENV["ZELLIJ"]
 puts("Fetching #{shots.size} attachment#{"s" unless shots.size == 1} from #{repo}##{number}…")
 
 files = download_all(shots, dir, run("gh", "auth", "token"))
