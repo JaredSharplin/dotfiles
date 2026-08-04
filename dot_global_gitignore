@@ -1,5 +1,3 @@
-.aider*
-CLAUDE.md
 .tool-versions*
 .mise.local.toml
 .claude/commands/pull-request-chunker.md
