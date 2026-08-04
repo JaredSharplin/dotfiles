@@ -9,6 +9,7 @@ brew "git-town"       # Git workflow automation
 brew "neovim"         # Text editor
 brew "lazygit"        # Git TUI
 brew "zellij"         # Terminal multiplexer
+brew "rustup"         # Rust toolchain manager (keg-only; PATH in .zshenv)
 
 # Shell enhancements
 brew "starship"             # Cross-shell prompt

@@ -11,6 +11,7 @@ mise_shims_first() { export PATH="$HOME/.local/share/mise/shims:$PATH" }
 # assert shims-first for this and every non-interactive shell (.zshenv is the only startup
 # file guaranteed to run for all shells).
 export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="$PATH:/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin"
 mise_shims_first
 
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
