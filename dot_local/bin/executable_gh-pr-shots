@@ -41,26 +41,22 @@ ATTACHMENT_URL = %r{https://(?:github\.com/user-attachments/assets/|(?:private-)
 MARKDOWN_IMAGE = /!\[([^\]]*)\]\((#{ATTACHMENT_URL})\)/
 
 # Attachment URLs are bare UUIDs carrying no extension, so the type comes from the
-# content. Offsets differ because webp and mp4 tag themselves a few bytes in.
-SIGNATURES = [
-  ["png", 0, "\x89PNG".b],
-  ["jpg", 0, "\xFF\xD8\xFF".b],
-  ["gif", 0, "GIF8".b],
-  ["webp", 8, "WEBP".b],
-  ["mp4", 4, "ftyp".b] # .mov too — QuickTime and MP4 share the ftyp box
-].freeze
+# content — via libmagic, which already knows every format GitHub hands back. The only
+# mapping worth keeping is where the mime subtype isn't the extension you'd want on disk.
+SUBTYPE_EXTENSIONS = {"jpeg" => "jpg", "quicktime" => "mov"}.freeze
 
 DELETE_ALL_IMAGES = "\e_Ga=d\e\\"
 CLEAR_SCREEN = "\e[H\e[2J"
-HEADER_ROWS = 3
+
+# Printed verbatim, so the help line can't drift from the dispatch in `page`.
+KEY_HELP = "n/j/space next · p/k previous · o open in macOS · q quit"
 
 # getch reads raw, so ctrl-c arrives as byte 3 instead of raising Interrupt.
 INTERRUPT_KEY = 3.chr
 
 def run(*args, stdin_data: nil)
-  options = stdin_data ? {stdin_data:} : {}
-  stdout, stderr, status = Open3.capture3(*args, **options)
-  raise "#{args.first} failed: #{stderr.strip}" unless status.success?
+  stdout, stderr, status = Open3.capture3(*args, stdin_data:)
+  raise "#{args.join(" ")} failed: #{stderr.strip}" unless status.success?
 
   stdout.strip
 end
@@ -117,9 +113,8 @@ rescue RuntimeError => error
 end
 
 def name_by_content(path)
-  head = File.binread(path, 12).to_s
-  extension = SIGNATURES.find { |_name, offset, magic| head[offset, magic.bytesize] == magic }
-  named = "#{path}.#{extension ? extension.first : "bin"}"
+  subtype = run("file", "--brief", "--mime-type", path).split("/").last
+  named = "#{path}.#{SUBTYPE_EXTENSIONS.fetch(subtype, subtype)}"
   File.rename(path, named)
   named
 end
@@ -129,28 +124,28 @@ end
 # or every name reads "...-png.png".
 def slug(caption)
   trimmed = caption.sub(/\.\w{3,4}\z/, "").downcase.gsub(/[^a-z0-9]+/, "-")[0, 60]
-    .sub(/\A-+/, "").sub(/-+\z/, "")
+    .gsub(/\A-+|-+\z/, "")
   trimmed.empty? ? "image" : trimmed
 end
 
-# timg's default is to fit width and height, but "height" means the whole terminal —
-# which would push the header off the top and scroll the frame. Reserve the header rows
-# explicitly so a frame always lands inside one screen. `-p k` asks for kitty graphics
-# outright rather than leaning on timg's terminal detection.
-def viewer_command(path)
+# timg's default is to fit width and height, but "height" means the whole terminal — which
+# would push the header off the top. `-p k` asks for kitty graphics outright rather than
+# leaning on timg's terminal detection. No `-V` for videos: timg probes image decoding and
+# falls back to video on its own, which beats guessing from the extension.
+def viewer_command(path, reserved:)
   rows, columns = IO.console.winsize
-  command = ["timg", "-p", "k", "--center", "-g", "#{columns}x#{rows - HEADER_ROWS}"]
-  command << "-V" if File.extname(path) == ".mp4"
-  command << path
+  ["timg", "-p", "k", "--center", "-g", "#{columns}x#{rows - reserved}", path]
 end
 
 # The filename is built from the caption, so it's the whole label — printing both just
 # says the same thing twice.
 def show(path, index, total)
   print(DELETE_ALL_IMAGES, CLEAR_SCREEN)
-  puts("[#{index + 1}/#{total}] #{File.basename(path)}")
-  puts("n next · p previous · o open in macOS · q quit")
-  system(*viewer_command(path))
+  header = ["[#{index + 1}/#{total}] #{File.basename(path)}", KEY_HELP]
+  puts(header)
+  # A row spare under the image: filling the last one scrolls the frame, and Ghostty won't
+  # carry kitty placements through a scroll (ghostty#4323).
+  system(*viewer_command(path, reserved: header.size + 1))
 end
 
 def page(paths)

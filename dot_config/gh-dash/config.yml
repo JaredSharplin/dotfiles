@@ -111,13 +111,9 @@ keybindings:
     - key: N
       name: review-in-worktree
       command: gh-review-worktree {{.RepoName}} {{.PrNumber}} {{.HeadRefName}}
-    # View the selected PR's screenshots inline. gh-pr-shots scrapes the attachment URLs
-    # out of the body/comments and downloads them with the gh token — private-repo
-    # attachments 404 for anonymous requests, which is why no off-the-shelf tool can show
-    # them. It pages one image at a time rather than dumping them all to scroll through:
-    # Ghostty doesn't move kitty images when the screen scrolls (ghostty#4323), and an
-    # undeleted image stays painted over the prompt on exit (ghostty#3054). gh-dash
-    # suspends to the foreground, so the pager owns the terminal until you quit.
+    # Page through the selected PR's screenshots inline; gh-pr-shots' own header explains
+    # how it gets them and why it pages. gh-dash suspends to the foreground, so the pager
+    # owns the terminal until you quit.
     # Key "i" = images; d/v/e/E/n/N/r/R/m are taken by gh-dash or the bindings above.
     - key: i
       name: screenshots
