@@ -21,6 +21,7 @@ brew "antidote"  # Fish-like autosuggestions for zsh
 brew "fzf"          # Fuzzy finder
 brew "bat"          # Better cat with syntax highlighting
 brew "glow"         # Markdown renderer for the terminal (PR bodies, etc.)
+brew "timg"         # Terminal image/video viewer (PR screenshots via gh-pr-shots)
 brew "eza"          # Modern ls replacement
 brew "ripgrep"      # Better grep
 brew "fd"           # Better find

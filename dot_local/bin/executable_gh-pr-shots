@@ -1,0 +1,211 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# gh-pr-shots — page through a PR's screenshots in the terminal.
+#
+# Invoked by gh-dash's "i" keybinding with the selected PR:
+#   gh-pr-shots <owner/name> <pr-number>
+#
+# PR screenshots live on GitHub, not on disk. Even the ones uploaded from this machine
+# are gone — the ~/Desktop capture dirs the /git-town skill writes are disposable, and
+# the review queue is mostly other people's PRs anyway. So this pulls them back out of
+# the PR itself: body, comments and review bodies, scanned for attachment URLs.
+#
+# Every fetch carries the gh token. Private-repo attachments 404 for anonymous requests,
+# which is why nothing else in the stack can show them (snacks.image and mdcat both
+# fetch remote images with a bare curl, and mdcat drops images entirely when paging).
+# The token goes in through curl's config-on-stdin rather than -H, so it never lands in
+# the process list.
+#
+# Downloads are thrown away and re-fetched every run: a PR gains screenshots whenever QA
+# re-runs, and a few MB over wifi is cheaper than invalidation logic that can quietly
+# show a stale gallery.
+#
+# The viewer pages rather than dumping every image to scroll through, for two documented
+# reasons: Ghostty doesn't move kitty classic placements when the screen scrolls
+# (ghostty#4323), so stacked images smear; and an image nobody deletes stays painted over
+# the shell prompt after exit (ghostty#3054). So every frame is sized to fit one screen,
+# and every redraw — plus the exit path — deletes all placements first.
+
+require "fileutils"
+require "io/console"
+require "json"
+require "open3"
+
+CACHE_ROOT = File.expand_path("~/.cache/gh-pr-shots")
+
+# The two hosts GitHub serves attachments from: user-attachments for anything uploaded
+# today, githubusercontent for older PRs. The character class stops the match at the
+# delimiters that surround a URL in markdown and HTML.
+ATTACHMENT_URL = %r{https://(?:github\.com/user-attachments/assets/|(?:private-)?user-images\.githubusercontent\.com/)[^\s"'>)\]]+}
+MARKDOWN_IMAGE = /!\[([^\]]*)\]\((#{ATTACHMENT_URL})\)/
+
+# Attachment URLs are bare UUIDs carrying no extension, so the type comes from the
+# content. Offsets differ because webp and mp4 tag themselves a few bytes in.
+SIGNATURES = [
+  ["png", 0, "\x89PNG".b],
+  ["jpg", 0, "\xFF\xD8\xFF".b],
+  ["gif", 0, "GIF8".b],
+  ["webp", 8, "WEBP".b],
+  ["mp4", 4, "ftyp".b] # .mov too — QuickTime and MP4 share the ftyp box
+].freeze
+
+DELETE_ALL_IMAGES = "\e_Ga=d\e\\"
+CLEAR_SCREEN = "\e[H\e[2J"
+HEADER_ROWS = 3
+
+# getch reads raw, so ctrl-c arrives as byte 3 instead of raising Interrupt.
+INTERRUPT_KEY = 3.chr
+
+def run(*args, stdin_data: nil)
+  options = stdin_data ? {stdin_data:} : {}
+  stdout, stderr, status = Open3.capture3(*args, **options)
+  raise "#{args.first} failed: #{stderr.strip}" unless status.success?
+
+  stdout.strip
+end
+
+def pull_request(repo, number)
+  JSON.parse(run("gh", "pr", "view", number, "--repo", repo, "--json", "body,comments,reviews"))
+end
+
+# Body first — the Screenshots section is what you're nearly always after — then the
+# discussion, where later QA rounds post extra shots.
+def discussion(pull_request)
+  [pull_request["body"],
+    *pull_request["comments"].to_a.map { it["body"] },
+    *pull_request["reviews"].to_a.map { it["body"] }].compact
+end
+
+# GitHub writes ![alt](url) for a file uploaded through the API and a bare URL for a
+# drag-and-drop, so captions come from the markdown pass while the bare scan catches
+# everything else — <img src=…> included.
+def attachments(text)
+  captions = text.scan(MARKDOWN_IMAGE).to_h { |caption, url| [tidy(url), caption] }
+  text.scan(ATTACHMENT_URL)
+    .map { tidy(it) }
+    .uniq
+    .map { {url: it, caption: captions[it].to_s} }
+end
+
+# A bare URL sitting in prose collects the sentence's punctuation.
+def tidy(url)
+  url.sub(/[)\]",.]+\z/, "")
+end
+
+def screenshots(pull_request)
+  discussion(pull_request).flat_map { attachments(it) }.uniq { it[:url] }
+end
+
+# One thread per attachment: a PR with eight screenshots is eight round trips that have
+# no reason to queue behind each other.
+def download_all(shots, dir, token)
+  shots.each_with_index
+    .map { |shot, index| Thread.new { download(shot, dir, index + 1, token) } }
+    .filter_map(&:value)
+end
+
+def download(shot, dir, position, token)
+  path = File.join(dir, format("%02d-%s", position, slug(shot[:caption])))
+  run("curl", "--silent", "--show-error", "--location", "--fail",
+    "--config", "-", "--output", path, shot[:url],
+    stdin_data: %(header = "Authorization: token #{token}"\n))
+  name_by_content(path)
+rescue RuntimeError => error
+  warn("skipped #{shot[:url]} — #{error.message}")
+  nil
+end
+
+def name_by_content(path)
+  head = File.binread(path, 12).to_s
+  extension = SIGNATURES.find { |_name, offset, magic| head[offset, magic.bytesize] == magic }
+  named = "#{path}.#{extension ? extension.first : "bin"}"
+  File.rename(path, named)
+  named
+end
+
+# Self-describing filenames, so the cache dir is browsable without this script. `gh image`
+# uses the uploaded filename as the alt text, so drop a trailing extension before slugging
+# or every name reads "...-png.png".
+def slug(caption)
+  trimmed = caption.sub(/\.\w{3,4}\z/, "").downcase.gsub(/[^a-z0-9]+/, "-")[0, 60]
+    .sub(/\A-+/, "").sub(/-+\z/, "")
+  trimmed.empty? ? "image" : trimmed
+end
+
+# Zellij carries no kitty graphics and Ghostty renders no sixel, so inside a zellij
+# session character art is the ceiling. Degrade to it rather than drawing nothing.
+def pixelation
+  ENV["ZELLIJ"] ? "quarter" : "k"
+end
+
+# timg's default is to fit width and height, but "height" means the whole terminal —
+# which would push the header off the top and scroll the frame. Reserve the header rows
+# explicitly so a frame always lands inside one screen.
+def viewer_command(path)
+  rows, columns = IO.console.winsize
+  command = ["timg", "-p", pixelation, "--center", "-g", "#{columns}x#{rows - HEADER_ROWS}"]
+  command << "-V" if File.extname(path) == ".mp4"
+  command << path
+end
+
+# The filename is built from the caption, so it's the whole label — printing both just
+# says the same thing twice.
+def show(path, index, total)
+  print(DELETE_ALL_IMAGES, CLEAR_SCREEN)
+  puts("[#{index + 1}/#{total}] #{File.basename(path)}")
+  puts("n next · p previous · o open in macOS · q quit")
+  system(*viewer_command(path))
+end
+
+def page(paths)
+  index = 0
+  loop do
+    show(paths[index], index, paths.size)
+    case $stdin.getch
+    when "n", " ", "\r", "j" then index = (index + 1) % paths.size
+    when "p", "k" then index = (index - 1) % paths.size
+    when "o" then system("open", paths[index])
+    when "q", "\e", INTERRUPT_KEY, nil then break
+    end
+  end
+ensure
+  print(DELETE_ALL_IMAGES)
+end
+
+# gh-dash resumes the instant this exits, so a bare message would flash past unread.
+def pause(message)
+  puts(message)
+  print("Press any key to return… ")
+  $stdin.getch
+  puts
+end
+
+repo, number = ARGV
+abort("Usage: gh-pr-shots <owner/name> <pr-number>") unless number
+abort("timg is not installed — brew install timg") unless system("which", "timg", out: File::NULL, err: File::NULL)
+# The pager reads single keypresses and sizes each frame to the window, so there's nothing
+# sensible to do without a terminal. Say so rather than failing inside the draw loop.
+abort("gh-pr-shots needs a terminal — run it in the foreground.") unless IO.console
+
+dir = File.join(CACHE_ROOT, repo.gsub("/", "__"), "pr-#{number}")
+FileUtils.rm_rf(dir)
+FileUtils.mkdir_p(dir)
+
+shots = screenshots(pull_request(repo, number))
+if shots.empty?
+  pause("No screenshots on #{repo}##{number}.")
+  exit
+end
+
+warn("Inside zellij, which carries no kitty graphics — rendering as character art.") if ENV["ZELLIJ"]
+puts("Fetching #{shots.size} attachment#{"s" unless shots.size == 1} from #{repo}##{number}…")
+
+files = download_all(shots, dir, run("gh", "auth", "token"))
+if files.empty?
+  pause("Every attachment on #{repo}##{number} failed to download.")
+  exit
+end
+
+page(files)
+puts("Files: #{dir}")
