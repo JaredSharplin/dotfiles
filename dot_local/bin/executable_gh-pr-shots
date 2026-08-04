@@ -49,7 +49,7 @@ DELETE_ALL_IMAGES = "\e_Ga=d\e\\"
 CLEAR_SCREEN = "\e[H\e[2J"
 
 # Printed verbatim, so the help line can't drift from the dispatch in `page`.
-KEY_HELP = "n/j/space next · p/k previous · o open in macOS · q quit"
+KEY_HELP = "n/j/space next · p/k previous · q quit"
 
 # getch reads raw, so ctrl-c arrives as byte 3 instead of raising Interrupt.
 INTERRUPT_KEY = 3.chr
@@ -155,7 +155,6 @@ def page(paths)
     case $stdin.getch
     when "n", " ", "\r", "j" then index = (index + 1) % paths.size
     when "p", "k" then index = (index - 1) % paths.size
-    when "o" then system("open", paths[index])
     when "q", "\e", INTERRUPT_KEY, nil then break
     end
   end
