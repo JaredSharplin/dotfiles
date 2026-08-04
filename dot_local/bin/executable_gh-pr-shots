@@ -196,4 +196,3 @@ if files.empty?
 end
 
 page(files)
-puts("Files: #{dir}")
