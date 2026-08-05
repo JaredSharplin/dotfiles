@@ -1,12 +1,10 @@
 gui:
   nerdFontsVersion: "3"
-
 # delta setup
 git:
-  pagers:
+  diffRenderers:
     - colorArg: always
-      pager: delta --dark --paging=never
-
+      command: delta --dark --paging=never
 # git town setup
 customCommands:
   - key: 'Y'
@@ -20,9 +18,9 @@ customCommands:
     description: 'Git-Town Undo (undo the last git-town command)'
     command: 'git-town undo'
     prompts:
-    - type: 'confirm'
-      title: 'Undo Last Command'
-      body: 'Are you sure you want to Undo the last git-town command?'
+      - type: 'confirm'
+        title: 'Undo Last Command'
+        body: 'Are you sure you want to Undo the last git-town command?'
     output: 'log'
     loadingText: 'Undoing Git-Town Command'
   - key: '!'
@@ -56,9 +54,9 @@ customCommands:
     description: 'Git-Town Delete (deletes the current feature branch and sYnc)'
     command: 'git-town delete'
     prompts:
-    - type: 'confirm'
-      title: 'Delete current feature branch'
-      body: 'Are you sure you want to delete the current feature branch?'
+      - type: 'confirm'
+        title: 'Delete current feature branch'
+        body: 'Are you sure you want to delete the current feature branch?'
     output: 'log'
     loadingText: 'Deleting Feature Branch'
   - key: 'p'
