@@ -14,6 +14,8 @@ Capture everything a fresh Claude session needs to continue this work without re
 
 **Reference, don't duplicate.** Don't restate content that already lives in another artifact — plans, PR descriptions, commits, the diff, feature specs. Point to them by path or URL and summarize only what's needed to orient. The handoff is a map to the context, not a copy of it.
 
+**Resolve open decisions before writing — never hand one on.** You are writing this while the user is still here, which is the last cheap moment to settle anything ambiguous. Before writing the file, list every unresolved decision the next session would hit, check whether the referenced plans already answer it, and put whatever remains to the user in one round. Record the *answers*. A handoff contains no questions, no "ask <user>", and no decision framed as still open: the next session can't tell a genuine unknown from one you simply didn't raise, so it burns its first turn re-asking what you could have closed in seconds.
+
 ## Step 1: Gather context
 
 Run these to establish current state:
@@ -90,10 +92,10 @@ If a handoff for the same work already exists at that path, overwrite it. Use th
 [Skills the next session should invoke for this work, e.g. "/git-town to open the PR", "/tdd-bug-fix to continue the failing test". Omit if none apply.]
 
 ## Your Task
-[Clear instruction for what to do next, e.g., "Continue implementing X by doing Y"]
+[Clear instruction for what to do next, e.g., "Continue implementing X by doing Y". Instructions only — no questions, no open decisions, no "confirm with <user> whether...". A decision you can't settle isn't ready to hand off.]
 ```
 
-The file must be comprehensive enough that a fresh session can continue without asking clarifying questions about context.
+The file must be comprehensive enough that a fresh session can continue without asking clarifying questions — about context *or* about what to do.
 
 ## Step 4: Return the copy-paste prompt
 
