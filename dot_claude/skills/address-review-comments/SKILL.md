@@ -72,8 +72,8 @@ Save the result. You'll need the thread IDs to reply via the `addPullRequestRevi
 Group threads by file and by topic — reviewers often leave several comments on a related issue. Present the grouped list to the user with **three options per group**:
 
 - **Fix** — make the code change the reviewer asked for.
-- **Defer** — agree it's worth doing, but not in this PR. Reply explaining why and where it will be tracked.
-- **Dispute** — disagree with the suggestion. Reply explaining the reasoning.
+- **Defer** — agree it's worth doing, but not in this PR. Bring the user where it will be tracked and why; they post it.
+- **Dispute** — disagree with the suggestion. Bring the user the reasoning; they post it.
 
 Default to **Fix** unless the reviewer's comment is clearly a question, a nit, or you have a substantive reason to push back. Only stop and ask when a group is genuinely ambiguous.
 
@@ -125,11 +125,11 @@ Use git town to push the updated branch:
 git town sync --push
 ```
 
-This pushes the branch *and* updates the PR. Wait for it to complete before replying to threads — your replies should point at commits that exist on the remote.
+This pushes the branch *and* updates the PR. Wait for it to complete before replying to threads — the SHA you post has to exist on the remote.
 
 ## Step 8: Reply to threads
 
-For each thread (fixed, deferred, or disputed), reply via the GraphQL mutation. **Do not resolve.** The reviewer resolves after they verify the fix.
+For each fixed thread, reply via the GraphQL mutation. **Do not resolve.** The reviewer resolves after they verify the fix.
 
 ```bash
 gh api graphql -f query='
@@ -141,16 +141,12 @@ gh api graphql -f query='
       comment { url }
     }
   }
-' -F threadId="$THREAD_ID" -F body="$REPLY_TEXT"
+' -F threadId="$THREAD_ID" -F body="Fixed in $SHA"
 ```
 
-Reply content rules:
+**The reply body is `Fixed in <sha>` and nothing else.** No description of the approach, no pointers to other tests, no offers, no reasoning — the SHA is what the reviewer needs and the diff carries the rest.
 
-- **For fix:** name the commit (`Fixed in <short SHA>`) plus a 1-line description of the approach if it differs from what was suggested. Don't restate the diff.
-- **For defer:** state *where* it's tracked (Linear ticket, follow-up PR planned, GitHub issue) and *why* it doesn't block this PR.
-- **For dispute:** explain the reasoning concisely. Don't be defensive — engage with the reviewer's point directly. If you're unsure, ask the user before sending the reply.
-
-Replies should be short. Reviewers don't want essays; they want to know whether the comment was addressed and where to look.
+For a **deferred** or **disputed** thread there is no such reply: bring the wording to the user and let them post it. Writing prose in their voice is not yours to do.
 
 ## Step 9: Report
 
@@ -166,7 +162,7 @@ Summarise to the user:
 - **Never resolve threads.** That's the reviewer's job — resolving prematurely makes it harder for them to track that they actually checked the fix.
 - **One commit per logical group, not per thread.** Reviewers reading the diff want to see the net change, not a thread-by-thread audit trail.
 - **Don't expand scope.** Address only what was raised. Adjacent cleanup goes in a follow-up.
-- **Reply with commit SHAs, not "done" / "fixed".** "Done" gives reviewers nothing to look at; a SHA + one-line approach summary lets them verify in seconds.
+- **A reply is `Fixed in <sha>` and nothing else.** No approach summary, no context, no offers. Anything beyond the SHA is speaking for the user — for a deferred or disputed thread, hand them the wording instead of posting it.
 - **Don't push hooks-skip flags.** Per global CLAUDE.md, `--no-verify` is off the table; let pre-commit hooks run.
 - **Don't auto-iterate on verification failures.** If manual-verifier returns FAIL, surface and stop. The user decides whether to retry.
 

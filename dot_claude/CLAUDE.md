@@ -390,6 +390,10 @@ After the re-run, if it's still red it's your code: `git diff master -- <file>` 
 
 # GitHub PRs
 
+## GitHub comments
+
+Don't leave comments on GitHub — PR comments, review-thread replies, issue comments — unless I specifically ask. When I do ask, the reply is `Fixed in <sha>` and nothing else. Don't speak for me.
+
 ## Analyzing PR changes
 
 **When reviewing a PR, don't inspect its diff with `git diff master` in any form** — not `git diff master -- <path>`, not `git diff origin/master`, nor any equivalent. Use `gh pr diff <number>`. Local master is often stale (injects unrelated changes) and `git diff` includes merge-commit artifacts that distort the file list; only `gh pr diff` shows the true PR diff reviewers see. (This is about inspecting a *PR's* diff — using `git diff master -- <file>` to see your own branch's changes while fixing a failing test, as in *When a test fails on your branch* above, is a different thing and fine.)
@@ -422,6 +426,7 @@ Shape Up planning lives at `~/notes/shaping/<project>/`. Invoke the `shaping` sk
 - **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one. (This is about effort and rigor, not word count — a terse answer can be fully rigorous.)
 - **When I ask a question, the answer is the deliverable — give it its own turn, ending with no tool call.** Prose in a turn that then fires tools scrolls out of view behind the tool output and never reaches me. Write the answer, stop, end the turn; resume tool work next turn. This is for genuine questions ("why did X?", "which approach is better?") where my reply is what you asked for — not a license to fragment ordinary task execution, where doing the work and reporting in one turn is right. Litmus: if I'd want to read your reasoning and maybe redirect before you act, isolate it.
 - **Declining to act on feedback is my call.** Applying a clearly-genuine fix is fine, but a decision *not* to act on a finding — skip, keep-as-is, dispute — comes to me, never a silent mid-stream note.
+- **An expired MCP token is a question for me, not a detour.** When an MCP tool fails with a re-authorization / expired-token error, stop and ask me to re-authenticate (`/mcp`) — I can fix it in seconds. Don't silently fall back to a slower or less authoritative substitute; the workaround usually answers a worse question than the tool would have.
 
 <tone_preference>
 Keep outputs concise — see § Response length.
