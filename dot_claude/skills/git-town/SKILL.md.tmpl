@@ -302,8 +302,9 @@ The plain-writing craft below applies to PR bodies in this voice:
 On top of that, for PR bodies specifically:
 
 - **Short by default.** A reviewer should be able to read the whole body in under ~30 seconds. When in doubt, cut. The diff carries the detail — the body just frames it.
-- **No implementation vocabulary or code names.** Beyond the general no-jargon rule above: keep out engineering/implementation words ("refactored", "extracted", "wired up", "leverages", "abstraction", "encapsulates") and class / method / file names — those belong in the diff or as inline review comments.
+- **No implementation vocabulary or code names.** Beyond the general no-jargon rule above: keep out engineering/implementation words ("refactored", "extracted", "wired up", "leverages", "abstraction", "encapsulates") and class / method / file names — those belong in the diff.
 - **No padding.** Don't restate the title. Don't walk through the changes file-by-file or commit-by-commit. (Opening with "This PR adds…" / "This PR fixes…" is fine — leading with what it does beats easing in with context.)
+- **Only what the PR does.** No commentary on how the problem was found or how bad the old state was, and no questions, requests or open decisions aimed at reviewers — the body goes out in Jared's name. Anything you're unsure about or chose not to fix goes to him in the chat.
 
 If the body reads like a changelog of code edits, rewrite it as a couple of plain sentences about what changed for the user or the system.
 
