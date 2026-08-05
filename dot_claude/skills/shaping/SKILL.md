@@ -9,6 +9,20 @@ A structured approach for collaboratively defining problems and exploring soluti
 
 ---
 
+## Stop and check in
+
+Shaping is negotiation. Present, then wait — don't write the documents and hand them over.
+
+Three stops. At each, put it in a message, end the turn with no tool call, and wait:
+
+1. **Requirements** — before sketching any shape, before writing any file.
+2. **Shape** — before slicing.
+3. **Slices** — before writing slice plans.
+
+Statuses you chose and shapes you prefer are proposals, not decisions.
+
+---
+
 ## Multi-Level Consistency (Critical)
 
 Shaping produces documents at different levels of abstraction. **Truth must stay consistent across all levels.**
