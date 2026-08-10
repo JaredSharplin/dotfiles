@@ -60,7 +60,7 @@ Good tests here:
 - Deterministic — one execution path, no if/else
 - Exact values — calculate expected up front, assert directly
 - `assert_in_delta expected, actual` with defaults, no extra arguments — **except payroll tests** (below)
-- No comments or assertion messages
+- No assertion messages
 - Thorough coverage — exercise the behavior, not just the happy path
 
 **Payroll tests are exact.** In `test/**/payroll*/**/*`, never `assert_in_delta` — use exact `assert_equal`. Payroll values must be exact; a rounding gap means the production code or the assertion is wrong, not that a delta is acceptable. Enforced by the `TandaCustomCops/NoAssertInDelta` cop.
@@ -103,6 +103,10 @@ Under `strict`: every method needs a `sig`, every constant and instance variable
 ## User-facing strings
 
 All go through translation. Don't embed plain English directly.
+
+## Self-documenting code
+
+Write expressive, self-documenting code — no comments. The exception is the class or module doc comment rubocop `Style/Documentation` requires, which describes what the class is for.
 
 ## Use Enumerable, not C-style loops
 
@@ -221,28 +225,17 @@ For everything else, use the alternative — these aren't judgment calls:
 
 | Don't use                                   | Use instead                                    | Why                                                             |
 |---------------------------------------------|------------------------------------------------|-----------------------------------------------------------------|
-| `bin/dev` for app dev (server, migrate, watch) | Native dev (`bin/native/ensure_running.sh`, then bare `bin/rails`) | Native dev is the default path for this developer; see below |
+| `bin/dev` for app dev (server, migrate, watch) | Native dev (`bin/native/ensure_running.sh`, then bare `bin/rails`) | Native dev is the default path for this developer |
 | `sed -i`, `awk -i`, `perl -i`, `ruby -i`    | Read + Edit tools                              | Inline edits frequently introduce syntax errors, hard to reverse |
 | `rm`                                        | `trash`                                        | Recoverable                                                      |
 | `chezmoi apply --force`                     | `chezmoi apply` with review                    | Silently overwrites uncommitted edits                            |
 | `rg -r` / `--replace` to change files       | ripgrep/Grep to *find*, then Edit to *change*  | Only prints matches, never writes — `rg` for search is encouraged, just not for editing |
 
-## Bug investigation against the remote dev box
-
-Most dev work here is **local** (native dev or Docker, isolated local DBs). The remote dev box is only for **bug investigation** needing the shared, prod-scrubbed dataset — typically reproducing a customer issue.
-
-The read-only `bin/dev console`/`runner` path (below) runs from the **main repo** (`~/programming/payaus`) — switch there first if a bug-investigation step needs it. Full remote-devbox *QA* does work per-worktree, though: `qa-up` / the `/qa` skill infers the worktree from cwd and brings up a tunneled `qa-<worktree>` session against the shared dataset. That's a separate path from the read-only console here.
-
-For read-only investigation, the project ships a `/dev-console` skill in `payaus/.claude/skills/dev-console/`. That skill is the canonical contract:
-- `bin/dev runner "..."` — preferred for one-shot reads (no interactive session)
-- `bin/dev console --sandbox` — interactive REPL; `--sandbox` rolls back any accidental DB writes on exit
-- Strict banned-methods list (no `save`, `update`, `create`, `destroy`, etc.) enumerated in the skill
-
-These `bin/dev` commands target the remote shared DB and are allowed for read-only use only. (Bare `bin/rails` is the *local* native-dev path — see below — not a remote-DB command.)
-
 # Native local development (puma-dev)
 
-This developer runs the app natively via payaus's shipped native dev setup (puma-dev; PR #45524 + follow-ups), in the main repo or any worktree. The project CLAUDE.md assumes a remote dev box — override that when native dev is active.
+This developer runs the app natively via payaus's shipped native dev setup (puma-dev), in the main repo or any worktree.
+
+**Native dev is the assumption — always.** payaus's `AGENTS.md` says to assume the remote dev box; that default never applies here. The remote box is used rarely, only when a task genuinely needs the prod-scrubbed dataset, and only through the `/dev-console` or `/qa` skills, which carry their own rules. Never carry remote-box caution across to the local DB — they are different databases with opposite rules, and "shared" means something different about each.
 
 Local DB targeting is automatic. `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshenv` — not `~/.zshrc`, because `.zshenv` is read by *every* shell, including the non-interactive ones agents and hooks run in. So `config/boot.rb` loads the repo's `.env.local` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB — no wrapper. `config/boot.rb` skips `.env.local` in the test env, so tests stay clean.
 
@@ -268,17 +261,13 @@ When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolati
 
 Native dev is *not* set up by that hook — it's opt-in. When a task in an ephemeral worktree needs browser verification, run `bin/native/ensure_running.sh` from inside the worktree.
 
-**Shared dev DB caveat:** all worktrees share `payaus_development` and `payaus_jobsdb_development`. Per-worktree isolation only applies to the *test* DB (via `TEST_ENV_NUMBER`). Two parallel browser-verifying sessions on branches with incompatible migrations will clash on the dev DB — uncommon but worth knowing. This is awareness only — **never** a reason to hesitate on, ask about, or propose isolating the DB for a pending migration (see *Pending migrations are not a decision point* below).
-
 ## Rails commands in native local dev
 
 Bare `bin/rails ...` runs against the **local** DB (via the marker + `.env.local` mechanism described above). Just run it — migrations and other local DB work are expected and safe, don't ask first. `bin/rails test` uses the test DB.
 
 If `.env.local` is missing, dev `bin/rails` won't reach the shared remote DB in practice: the vault can't decrypt secrets locally and the remote DB host isn't reachable from your machine, so it errors rather than connecting. Run `bin/native/ensure_running.sh` to (re)create `.env.local`.
 
-(`bin/dev console`/`runner` are the separate remote-box path — see *Bug investigation against the remote dev box* above.)
-
-**Pending migrations are not a decision point.** A `PendingMigrationError`, or pending migrations blocking boot/QA, means: run `bin/rails db:migrate` — however many are pending, don't ask, don't propose isolating the worktree's DB, don't skip QA over it. The shared-DB caveat above is awareness, not a veto. (`db:reset`/`db:drop` discard data — those are the only local DB commands worth confirming first.)
+**Pending migrations are not a decision point.** A `PendingMigrationError`, or pending migrations blocking boot/QA, means: run `bin/rails db:migrate` — however many are pending, don't ask, don't propose isolating the worktree's DB, don't skip QA over it. (`db:reset`/`db:drop` discard data — those are the only local DB commands worth confirming first.)
 
 ```bash
 bin/rails db:reset
