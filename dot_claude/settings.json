@@ -177,7 +177,7 @@
     }
   },
   "env": {
-    "CLAUDISH_MODEL": "qwen3:4b-instruct"
+    "CLAUDISH_MODEL": "gemma3:4b"
   },
   "effortLevel": "high",
   "autoMemoryEnabled": false,
