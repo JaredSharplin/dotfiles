@@ -22,7 +22,7 @@ rails_test_directory_sweep:
     marked ready for review. Cover your change and let CI cover the rest.
 
 controller_view_helper_reach:
-  type: warn
+  type: block
   files:
     - 'app/controllers/**/*.rb'
   pattern: '\bhelpers\.|^\s*helper\s+[A-Z:]'
