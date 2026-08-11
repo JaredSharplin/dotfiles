@@ -40,9 +40,9 @@ LEAVE_PROJECT_RUBOCOP_ALONE = ["--no-server", "--cache", "false"].freeze
 # Changing directory also moves out from under the project's .ruby-version, so
 # the mise shim would resolve a different ruby. Name the rubocop belonging to
 # the ruby already running this script instead of going through PATH again.
-NEUTRAL_DIRECTORY = Dir.home
-BUNDLED_RUBOCOP = File.join(RbConfig::CONFIG["bindir"], "rubocop")
-RUBOCOP = File.executable?(BUNDLED_RUBOCOP) ? BUNDLED_RUBOCOP : "rubocop"
+DIRECTORY_WITHOUT_A_RUBOCOP_YML = Dir.home
+rubocop_beside_this_ruby = File.join(RbConfig::CONFIG["bindir"], "rubocop")
+RUBOCOP = File.executable?(rubocop_beside_this_ruby) ? rubocop_beside_this_ruby : "rubocop"
 
 def staged_paths
   stdout, stderr, status = Open3.capture3(
@@ -58,7 +58,7 @@ exit 0 if files.empty?
 
 system(
   UNBUNDLED_ENV, RUBOCOP, "--config", CONFIG, *LEAVE_PROJECT_RUBOCOP_ALONE, *files,
-  chdir: NEUTRAL_DIRECTORY
+  chdir: DIRECTORY_WITHOUT_A_RUBOCOP_YML
 )
 exit_code = $?.exitstatus
 abort "rubocop not found — run `gem install rubocop`" if exit_code == 127
