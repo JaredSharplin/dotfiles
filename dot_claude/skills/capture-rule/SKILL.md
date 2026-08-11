@@ -48,7 +48,7 @@ If you can't tell, default to project scope — narrower is safer than broader.
 | Shell command shape block | "Never set env X" / "don't run command Y" | New `write-rules.yml` rule with `bash_pattern` |
 | Dynamic context | "When editing X, surface specific info about it" | New `context_script` referenced from a write-rules entry |
 | Skill trigger expansion | "Before X, use the Y skill" — extend an existing skill's triggers | Add to the relevant `SKILL.md` description |
-| Structural property of Ruby | "No public controller action outside CRUD" — the verdict turns on visibility, nesting or superclass | New cop in `dot_config/rubocop/cops/`, enabled in `personal.yml` |
+| Structural property of Ruby | "No public controller action outside CRUD" — text alone can't decide it | New cop in `dot_config/rubocop/cops/`, enabled in `personal.yml` |
 
 When choosing between block and warn: block when the wrong action is genuinely unrecoverable or expensive; warn when it's a nudge to think twice. Default to warn — blocks accumulate friction quickly.
 
