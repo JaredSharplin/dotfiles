@@ -4,45 +4,21 @@
 # Runs the personal cops in ~/.config/rubocop/personal.yml over the given Ruby
 # files, or over the staged ones when called with no arguments or --staged.
 #
-# Kept separate from any project's own rubocop run: personal.yml is standalone
-# and disables everything except the Personal/ department, so this never
-# duplicates or contradicts what the project already enforces.
+# Runs through the project's own bundle, exactly as the project's own cops do.
+# Only the config file differs: personal.yml is standalone and enables nothing
+# but the Personal/ department, so this never duplicates or contradicts what the
+# project already enforces. Reaching for a rubocop outside the bundle instead
+# costs you every gem the project's .rubocop.yml requires — in payaus that means
+# activesupport, which lives inside a git-sourced Rails and so is invisible to
+# plain RubyGems.
 
 require "open3"
-require "rbconfig"
-
-# The shebang resolves whichever ruby is first on PATH. Called from a git hook
-# in a repo that pins no ruby version, mise passes through to macOS's 2.6. Say
-# so rather than dying on a NameError the first time a block uses `it`.
-abort "personal-rubocop needs Ruby 3.4+, found #{RUBY_VERSION} — is mise on PATH?" if RUBY_VERSION < "3.4"
 
 CONFIG = File.expand_path("~/.config/rubocop/personal.yml")
 
-# The global rubocop is a different version from the one a project bundles.
-# Committing from a shell with bundler variables set would make it resolve
-# against the project Gemfile and fail.
-UNBUNDLED_ENV = %w[BUNDLE_GEMFILE BUNDLE_BIN_PATH BUNDLE_PATH RUBYOPT GEM_HOME GEM_PATH]
-  .to_h { [it, nil] }
-
-# A project's own rubocop server is keyed to its directory, so a different
-# version connecting there kills and restarts it — and the project's next run
-# restarts it back. Caching a foreign version's results in the project's cache
-# dir is the same kind of trespass, and buys nothing for a handful of files.
-LEAVE_PROJECT_RUBOCOP_ALONE = ["--no-server", "--cache", "false"].freeze
-
-# Rubocop computes its cache root during CLI setup, before --config is applied,
-# and that reads whatever .rubocop.yml sits in the working directory. In payaus
-# that file requires rubocop-rails, whose activesupport dependency is invisible
-# to plain RubyGems because Rails comes from git — so rubocop dies at startup
-# before inspecting anything. Running from a directory with no .rubocop.yml
-# sidesteps the lookup entirely, which means absolute paths for the files.
-#
-# Changing directory also moves out from under the project's .ruby-version, so
-# the mise shim would resolve a different ruby. Name the rubocop belonging to
-# the ruby already running this script instead of going through PATH again.
-DIRECTORY_WITHOUT_A_RUBOCOP_YML = Dir.home
-rubocop_beside_this_ruby = File.join(RbConfig::CONFIG["bindir"], "rubocop")
-RUBOCOP = File.executable?(rubocop_beside_this_ruby) ? rubocop_beside_this_ruby : "rubocop"
+# A project's rubocop server is keyed to its directory and caches the config it
+# started with. Ours is a different config in the same directory, so stay out.
+NO_SHARED_SERVER = "--no-server"
 
 def staged_paths
   stdout, stderr, status = Open3.capture3(
@@ -52,14 +28,13 @@ def staged_paths
   stdout.split("\0")
 end
 
+# The husky hook that calls this is sourced in every repo, most of which have no
+# bundle to run rubocop through.
+exit 0 unless File.exist?("Gemfile")
+
 paths = (ARGV.empty? || ARGV == ["--staged"]) ? staged_paths : ARGV
-files = paths.select { it.end_with?(".rb") && File.file?(it) }.map { File.expand_path(it) }
+files = paths.select { it.end_with?(".rb") && File.file?(it) }
 exit 0 if files.empty?
 
-system(
-  UNBUNDLED_ENV, RUBOCOP, "--config", CONFIG, *LEAVE_PROJECT_RUBOCOP_ALONE, *files,
-  chdir: DIRECTORY_WITHOUT_A_RUBOCOP_YML
-)
-exit_code = $?.exitstatus
-abort "rubocop not found — run `gem install rubocop`" if exit_code == 127
-exit exit_code
+system("bundle", "exec", "rubocop", "--config", CONFIG, NO_SHARED_SERVER, *files)
+exit $?.exitstatus
