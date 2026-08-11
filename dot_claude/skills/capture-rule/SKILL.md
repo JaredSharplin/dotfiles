@@ -5,16 +5,15 @@ description: >
   Given something Claude got wrong in this session, decide where the rule should
   live (global CLAUDE.md, project CLAUDE.md, write-rules.yml, a new hook, a personal
   rubocop cop, a skill trigger), draft the wording, and write it after the user
-  confirms. Use when the
-  user invokes /capture-rule or says "codify this", "make this a rule", "remember
-  this so Claude stops doing it", "add a guard for this".
+  confirms. Use when the user invokes /capture-rule or says "codify this", "make this
+  a rule", "remember this so Claude stops doing it", "add a guard for this".
 ---
 
 # Capture rule
 
 A correction that lives only in the chat ends with the chat. This skill takes a specific mistake from the current session and turns it into a durable rule in the right artifact — so future sessions don't repeat the error.
 
-The skill does the *routing* work that built-in `/remember` doesn't do: it picks between scopes (global vs project) and enforcement shapes (prose nudge vs hard block vs warn vs dynamic context vs skill trigger), proposes the exact wording, and writes the change after the user confirms via AskUserQuestion.
+The skill does the *routing* work that built-in `/remember` doesn't do: it picks the scope and the enforcement shape, proposes the exact wording, and writes the change after the user confirms via AskUserQuestion.
 
 **Human gate is non-negotiable.** Auto-capture without review is a documented failure mode in this space (Cursor pulled then re-added rule generation; Windsurf has memory-amplification risk). Every rule lands only on explicit confirmation.
 
@@ -52,7 +51,15 @@ If you can't tell, default to project scope — narrower is safer than broader.
 
 When choosing between block and warn: block when the wrong action is genuinely unrecoverable or expensive; warn when it's a nudge to think twice. Default to warn — blocks accumulate friction quickly.
 
-**Write-rule or cop: ask what the rule has to see.** A write-rule matches a regex against the edit fragment, so it reads *text*; a cop reads *structure*. `def overview` and `def set_thing` are identical text and opposite verdicts — visibility, nesting, superclass and call-graph rules need the cop. Everything a pattern can match stays a write-rule: it costs one YAML entry against a Ruby class plus config plus a deploy, it fires *before* the edit lands so it can deny it, and it reaches Bash commands and bare file paths, which have no AST at all. The cop's compensation is that it also catches code you write by hand, at commit time. The two stack — the strongest rules run both, one steering Claude up front and one holding the line afterwards.
+**Write-rule or cop: what does the rule have to see?** A write-rule matches a regex against the edit fragment, so it reads *text*. A cop reads *structure*. `def overview` and `def set_thing` are identical text and opposite verdicts, so visibility, nesting, superclass and call-graph rules need the cop.
+
+Everything a pattern can match stays a write-rule, which wins on three counts:
+
+- **Cost** — one YAML entry, against a Ruby class plus config plus a deploy.
+- **Timing** — it fires before the edit lands, so it can deny it. A cop reports at commit, once the code is written.
+- **Reach** — it matches Bash commands and bare file paths, which have no AST at all.
+
+The cop's compensation is that it catches code you write by hand, not only Claude's edits. The two stack, and the strongest rules run both.
 
 A personal cop lives in chezmoi and stays out of every project's shared config, whatever repo the rule is about. `~/programming/payaus/rubocop/custom_cops/` is the team's, and a rule landing there fails their CI.
 
