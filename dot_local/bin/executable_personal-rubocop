@@ -17,11 +17,17 @@ abort "personal-rubocop needs Ruby 3.4+, found #{RUBY_VERSION} — is mise on PA
 
 CONFIG = File.expand_path("~/.config/rubocop/personal.yml")
 
-# The global rubocop is 1.88.2 while payaus pins 1.82.1. Committing from a shell
-# with bundler variables set would make the global binary resolve against the
-# project Gemfile and fail, so hand it an unbundled environment.
-UNBUNDLED = %w[BUNDLE_GEMFILE BUNDLE_BIN_PATH BUNDLE_PATH RUBYOPT GEM_HOME GEM_PATH]
+# The global rubocop is a different version from the one a project bundles.
+# Committing from a shell with bundler variables set would make it resolve
+# against the project Gemfile and fail.
+UNBUNDLED_ENV = %w[BUNDLE_GEMFILE BUNDLE_BIN_PATH BUNDLE_PATH RUBYOPT GEM_HOME GEM_PATH]
   .to_h { [it, nil] }
+
+# A project's own rubocop server is keyed to its directory, so a different
+# version connecting there kills and restarts it — and the project's next run
+# restarts it back. Caching a foreign version's results in the project's cache
+# dir is the same kind of trespass, and buys nothing for a handful of files.
+LEAVE_PROJECT_RUBOCOP_ALONE = ["--no-server", "--cache", "false"].freeze
 
 def staged_paths
   stdout, stderr, status = Open3.capture3(
@@ -35,14 +41,7 @@ paths = (ARGV.empty? || ARGV == ["--staged"]) ? staged_paths : ARGV
 files = paths.select { it.end_with?(".rb") && File.file?(it) }
 exit 0 if files.empty?
 
-# --no-server: a project running its own rubocop server has it keyed to that
-# directory, and a different version connecting there kills and restarts it.
-# Left on, every commit would restart the project's server and the project's
-# next run would restart it back.
-#
-# --cache false: for the handful of files in a commit the cache saves nothing,
-# and writing foreign-version entries into the project's cache dir only earns a
-# warning about where they landed.
-system(UNBUNDLED, "rubocop", "--config", CONFIG, "--no-server", "--cache", "false", *files)
-abort "rubocop not found — run `gem install rubocop`" if $?.exitstatus == 127
-exit $?.exitstatus
+system(UNBUNDLED_ENV, "rubocop", "--config", CONFIG, *LEAVE_PROJECT_RUBOCOP_ALONE, *files)
+exit_code = $?.exitstatus
+abort "rubocop not found — run `gem install rubocop`" if exit_code == 127
+exit exit_code
