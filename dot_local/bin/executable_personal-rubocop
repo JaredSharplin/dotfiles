@@ -17,6 +17,10 @@ require "pathname"
 
 CONFIG = File.expand_path("~/.config/rubocop/personal.yml")
 
+NOTHING_TO_REPORT = 0
+OFFENCES_FOUND = 1
+INSPECTION_HAPPENED = [NOTHING_TO_REPORT, OFFENCES_FOUND].freeze
+
 def bundle_available?
   Pathname.pwd.ascend.any? { (it / "Gemfile").exist? }
 end
@@ -40,4 +44,15 @@ exit 0 if files.empty?
 # A project's rubocop server is keyed to its directory and caches the config it
 # started with. Ours is a different config in the same directory, so stay out.
 system("bundle", "exec", "rubocop", "--config", CONFIG, "--no-server", *files)
-exit $?.exitstatus
+exit_code = $?.exitstatus
+
+# The git hook calling this keeps the commit going whatever happens, so silence
+# on a broken tool reads exactly like a clean pass. Anything outside the two
+# inspection outcomes means the files went unchecked, and that has to be the
+# last thing on screen rather than the tail of a stack trace.
+unless INSPECTION_HAPPENED.include?(exit_code)
+  warn "\npersonal-rubocop: rubocop exited #{exit_code} without inspecting anything."
+  warn "The personal cops did NOT check these files. Your commit is unaffected."
+end
+
+exit exit_code
