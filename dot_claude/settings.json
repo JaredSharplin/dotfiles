@@ -165,7 +165,19 @@
   "enabledPlugins": {
     "cc-zjstatus@claude-code-zellij-status": true,
     "ruby-lsp@claude-plugins-official": true,
-    "frontend-design@claude-plugins-official": true
+    "frontend-design@claude-plugins-official": true,
+    "claudish-to-english@gvzdv-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "gvzdv-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "gvzdv/claudish-to-english"
+      }
+    }
+  },
+  "env": {
+    "CLAUDISH_MODEL": "gemma4:12b-mlx"
   },
   "effortLevel": "high",
   "autoMemoryEnabled": false,
