@@ -21,7 +21,9 @@
 #                      "warn" (inject context, never deny), or
 #                      "warn_once" (inject context on the first matching call
 #                      per session only).
-#   files:             Globs (relative to CLAUDE_PROJECT_DIR, ** supported).
+#   files:             Globs (relative to CLAUDE_PROJECT_DIR, or to the file's
+#                      own git root when it sits outside it — e.g. a worktree;
+#                      ** supported).
 #                      Applies the rule to Edit/Write/MultiEdit calls. By
 #                      default the rule also fires on Bash writes to the same
 #                      paths (see bash_writes below).
@@ -170,6 +172,11 @@ project_dir = ENV["CLAUDE_PROJECT_DIR"].to_s
 
 relative_path = if !project_dir.empty? && file_path.start_with?("#{project_dir}/")
   file_path[(project_dir.length + 1)..]
+elsif !file_path.empty?
+  # A git worktree sits outside CLAUDE_PROJECT_DIR, so the prefix above misses and a
+  # repo-relative glob would silently never match. Fall back to the file's own repo root.
+  git_root = `git -C "#{File.dirname(file_path)}" rev-parse --show-toplevel 2>/dev/null`.strip
+  (git_root.empty? || !file_path.start_with?("#{git_root}/")) ? file_path : file_path[(git_root.length + 1)..]
 else
   file_path
 end
