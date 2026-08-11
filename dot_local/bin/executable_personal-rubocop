@@ -13,12 +13,13 @@
 # plain RubyGems.
 
 require "open3"
+require "pathname"
 
 CONFIG = File.expand_path("~/.config/rubocop/personal.yml")
 
-# A project's rubocop server is keyed to its directory and caches the config it
-# started with. Ours is a different config in the same directory, so stay out.
-NO_SHARED_SERVER = "--no-server"
+def bundle_available?
+  Pathname.pwd.ascend.any? { (it / "Gemfile").exist? }
+end
 
 def staged_paths
   stdout, stderr, status = Open3.capture3(
@@ -30,11 +31,13 @@ end
 
 # The husky hook that calls this is sourced in every repo, most of which have no
 # bundle to run rubocop through.
-exit 0 unless File.exist?("Gemfile")
+exit 0 unless bundle_available?
 
 paths = (ARGV.empty? || ARGV == ["--staged"]) ? staged_paths : ARGV
 files = paths.select { it.end_with?(".rb") && File.file?(it) }
 exit 0 if files.empty?
 
-system("bundle", "exec", "rubocop", "--config", CONFIG, NO_SHARED_SERVER, *files)
+# A project's rubocop server is keyed to its directory and caches the config it
+# started with. Ours is a different config in the same directory, so stay out.
+system("bundle", "exec", "rubocop", "--config", CONFIG, "--no-server", *files)
 exit $?.exitstatus
