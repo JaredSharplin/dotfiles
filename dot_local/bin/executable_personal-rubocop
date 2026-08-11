@@ -19,6 +19,7 @@ CONFIG = File.expand_path("~/.config/rubocop/personal.yml")
 
 NOTHING_TO_REPORT = 0
 OFFENCES_FOUND = 1
+NEVER_GOT_STARTED = 2
 INSPECTION_HAPPENED = [NOTHING_TO_REPORT, OFFENCES_FOUND].freeze
 
 def bundle_available?
@@ -29,7 +30,10 @@ def staged_paths
   stdout, stderr, status = Open3.capture3(
     "git", "diff", "--cached", "--name-only", "--diff-filter=ACM", "-z"
   )
-  abort "git diff failed: #{stderr.strip}" unless status.success?
+  unless status.success?
+    warn "personal-rubocop: git diff failed: #{stderr.strip}"
+    exit NEVER_GOT_STARTED
+  end
   stdout.split("\0")
 end
 
