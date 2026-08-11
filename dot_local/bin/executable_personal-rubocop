@@ -9,6 +9,7 @@
 # duplicates or contradicts what the project already enforces.
 
 require "open3"
+require "rbconfig"
 
 # The shebang resolves whichever ruby is first on PATH. Called from a git hook
 # in a repo that pins no ruby version, mise passes through to macOS's 2.6. Say
@@ -29,6 +30,20 @@ UNBUNDLED_ENV = %w[BUNDLE_GEMFILE BUNDLE_BIN_PATH BUNDLE_PATH RUBYOPT GEM_HOME G
 # dir is the same kind of trespass, and buys nothing for a handful of files.
 LEAVE_PROJECT_RUBOCOP_ALONE = ["--no-server", "--cache", "false"].freeze
 
+# Rubocop computes its cache root during CLI setup, before --config is applied,
+# and that reads whatever .rubocop.yml sits in the working directory. In payaus
+# that file requires rubocop-rails, whose activesupport dependency is invisible
+# to plain RubyGems because Rails comes from git — so rubocop dies at startup
+# before inspecting anything. Running from a directory with no .rubocop.yml
+# sidesteps the lookup entirely, which means absolute paths for the files.
+#
+# Changing directory also moves out from under the project's .ruby-version, so
+# the mise shim would resolve a different ruby. Name the rubocop belonging to
+# the ruby already running this script instead of going through PATH again.
+NEUTRAL_DIRECTORY = Dir.home
+BUNDLED_RUBOCOP = File.join(RbConfig::CONFIG["bindir"], "rubocop")
+RUBOCOP = File.executable?(BUNDLED_RUBOCOP) ? BUNDLED_RUBOCOP : "rubocop"
+
 def staged_paths
   stdout, stderr, status = Open3.capture3(
     "git", "diff", "--cached", "--name-only", "--diff-filter=ACM", "-z"
@@ -38,10 +53,13 @@ def staged_paths
 end
 
 paths = (ARGV.empty? || ARGV == ["--staged"]) ? staged_paths : ARGV
-files = paths.select { it.end_with?(".rb") && File.file?(it) }
+files = paths.select { it.end_with?(".rb") && File.file?(it) }.map { File.expand_path(it) }
 exit 0 if files.empty?
 
-system(UNBUNDLED_ENV, "rubocop", "--config", CONFIG, *LEAVE_PROJECT_RUBOCOP_ALONE, *files)
+system(
+  UNBUNDLED_ENV, RUBOCOP, "--config", CONFIG, *LEAVE_PROJECT_RUBOCOP_ALONE, *files,
+  chdir: NEUTRAL_DIRECTORY
+)
 exit_code = $?.exitstatus
 abort "rubocop not found — run `gem install rubocop`" if exit_code == 127
 exit exit_code
