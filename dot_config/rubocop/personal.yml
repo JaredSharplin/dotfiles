@@ -1,0 +1,17 @@
+# Personal cops, kept out of every project's shared .rubocop.yml. Loaded only
+# when passed explicitly with `-c` — `personal-rubocop` does that.
+#
+# The filename matters. RuboCop auto-discovers a user config at exactly
+# ~/.config/rubocop/config.yml, which would then become the silent fallback for
+# every rubocop run in every project without a .rubocop.yml. `personal.yml`
+# stays out of that lookup.
+
+require:
+  - ./cops/non_crud_controller_action.rb
+
+AllCops:
+  DisabledByDefault: true
+  SuggestExtensions: false
+
+Personal/NonCrudControllerAction:
+  Enabled: true

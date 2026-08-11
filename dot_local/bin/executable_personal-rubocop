@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs the personal cops in ~/.config/rubocop/personal.yml over the given Ruby
+# files, or over the staged ones when called with no arguments or --staged.
+#
+# Kept separate from any project's own rubocop run: personal.yml is standalone
+# and disables everything except the Personal/ department, so this never
+# duplicates or contradicts what the project already enforces.
+
+require "open3"
+
+# The shebang resolves whichever ruby is first on PATH. Called from a git hook
+# in a repo that pins no ruby version, mise passes through to macOS's 2.6. Say
+# so rather than dying on a NameError the first time a block uses `it`.
+abort "personal-rubocop needs Ruby 3.4+, found #{RUBY_VERSION} — is mise on PATH?" if RUBY_VERSION < "3.4"
+
+CONFIG = File.expand_path("~/.config/rubocop/personal.yml")
+
+# The global rubocop is 1.88.2 while payaus pins 1.82.1. Committing from a shell
+# with bundler variables set would make the global binary resolve against the
+# project Gemfile and fail, so hand it an unbundled environment.
+UNBUNDLED = %w[BUNDLE_GEMFILE BUNDLE_BIN_PATH BUNDLE_PATH RUBYOPT GEM_HOME GEM_PATH]
+  .to_h { [it, nil] }
+
+def staged_paths
+  stdout, stderr, status = Open3.capture3(
+    "git", "diff", "--cached", "--name-only", "--diff-filter=ACM", "-z"
+  )
+  abort "git diff failed: #{stderr.strip}" unless status.success?
+  stdout.split("\0")
+end
+
+paths = (ARGV.empty? || ARGV == ["--staged"]) ? staged_paths : ARGV
+files = paths.select { it.end_with?(".rb") && File.file?(it) }
+exit 0 if files.empty?
+
+# --no-server: a project running its own rubocop server has it keyed to that
+# directory, and a different version connecting there kills and restarts it.
+# Left on, every commit would restart the project's server and the project's
+# next run would restart it back.
+#
+# --cache false: for the handful of files in a commit the cache saves nothing,
+# and writing foreign-version entries into the project's cache dir only earns a
+# warning about where they landed.
+system(UNBUNDLED, "rubocop", "--config", CONFIG, "--no-server", "--cache", "false", *files)
+abort "rubocop not found — run `gem install rubocop`" if $?.exitstatus == 127
+exit $?.exitstatus
