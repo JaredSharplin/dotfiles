@@ -3,8 +3,9 @@ name: capture-rule
 description: >
   Route a correction back into the Claude harness so the mistake doesn't repeat.
   Given something Claude got wrong in this session, decide where the rule should
-  live (global CLAUDE.md, project CLAUDE.md, write-rules.yml, a new hook, a skill
-  trigger), draft the wording, and write it after the user confirms. Use when the
+  live (global CLAUDE.md, project CLAUDE.md, write-rules.yml, a new hook, a personal
+  rubocop cop, a skill trigger), draft the wording, and write it after the user
+  confirms. Use when the
   user invokes /capture-rule or says "codify this", "make this a rule", "remember
   this so Claude stops doing it", "add a guard for this".
 ---
@@ -47,8 +48,13 @@ If you can't tell, default to project scope — narrower is safer than broader.
 | Shell command shape block | "Never set env X" / "don't run command Y" | New `write-rules.yml` rule with `bash_pattern` |
 | Dynamic context | "When editing X, surface specific info about it" | New `context_script` referenced from a write-rules entry |
 | Skill trigger expansion | "Before X, use the Y skill" — extend an existing skill's triggers | Add to the relevant `SKILL.md` description |
+| Structural property of Ruby | "No public controller action outside CRUD" — the verdict turns on visibility, nesting or superclass | New cop in `dot_config/rubocop/cops/`, enabled in `personal.yml` |
 
 When choosing between block and warn: block when the wrong action is genuinely unrecoverable or expensive; warn when it's a nudge to think twice. Default to warn — blocks accumulate friction quickly.
+
+**Write-rule or cop: ask what the rule has to see.** A write-rule matches a regex against the edit fragment, so it reads *text*; a cop reads *structure*. `def overview` and `def set_thing` are identical text and opposite verdicts — visibility, nesting, superclass and call-graph rules need the cop. Everything a pattern can match stays a write-rule: it costs one YAML entry against a Ruby class plus config plus a deploy, it fires *before* the edit lands so it can deny it, and it reaches Bash commands and bare file paths, which have no AST at all. The cop's compensation is that it also catches code you write by hand, at commit time. The two stack — the strongest rules run both, one steering Claude up front and one holding the line afterwards.
+
+A personal cop lives in chezmoi and stays out of every project's shared config, whatever repo the rule is about. `~/programming/payaus/rubocop/custom_cops/` is the team's, and a rule landing there fails their CI.
 
 ## Step 4: Draft the wording
 
@@ -67,7 +73,8 @@ If the recommendation involves a new hook script or skill scaffold, the preview 
 
 On confirmation:
 
-- **Chezmoi source files** (`dot_claude/*`): resolve via `chezmoi source-path ~/.claude/<deployed-path>`, edit the source, then run `chezmoi apply -v` to deploy.
+- **Chezmoi source files** (`dot_claude/*`, `dot_config/*`): resolve via `chezmoi source-path ~/<deployed-path>`, edit the source, then run bare `chezmoi apply` to deploy.
+- **New cops**: verify against real code before calling it done — a file the cop must flag and a file it must ignore. Run it with `personal-rubocop <paths>`.
 - **Project files** (anywhere under a working repo's `.claude/`): edit in place.
 - **New hook scripts**: `chmod +x` after creation (chezmoi sources use the `executable_` prefix instead).
 - **New skills**: scaffold the `SKILL.md` directory with frontmatter (`name` and `description`) and body.
