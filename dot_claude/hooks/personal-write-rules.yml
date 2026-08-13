@@ -36,3 +36,12 @@ controller_view_helper_reach:
     into the helper modules that need it (helper-includes-helper) — the controller's
     name-matched helper (FooController -> FooHelper) is auto-included, so wire shared
     helpers through that, never through the `helper` macro.
+
+branch_was_it_asked_for:
+  type: warn_once
+  bash_pattern: 'git\s+(?:town\s+(?:hack|append|prepend)|checkout\s+-b|switch\s+-c)\b'
+  context: >
+    Worth a quick check: was a new branch asked for? If it was, carry on — this note needs
+    no action. If it's your own tidying instinct rather than a request, name what the branch
+    is for and wait for an answer before running it. Saying "this needs its own branch" in a
+    message is announcing, not asking.
