@@ -89,24 +89,8 @@ assert_in_delta expected, result
 - `bundle exec rubocop` — Ruby
 - `srb tc` — Sorbet
 - If either fails on missing gems, `bundle install` first.
-
-## `Personal/*` cops are mine, not the project's
-
-An offence in the `Personal/` department comes from my own cops. They're configured in
-`~/.config/rubocop/personal.yml`, with the cop source in `~/.config/rubocop/cops/`, and run from a
-husky pre-commit hook via `personal-rubocop --staged`. That config lists what's enabled — today,
-`Personal/NonCrudControllerAction` (public controller methods outside the seven REST actions).
-
-They're invisible to the project on purpose: never in its `.rubocop.yml`, never in CI, and the
-filename `personal.yml` sidesteps rubocop's `~/.config/rubocop/config.yml` auto-discovery so it can't
-become a silent fallback. Searching the repo for the cop finds nothing — that's the design working,
-not a mystery worth chasing. Read the two paths above instead.
-
-Advisory only: offences print, the commit lands anyway. A merge commit stages every merged file, so
-`Personal/` offences on files I never touched are master's pre-existing ones — nothing to fix.
-
-(Distinct from `~/.claude/hooks/personal-write-rules.yml`, which is the PreToolUse hook that blocks
-view-helper reach from controllers. Both target controllers; they are not the same mechanism.)
+- `Personal/*` offences are my own cops, never the project's — config and cop source in
+  `~/.config/rubocop/`, run advisory-only from husky pre-commit, so they never block a commit.
 
 ## Lints are not negotiable
 
