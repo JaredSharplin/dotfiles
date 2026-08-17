@@ -314,9 +314,14 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 
 - Ticket ID is a Linear issue number (`ENG-NNN`). Omit entirely if no ticket: `(fix) | Fix validation on breaks`
 - Type tags (lowercase, parenthesised): `(fix)` `(hotfix)` `(feature)` `(migration)` `(internal)`
-- Verb phrase: sentence case, imperative. E.g. `Apply country specific settings synchronously`
-- Backtick-wrap code references in titles: `Fix N+1 in \`KeyAlert::SendAlertLogic\``
+- Verb phrase: sentence case, imperative. Name what changed in the system and where it landed; leave the user-visible effect and any "when X" condition to the body. Reach for the exact name: terms of art (`DRY`, `N+1`, `flaky`) and backticked code references, e.g. `Fix N+1 in \`KeyAlert::SendAlertLogic\``
 - No emoji in titles
+
+| Describes the behaviour | Match this |
+|---|---|
+| Show which step you're on when connecting a POS system | Add step display to the new POS picker |
+| Record the real exception when a job fails in development | Surface exceptions for jobs in development |
+| Enforce strict Sorbet sigils where directories are already strict | Add more directories to `Sorbet/StrictSigil` |
 
 ### Body Structure
 
