@@ -90,6 +90,24 @@ assert_in_delta expected, result
 - `srb tc` — Sorbet
 - If either fails on missing gems, `bundle install` first.
 
+## `Personal/*` cops are mine, not the project's
+
+An offence in the `Personal/` department comes from my own cops. They're configured in
+`~/.config/rubocop/personal.yml`, with the cop source in `~/.config/rubocop/cops/`, and run from a
+husky pre-commit hook via `personal-rubocop --staged`. That config lists what's enabled — today,
+`Personal/NonCrudControllerAction` (public controller methods outside the seven REST actions).
+
+They're invisible to the project on purpose: never in its `.rubocop.yml`, never in CI, and the
+filename `personal.yml` sidesteps rubocop's `~/.config/rubocop/config.yml` auto-discovery so it can't
+become a silent fallback. Searching the repo for the cop finds nothing — that's the design working,
+not a mystery worth chasing. Read the two paths above instead.
+
+Advisory only: offences print, the commit lands anyway. A merge commit stages every merged file, so
+`Personal/` offences on files I never touched are master's pre-existing ones — nothing to fix.
+
+(Distinct from `~/.claude/hooks/personal-write-rules.yml`, which is the PreToolUse hook that blocks
+view-helper reach from controllers. Both target controllers; they are not the same mechanism.)
+
 ## Lints are not negotiable
 
 When rubocop or Sorbet complains, restructure the code until it passes. Disable-comments (`# rubocop:disable`, `# T.unsafe`, `# typed: ignore`, weakening `# typed:` strictness, or any inline disable) are off the table — no exceptions. A complaint is a real signal; silencing it without fixing the cause hides the issue.
