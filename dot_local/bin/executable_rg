@@ -1,0 +1,94 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# rg wrapper — shadows the real binary on PATH (~/.local/bin is ahead of
+# Homebrew). Its only job: repair `-rn`-style typos before handing off to the
+# real rg. Every other invocation passes straight through untouched.
+#
+# Why: `grep -rn` is muscle memory, and in ripgrep `-r` is --replace, not
+# recursive (rg recurses by default). So `rg -rn foo` sets the replacement to
+# the literal string "n" and prints every match rewritten to "n" — wrong output,
+# exit 0, no error. The mistake is invisible unless you already suspect it.
+#
+# The repair is narrow enough to need no guesswork. `-r` takes a value, so in
+# `-rn` the replacement is a bare run of rg's own boolean flag letters — a shape
+# a deliberate replacement never has (that reads `-r 'text'` or --replace=text).
+# Only that shape is rewritten, by dropping the `r`: `-rn` becomes `-n`. A `-r`
+# with a detached value, a longer value, or a value containing a non-flag letter
+# is left exactly as typed, so real replacements still work. Every repair prints
+# a line to stderr, so a wrong call is corrected visibly rather than silently.
+
+# Short flags that take no value. A cluster made only of these is flags, not a
+# replacement string. Value-taking flags (-A -B -C -e -f -g -m -t ...) are
+# deliberately absent: they consume what follows, so they end a cluster.
+BOOLEAN_FLAGS = %w[a b c h i l n o p q s u v w x z F H I L N P S U V].freeze
+
+# A deliberate replacement of one or two characters that happens to be built
+# only from flag letters is conceivable, so cap the run length. Real slips are
+# `-rn`, `-rni`, `-rnl`.
+MAX_FLAG_RUN = 3
+
+# The real rg: first `rg` on PATH that isn't this wrapper. Resolved dynamically
+# (not hardcoded) so it works wherever rg is installed.
+def resolve_real_rg
+  self_path = File.realpath(__FILE__)
+  ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |dir|
+    candidate = File.join(dir, "rg")
+    next unless File.file?(candidate) && File.executable?(candidate)
+
+    resolved = begin
+      File.realpath(candidate)
+    rescue
+      nil
+    end
+    return candidate if resolved && resolved != self_path
+  end
+  abort "rg(wrapper): could not find the real rg on PATH"
+end
+
+# Returns the corrected token when `arg` is a short-flag cluster whose `-r`
+# swallowed a run of flag letters, or nil when the token should pass through.
+def repair_flag_cluster(arg)
+  return nil unless /\A-[^-]/.match?(arg)
+
+  letters = arg[1..].chars
+  preceding = []
+  letters.each_with_index do |letter, index|
+    return nil unless letter == "r" || BOOLEAN_FLAGS.include?(letter)
+    next preceding << letter unless letter == "r"
+
+    swallowed = letters[(index + 1)..]
+    return nil if swallowed.empty? || swallowed.length > MAX_FLAG_RUN
+    return nil unless swallowed.all? { BOOLEAN_FLAGS.include?(it) }
+
+    return "-#{(preceding + swallowed).join}"
+  end
+  nil
+end
+
+# Everything after a bare `--` is operands, never flags, so it is left alone.
+def repair(argv)
+  repairs = []
+  operands_only = false
+  repaired = argv.map do |arg|
+    operands_only ||= arg == "--"
+    next arg if operands_only
+
+    correction = repair_flag_cluster(arg)
+    next arg unless correction
+
+    repairs << [arg, correction]
+    correction
+  end
+  [repaired, repairs]
+end
+
+corrected, repairs = repair(ARGV)
+
+repairs.each do |original, correction|
+  warn "rg(wrapper): #{original} sets --replace, so it rewrites matches instead of " \
+       "listing them; ran #{correction} instead (rg recurses by default). " \
+       "Write --replace when you do want a replacement."
+end
+
+exec(resolve_real_rg, *corrected)

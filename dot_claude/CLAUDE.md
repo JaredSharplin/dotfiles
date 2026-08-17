@@ -229,7 +229,6 @@ For everything else, use the alternative — these aren't judgment calls:
 | `sed -i`, `awk -i`, `perl -i`, `ruby -i`    | Read + Edit tools                              | Inline edits frequently introduce syntax errors, hard to reverse |
 | `rm`                                        | `trash`                                        | Recoverable                                                      |
 | `chezmoi apply --force`                     | `chezmoi apply` with review                    | Silently overwrites uncommitted edits                            |
-| `rg -r` / `rg -rn`                          | `rg -n`                                        | `-r` is ripgrep's `--replace`; ripgrep recurses by default. `rg -rn foo` prints matches with `foo` rewritten to `n` — wrong results, no error |
 
 # Native local development (puma-dev)
 
