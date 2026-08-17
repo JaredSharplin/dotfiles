@@ -7,7 +7,7 @@
     "session.start": true,
     "task.acknowledge": false,
     "task.complete": true,
-    "task.error": true,
+    "task.error": false,
     "input.required": true,
     "resource.limit": true,
     "user.spam": true
