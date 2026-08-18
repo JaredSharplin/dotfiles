@@ -142,7 +142,11 @@ def build_bash_regex(rule, globs, pattern)
   Regexp.union(*parts)
 end
 
-input = JSON.parse($stdin.read)
+input = begin
+  JSON.parse($stdin.read)
+rescue JSON::ParserError
+  exit(0)
+end
 tool = input["tool_name"]
 session_id = input["session_id"].to_s
 

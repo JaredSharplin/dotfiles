@@ -12,12 +12,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/model-wrappers-nudge.rb",
+            "command": "/Users/jaredsharplin/.claude/hooks/model-wrappers-nudge.rb",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "~/.claude/hooks/personal-write-rules-check.rb",
+            "command": "/Users/jaredsharplin/.claude/hooks/personal-write-rules-check.rb",
             "timeout": 5
           }
         ]
