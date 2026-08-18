@@ -12,7 +12,7 @@ description: >
 
 Capture everything a fresh Claude session needs to continue this work without re-asking, write it to a persistent handoff file, and hand back a short prompt that points the new session at that file.
 
-**Reference, don't duplicate.** Don't restate content that already lives in another artifact — plans, PR descriptions, commits, the diff, feature specs. Point to them by path or URL and summarize only what's needed to orient. The handoff is a map to the context, not a copy of it.
+**The handoff is a map to the context, not a copy of it.** Plans, PR descriptions, commits, the diff and feature specs are each already a source of truth — point at them by path or URL and summarize only enough to orient.
 
 **Resolve open decisions before writing — never hand one on.** You are writing this while the user is still here, which is the last cheap moment to settle anything ambiguous. Before writing the file, list every unresolved decision the next session would hit, check whether the referenced plans already answer it, and put whatever remains to the user in one round. Record the *answers*. A handoff contains no questions, no "ask <user>", and no decision framed as still open: the next session can't tell a genuine unknown from one you simply didn't raise, so it burns its first turn re-asking what you could have closed in seconds.
 
@@ -43,7 +43,11 @@ Think about:
 - What decisions were made and why?
 - What gotchas or important context would otherwise be lost?
 
-## Step 3: Write the handoff file
+## Step 3: Load `/writing-for-agents`
+
+The handoff file is a document written for an agent, so it is governed by that skill. Load it before writing a word of the file — mandatory, every time.
+
+## Step 4: Write the handoff file
 
 Pick a short, descriptive kebab-case slug for the work (e.g. `mds-v2-filters`) and write the handoff to:
 
@@ -92,12 +96,12 @@ If a handoff for the same work already exists at that path, overwrite it. Use th
 [Skills the next session should invoke for this work, e.g. "/git-town to open the PR", "/tdd-bug-fix to continue the failing test". Omit if none apply.]
 
 ## Your Task
-[Clear instruction for what to do next, e.g., "Continue implementing X by doing Y". Instructions only — no questions, no open decisions, no "confirm with <user> whether...". A decision you can't settle isn't ready to hand off.]
+[Clear instruction for what to do next, e.g., "Continue implementing X by doing Y". Instructions only.]
 ```
 
 The file must be comprehensive enough that a fresh session can continue without asking clarifying questions — about context *or* about what to do.
 
-## Step 4: Return the copy-paste prompt
+## Step 5: Return the copy-paste prompt
 
 After writing the file, output **only** a short prompt for the user to paste into a new Claude session — inside a single code fence, nothing else after it:
 
