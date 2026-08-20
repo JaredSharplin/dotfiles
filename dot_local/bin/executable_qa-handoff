@@ -99,7 +99,7 @@ end
 
 # A boot that fails is reported; a boot that hangs — on a database lock, or a prompt — would
 # otherwise block forever, and this runs as the last step of handing a PR over.
-def capture_runner(checkout)
+def run_login_link_script(checkout)
   Open3.popen3({"QA_HANDOFF_EMAIL" => QA_ACCOUNT}, "bin/rails", "runner", LOGIN_LINK_SCRIPT,
     chdir: checkout, pgroup: true) do |stdin, stdout, stderr, boot|
     stdin.close
@@ -118,7 +118,7 @@ end
 # Returns nil rather than aborting: by this point the target tab is already open, so a failed
 # link costs the developer a 1Password sign-in, not the handoff.
 def generate_magic_link_token(checkout)
-  output, error = capture_runner(checkout)
+  output, error = run_login_link_script(checkout)
   token = output&.slice(/QA_HANDOFF_TOKEN=(\S+)/, 1)
   return token if token
 

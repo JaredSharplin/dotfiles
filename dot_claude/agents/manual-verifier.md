@@ -91,8 +91,8 @@ OBSERVATIONS:
   - <concrete observation 2>
   - <...>
 QA_HANDOFF:
-  url: <a URL that renders a whole page on its own>
-  then: <clicks remaining to the thing under test, or "already there">
+  url: <full-page URL>
+  then: <clicks remaining, or "already there">
 NOTES: <anything the parent should know — minor warnings, console noise, slow load — or "none">
 ```
 
@@ -109,8 +109,8 @@ EVIDENCE:
   - network failures: <list of failed requests, or "none">
 WHERE_IT_BROKE: <which step / interaction failed>
 QA_HANDOFF:
-  url: <a URL that renders a whole page on its own>
-  then: <clicks remaining to the broken thing, or "already there">
+  url: <full-page URL>
+  then: <clicks remaining, or "already there">
 ```
 
 ### PARTIAL (used when you hit the tool-call budget before a verdict)
@@ -122,8 +122,8 @@ VERIFIED: <what passed before you ran out of budget>
 STALLED_AT: <the step that wouldn't progress — what you tried, what happened>
 REASON: <hit 40-call budget | step kept timing out | ...>
 QA_HANDOFF:
-  url: <a URL that renders a whole page on its own>
-  then: <clicks remaining to the thing under test, or "already there">
+  url: <full-page URL>
+  then: <clicks remaining, or "already there">
 ```
 
 ### BLOCKED (rare — use only when you can't even start)
