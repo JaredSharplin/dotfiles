@@ -70,6 +70,13 @@ You have a hard budget of **40 tool calls** for the entire verification — clic
 
 A long, silent run with no verdict is the failure mode this exists to prevent. Always surface *something* — PASS, FAIL, PARTIAL, or BLOCKED — back to the parent. Never go quiet.
 
+## Hand the screen back
+
+The developer's own QA pass starts where you finished, in their own browser. Every verdict except BLOCKED carries a `QA_HANDOFF` naming that spot.
+
+- `url` — a URL that renders a whole page on its own. Frame endpoints render a bare fragment when opened directly, so when the thing under test lives inside one, name the last whole page and leave the rest to `then`.
+- `then` — the clicks remaining from that URL, in a developer's words rather than element IDs.
+
 ## Return format
 
 Always return one of these exact shapes. No prose preamble, no "I will now…" narration. Just the report.
@@ -83,6 +90,9 @@ OBSERVATIONS:
   - <concrete observation 1>
   - <concrete observation 2>
   - <...>
+QA_HANDOFF:
+  url: <a URL that renders a whole page on its own>
+  then: <clicks remaining to the thing under test, or "already there">
 NOTES: <anything the parent should know — minor warnings, console noise, slow load — or "none">
 ```
 
@@ -98,6 +108,9 @@ EVIDENCE:
   - console errors: <list, or "none">
   - network failures: <list of failed requests, or "none">
 WHERE_IT_BROKE: <which step / interaction failed>
+QA_HANDOFF:
+  url: <a URL that renders a whole page on its own>
+  then: <clicks remaining to the broken thing, or "already there">
 ```
 
 ### PARTIAL (used when you hit the tool-call budget before a verdict)
@@ -108,6 +121,9 @@ SCENARIO: <one-line restatement>
 VERIFIED: <what passed before you ran out of budget>
 STALLED_AT: <the step that wouldn't progress — what you tried, what happened>
 REASON: <hit 40-call budget | step kept timing out | ...>
+QA_HANDOFF:
+  url: <a URL that renders a whole page on its own>
+  then: <clicks remaining to the thing under test, or "already there">
 ```
 
 ### BLOCKED (rare — use only when you can't even start)

@@ -1,0 +1,171 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# qa-handoff — leave a finished feature open in the developer's own Chrome.
+#
+# Claude QAs its own work through the Chrome DevTools MCP browser: a per-worktree profile
+# launched with --disable-extensions, so no 1Password and no Vimium. That browser belongs
+# to the agent. This opens the same puma-dev host in the real Chrome, already signed in and
+# sitting on the verified screen, so the developer's own QA pass starts there instead of at
+# a login form several clicks away.
+#
+# Both browsers share the puma-dev app and the local Postgres, so anything the agent created
+# while verifying is already visible. Only the session and the navigation differ.
+#
+#   qa-handoff /pay_runs/123                 # path on the current worktree's host
+#   qa-handoff -w eng-4949-verify /pay_runs   # another worktree, from anywhere
+#   qa-handoff https://foo.test/pay_runs      # a full URL, verbatim
+
+require "open3"
+require "optparse"
+require "uri"
+
+PUMA_DEV = File.expand_path("~/.puma-dev")
+# The seeded Local Dev Cafe account, not Team Tanda's sysadmin.
+QA_ACCOUNT = "demoaccount+1@tanda.co"
+# puma-dev boots Rails on the first request and answers 502 until it is listening.
+BOOT_TIMEOUT = 180
+# A cold Rails boot is tens of seconds; well past that means it is stuck, not slow.
+RUNNER_TIMEOUT = 300
+
+LOGIN_LINK_SCRIPT = <<~'RUBY'
+  auth_user = AuthUser.find_by(email: ENV.fetch("QA_HANDOFF_EMAIL"))
+  abort("no AuthUser for #{ENV.fetch("QA_HANDOFF_EMAIL")} — is the local database seeded?") unless auth_user
+  puts "QA_HANDOFF_TOKEN=#{auth_user.generate_magic_link}"
+RUBY
+
+# The symlinks puma-dev serves from double as the host-to-checkout map.
+def served_hosts = Dir.children(PUMA_DEV).sort
+
+def checkout_for(worktree) = File.realpath(File.join(PUMA_DEV, worktree))
+
+def resolve_worktree(name)
+  return name if name
+
+  toplevel, _, status = Open3.capture3("git", "rev-parse", "--show-toplevel")
+  abort("Not inside a git checkout. Pass -w with one of: #{served_hosts.join(", ")}") unless status.success?
+
+  File.basename(toplevel.strip)
+end
+
+def ensure_served(worktree)
+  return if File.exist?(File.join(PUMA_DEV, worktree))
+
+  abort("puma-dev does not serve #{worktree}.test — run bin/native/ensure_running.sh from that " \
+        "directory first. Currently served: #{served_hosts.join(", ")}")
+end
+
+def target_url(worktree, path)
+  path = "/#{path}" unless path.start_with?("/")
+  "https://#{worktree}.test#{path}"
+end
+
+def origin_of(url) = URI.parse(url).then { "#{it.scheme}://#{it.host}/" }
+
+# The requested path may legitimately 404 or 500, so readiness is a property of the host.
+# Probe its root and let the browser show whatever the path itself does.
+def response_code(url)
+  code, = Open3.capture3("curl", "-sk", "-o", File::NULL, "-w", "%{http_code}", "--max-time", "10", url)
+  code.strip
+end
+
+def wait_until_booted(origin)
+  deadline = Time.now + BOOT_TIMEOUT
+  announced = false
+  loop do
+    code = response_code(origin)
+    return if code.match?(/^[23]/)
+
+    abort(boot_failure(origin, code)) if Time.now > deadline
+    unless announced
+      puts "waiting for #{origin} to boot…"
+      announced = true
+    end
+    sleep 2
+  end
+end
+
+def boot_failure(origin, code)
+  case code
+  when "000"
+    "#{origin} is not answering. Is puma-dev running? Try bin/native/ensure_running.sh."
+  when "502"
+    "#{origin} returned 502 for #{BOOT_TIMEOUT}s — the app is failing to boot. " \
+      "Run bin/native/restart to see the exception."
+  else
+    "#{origin} returned #{code} for #{BOOT_TIMEOUT}s."
+  end
+end
+
+# A boot that fails is reported; a boot that hangs — on a database lock, or a prompt — would
+# otherwise block forever, and this runs as the last step of handing a PR over.
+def capture_runner(checkout)
+  Open3.popen3({"QA_HANDOFF_EMAIL" => QA_ACCOUNT}, "bin/rails", "runner", LOGIN_LINK_SCRIPT,
+    chdir: checkout, pgroup: true) do |stdin, stdout, stderr, boot|
+    stdin.close
+    out = Thread.new { stdout.read }
+    err = Thread.new { stderr.read }
+    unless boot.join(RUNNER_TIMEOUT)
+      Process.kill("-TERM", boot.pid)
+      [out, err].each(&:kill)
+      return [nil, "bin/rails runner did not finish within #{RUNNER_TIMEOUT}s"]
+    end
+
+    boot.value.success? ? [out.value, nil] : [nil, err.value]
+  end
+end
+
+# Returns nil rather than aborting: by this point the target tab is already open, so a failed
+# link costs the developer a 1Password sign-in, not the handoff.
+def generate_magic_link_token(checkout)
+  output, error = capture_runner(checkout)
+  token = output&.slice(/QA_HANDOFF_TOKEN=(\S+)/, 1)
+  return token if token
+
+  warn("Could not create a login link, so the tab is open but signed out. Sign in with 1Password.")
+  warn("  #{(error || output).to_s.lines.first(3).join.strip}")
+  warn("  A stale bundle is a common cause — try bundle install in #{checkout}.")
+  nil
+end
+
+# -g keeps Chrome in the background: the tab is ready when the developer switches to it,
+# rather than stealing focus from whatever they are doing now.
+def open_in_chrome(url)
+  return if system("open", "-g", "-a", "Google Chrome", url)
+
+  abort("Could not open #{url} in Chrome.")
+end
+
+options = {}
+OptionParser.new do |parser|
+  parser.banner = "Usage: qa-handoff [path-or-url] [-w worktree]"
+  parser.on("-w", "--worktree NAME", "Worktree to open (default: the current checkout)") do
+    options[:worktree] = it
+  end
+  parser.on("-h", "--help") do
+    puts parser
+    exit
+  end
+end.parse!
+
+argument = ARGV.first
+worktree, target =
+  if argument&.start_with?("http")
+    host = URI.parse(argument).host.to_s
+    [host.delete_suffix(".test"), argument]
+  else
+    resolve_worktree(options[:worktree]).then { [it, target_url(it, argument || "/")] }
+  end
+
+ensure_served(worktree)
+origin = origin_of(target)
+wait_until_booted(origin)
+
+# Opening the target while signed out is what makes the magic link land on it: Devise stores
+# the path it bounced, and after_sign_in_path_for returns that stored location first.
+open_in_chrome(target)
+# Booting Rails for the token also gives the request above time to reach Devise.
+token = generate_magic_link_token(checkout_for(worktree))
+open_in_chrome("#{origin}login/to/#{token}") if token
+
+puts "handed off #{target} in a background Chrome tab#{" — signed in as #{QA_ACCOUNT}" if token}"
