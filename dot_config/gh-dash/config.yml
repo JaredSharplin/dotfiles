@@ -1,5 +1,5 @@
 prSections:
-- title: My Pull Requests
+- title: My Open Pull Requests
   filters: is:open author:@me
   type: null
 - title: Needs My Review
@@ -10,6 +10,9 @@ prSections:
   type: null
 - title: Is Open
   filters: is:open repo:TandaHQ/payaus
+  type: null
+- title: My Pull Requests
+  filters: author:@me
   type: null
 - title: All
   filters: repo:TandaHQ/payaus
@@ -72,49 +75,25 @@ keybindings:
   universal: []
   issues: []
   prs:
-    # Request myself as a reviewer on the selected PR so it shows up under
-    # "Needs My Review" (review-requested:@me). Uses my literal login: gh only
-    # expands "@me" for --add-assignee, not --add-reviewer. No-op-with-error on
-    # my own PRs (GitHub blocks requesting review from the author).
-    # Key "+" = "add a reviewer"; kept off the letter row to avoid the m=merge
-    # neighbourhood. R/r (refresh) and m (merge) are taken by gh-dash.
+    # Literal login, not "@me": gh only expands it for --add-assignee.
     - key: "+"
       name: request-my-review
       command: gh pr edit {{.PrNumber}} --repo {{.RepoName}} --add-reviewer JaredSharplin
-    # Edit the selected PR. gh has no flag to open $EDITOR prefilled with the
-    # current body, so this runs `gh pr edit` with no field flags: gh drops into
-    # its interactive field picker, and choosing "Body" opens $EDITOR with the
-    # existing body loaded. The picker also covers title/labels/etc. gh-dash
-    # suspends to the foreground for custom commands, so the editor takes over.
+    # No field flags on purpose: gh drops into its interactive picker, and "Body"
+    # opens $EDITOR prefilled. No flag does that directly.
     - key: "E"
       name: edit-pr
       command: gh pr edit {{.PrNumber}} --repo {{.RepoName}}
-    # Review the selected PR in snacks.nvim's diff reviewer (line-by-line, `a` to
-    # comment). Passing repo means gh_diff fetches the diff via `gh pr diff --repo`
-    # and comments via the API, so this needs no checkout and mutates nothing —
-    # right for others' PRs. vim.schedule defers the call one tick so the
-    # lazy-loaded picker exists. gh-dash suspends to the foreground, so nvim owns
-    # the terminal and quitting returns here. Folded scalar keeps the quotes literal.
-    # Key "n" = review; "N" is review-in-worktree, the same reviewer opened over a
-    # checkout (lower/upper mirrors gh-dash's own r/R, x/X). r/R are refresh,
-    # v/V/e/E/d are all built-in actions (d = the plain diff view this augments).
     - key: n
       name: review
       command: >-
         nvim -c 'lua vim.schedule(function()
-        Snacks.picker.gh_diff({ pr = {{.PrNumber}}, repo = "{{.RepoName}}" })
+        vim.cmd.edit("gh://{{.RepoName}}/pr/{{.PrNumber}}")
         end)'
-    # Review + edit: land in a worktree for the PR branch (reusing an existing one,
-    # else a disposable ~/.cache/gh-dash-review checkout), then open the same
-    # reviewer over the real files with LSP — for my own PRs where a fix means
-    # editing and pushing. The wrapper handles worktree resolution and cleanup.
+    # Same buffer, but over a checkout so fixes can be edited with LSP and pushed.
     - key: N
       name: review-in-worktree
       command: gh-review-worktree {{.RepoName}} {{.PrNumber}} {{.HeadRefName}}
-    # Page through the selected PR's screenshots inline; gh-pr-shots' own header explains
-    # how it gets them and why it pages. gh-dash suspends to the foreground, so the pager
-    # owns the terminal until you quit.
-    # Key "i" = images; d/v/e/E/n/N/r/R/m are taken by gh-dash or the bindings above.
     - key: i
       name: screenshots
       command: gh-pr-shots {{.RepoName}} {{.PrNumber}}

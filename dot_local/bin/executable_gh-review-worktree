@@ -6,7 +6,7 @@
 # Invoked by gh-dash's "N" keybinding (review + edit) with the selected PR:
 #   gh-review-worktree <owner/name> <pr-number> <head-ref>
 #
-# Unlike the plain "n" keybinding (which reviews GitHub's diff with no checkout),
+# Unlike the plain "n" keybinding (same PR buffer, no checkout),
 # this lands you in a worktree for the PR branch so you can edit files with LSP
 # and push fixes — for your own PRs. It prefers an existing worktree on the branch
 # and otherwise creates a disposable one under ~/.cache/gh-dash-review, so the main
@@ -122,8 +122,7 @@ def review_worktree(repo, owner_repo, number)
 end
 
 def open_reviewer(target, owner_repo, number)
-  lua = "vim.schedule(function() Snacks.picker.gh_diff(" \
-        "{ pr = #{number}, repo = \"#{owner_repo}\" }) end)"
+  lua = %(vim.schedule(function() vim.cmd.edit("gh://#{owner_repo}/pr/#{number}") end))
   Dir.chdir(target)
   exec("nvim", "-c", "lua #{lua}")
 end
