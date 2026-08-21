@@ -1,4 +1,4 @@
-// Unlock-first keybindings, regenerated for zellij 0.44.3.
+// Unlock-first keybindings, regenerated for zellij 0.45.0.
 // Base mode is locked; Ctrl+g unlocks into normal mode, then a single letter
 // switches sub-mode (p pane, t tab, r resize, s scroll, m move, o session).
 // esc or enter returns to locked from any mode.
@@ -11,6 +11,7 @@ keybinds clear-defaults=true {
         bind "down" { MoveFocus "down"; }
         bind "up" { MoveFocus "up"; }
         bind "right" { MoveFocus "right"; }
+        bind ";" { FocusLastPane; }
         bind "c" { SwitchToMode "renamepane"; PaneNameInput 0; }
         bind "d" { NewPane "down"; SwitchToMode "locked"; }
         bind "e" { TogglePaneEmbedOrFloating; SwitchToMode "locked"; }
@@ -93,6 +94,7 @@ keybinds clear-defaults=true {
         bind "Alt down" { MoveFocus "down"; SwitchToMode "locked"; }
         bind "Alt up" { MoveFocus "up"; SwitchToMode "locked"; }
         bind "Alt right" { MoveFocusOrTab "right"; SwitchToMode "locked"; }
+        bind "c" { CopyLastCommandOutput; SwitchToMode "locked"; }
         bind "e" { EditScrollback; SwitchToMode "locked"; }
         bind "f" { SwitchToMode "entersearch"; SearchInput 0; }
         bind "Alt h" { MoveFocusOrTab "left"; SwitchToMode "locked"; }
@@ -109,6 +111,8 @@ keybinds clear-defaults=true {
         bind "w" { SearchToggleOption "Wrap"; }
     }
     session {
+        bind "[" { FocusGuestSession; SwitchToMode "locked"; }
+        bind "]" { FocusHostSession; SwitchToMode "locked"; }
         bind "a" {
             LaunchOrFocusPlugin "zellij:about" {
                 floating true
@@ -124,6 +128,7 @@ keybinds clear-defaults=true {
             SwitchToMode "locked"
         }
         bind "d" { Detach; }
+        bind "f" { ToggleHostFullscreen; SwitchToMode "locked"; }
         bind "l" {
             LaunchOrFocusPlugin "zellij:layout-manager" {
                 floating true
@@ -212,6 +217,8 @@ keybinds clear-defaults=true {
         bind "down" { ScrollDown; }
         bind "up" { ScrollUp; }
         bind "right" { PageScrollDown; }
+        bind "[" { ScrollToPreviousPrompt; }
+        bind "]" { ScrollToNextPrompt; }
         bind "Ctrl b" { PageScrollUp; }
         bind "Ctrl c" { ScrollToBottom; SwitchToMode "locked"; }
         bind "d" { HalfPageScrollDown; }
@@ -221,6 +228,7 @@ keybinds clear-defaults=true {
         bind "k" { ScrollUp; }
         bind "l" { PageScrollDown; }
         bind "u" { HalfPageScrollUp; }
+        bind "v" { SelectCommandAtScrollPosition; }
     }
     entersearch {
         bind "Ctrl c" { SwitchToMode "scroll"; }
