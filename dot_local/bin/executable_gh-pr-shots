@@ -37,7 +37,6 @@ CACHE_ROOT = File.expand_path("~/.cache/gh-pr-shots")
 # The two hosts GitHub serves attachments from: user-attachments for anything uploaded
 # today, githubusercontent for older PRs. The character class stops the match at the
 # delimiters that surround a URL in markdown and HTML.
-# Mirrored in dot_config/nvim/lua/plugins/snacks.lua — change both.
 ATTACHMENT_URL = %r{https://(?:github\.com/user-attachments/assets/|(?:private-)?user-images\.githubusercontent\.com/)[^\s"'>)\]]+}
 MARKDOWN_IMAGE = /!\[([^\]]*)\]\((#{ATTACHMENT_URL})\)/
 
