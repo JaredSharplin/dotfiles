@@ -7,7 +7,7 @@ local cached_query = nil
 
 local defaults = {
   enabled = true,
-  opacity = 0.65,
+  opacity = 0.25,
   delay = 100,
   dim_type_alias = true,
   filetypes = { "ruby" },
@@ -269,8 +269,9 @@ function M.attach(bufnr)
 end
 
 function M.setup(opts)
-  M.options = vim.tbl_deep_extend("force", M.options, opts or {})
+  M.options = vim.tbl_deep_extend("force", defaults, opts or {})
   cached_query = nil
+  hl_cache = {}
 
   local group = vim.api.nvim_create_augroup("HidesigGlobal", { clear = true })
 
@@ -303,6 +304,17 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("HidesigDisable", function()
     M.disable()
   end, { desc = "Disable Sorbet signature dimming" })
+
+  vim.api.nvim_create_user_command("HidesigInfo", function()
+    local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+    local info = {
+      string.format("Status: %s", M.options.enabled and "enabled" or "disabled"),
+      string.format("Opacity: %s", tostring(M.options.opacity)),
+      string.format("Dim type aliases: %s", tostring(M.options.dim_type_alias)),
+      string.format("Background: #%06x", normal.bg or 0),
+    }
+    vim.notify(table.concat(info, "\n"), vim.log.levels.INFO, { title = "Hidesig" })
+  end, { desc = "Show Hidesig status and configuration" })
 
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.tbl_contains(M.options.filetypes, vim.bo[bufnr].filetype) then

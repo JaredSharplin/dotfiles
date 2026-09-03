@@ -4,10 +4,7 @@ return {
     dir = vim.fn.stdpath("config"),
     ft = { "ruby" },
     opts = {
-      enabled = true,
-      opacity = 0.65,
-      delay = 100,
-      dim_type_alias = true,
+      opacity = 0.25,
     },
     config = function(_, opts)
       require("hidesig").setup(opts)
