@@ -3,9 +3,8 @@ return {
     name = "hidesig",
     dir = vim.fn.stdpath("config"),
     ft = { "ruby" },
-    opts = {
-      opacity = 0.25,
-    },
+    -- Configure options here or in lua/hidesig.lua defaults (e.g. opacity = 0.35)
+    opts = {},
     config = function(_, opts)
       require("hidesig").setup(opts)
     end,

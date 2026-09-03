@@ -7,7 +7,7 @@ local cached_query = nil
 
 local defaults = {
   enabled = true,
-  opacity = 0.25,
+  opacity = 0.35,
   delay = 100,
   dim_type_alias = true,
   filetypes = { "ruby" },
@@ -223,6 +223,20 @@ function M.disable()
   end
 end
 
+function M.set_opacity(val)
+  local num = tonumber(val)
+  if not num or num < 0 or num > 1 then
+    vim.notify("Hidesig: opacity must be a number between 0.0 and 1.0", vim.log.levels.ERROR)
+    return
+  end
+  M.options.opacity = num
+  hl_cache = {}
+  if M.options.enabled then
+    M.refresh_all()
+  end
+  vim.notify(string.format("Hidesig: opacity set to %.2f", num), vim.log.levels.INFO)
+end
+
 function M.attach(bufnr)
   if attached_buffers[bufnr] or not vim.api.nvim_buf_is_valid(bufnr) then
     return
@@ -315,6 +329,16 @@ function M.setup(opts)
     }
     vim.notify(table.concat(info, "\n"), vim.log.levels.INFO, { title = "Hidesig" })
   end, { desc = "Show Hidesig status and configuration" })
+
+  vim.api.nvim_create_user_command("HidesigOpacity", function(command_opts)
+    M.set_opacity(command_opts.args)
+  end, {
+    nargs = 1,
+    desc = "Set Sorbet signature dimming opacity (0.0 - 1.0)",
+    complete = function()
+      return { "0.1", "0.2", "0.25", "0.3", "0.35", "0.4", "0.5", "0.65" }
+    end,
+  })
 
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.tbl_contains(M.options.filetypes, vim.bo[bufnr].filetype) then
