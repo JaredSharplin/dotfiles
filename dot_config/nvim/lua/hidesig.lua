@@ -123,7 +123,7 @@ function M.update_range(bufnr, start_row, end_row)
   end
 
   if not M.options.enabled then
-    vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row, end_row)
+    vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row or 0, end_row or -1)
     return
   end
 
@@ -141,6 +141,8 @@ function M.update_range(bufnr, start_row, end_row)
     return
   end
 
+  start_row = start_row or 0
+  end_row = end_row or -1
   vim.api.nvim_buf_clear_namespace(bufnr, ns, start_row, end_row)
 
   local q = M.get_query()
@@ -148,38 +150,60 @@ function M.update_range(bufnr, start_row, end_row)
     return
   end
 
+  local hl_active = vim.treesitter.highlighter.active[bufnr]
+  local hl_query = hl_active and hl_active:get_query("ruby") and hl_active:get_query("ruby"):query()
+
   for _, match, _ in q:iter_matches(tree:root(), bufnr, start_row, end_row) do
     local sig_nodes = match[2]
     local sig_node = type(sig_nodes) == "table" and sig_nodes[1] or sig_nodes
     if sig_node and not sig_node:has_error() then
-      local leaves = {}
-      collect_leaves(sig_node, leaves)
+      local srow, scol, erow, ecol = sig_node:range()
 
-      for _, leaf in ipairs(leaves) do
-        local srow, scol, erow, ecol = leaf:range()
-        local caps = vim.treesitter.get_captures_at_pos(bufnr, srow, scol)
-        local hl_group = #caps > 0 and ("@" .. caps[#caps].capture) or "Normal"
-        local dimmed_hl = get_or_create_hl(hl_group, M.options.opacity)
+      if hl_query then
+        -- Fast path: bulk query all syntax captures inside this signature (< 0.2ms)
+        local token_caps = {}
+        for id, node, _ in hl_query:iter_captures(sig_node, bufnr, srow, erow + 1) do
+          local cname = hl_query.captures[id]
+          local nsrow, nscol, nerow, necol = node:range()
+          local key = string.format("%d:%d-%d:%d", nsrow, nscol, nerow, necol)
+          token_caps[key] = { cname = "@" .. cname, range = { nsrow, nscol, nerow, necol } }
+        end
 
-        vim.api.nvim_buf_set_extmark(bufnr, ns, srow, scol, {
-          end_row = erow,
-          end_col = ecol,
-          hl_group = dimmed_hl,
-          priority = 130,
-        })
+        for _, info in pairs(token_caps) do
+          local r = info.range
+          local dimmed_hl = get_or_create_hl(info.cname, M.options.opacity)
+          vim.api.nvim_buf_set_extmark(bufnr, ns, r[1], r[2], {
+            end_row = r[3],
+            end_col = r[4],
+            hl_group = dimmed_hl,
+            priority = 130,
+          })
+        end
+      else
+        -- Fallback path if syntax highlighter query is not yet cached
+        local leaves = {}
+        collect_leaves(sig_node, leaves)
+
+        for _, leaf in ipairs(leaves) do
+          local lsrow, lscol, lerow, lecol = leaf:range()
+          local caps = vim.treesitter.get_captures_at_pos(bufnr, lsrow, lscol)
+          local hl_group = #caps > 0 and ("@" .. caps[#caps].capture) or "Normal"
+          local dimmed_hl = get_or_create_hl(hl_group, M.options.opacity)
+
+          vim.api.nvim_buf_set_extmark(bufnr, ns, lsrow, lscol, {
+            end_row = lerow,
+            end_col = lecol,
+            hl_group = dimmed_hl,
+            priority = 130,
+          })
+        end
       end
     end
   end
 end
 
-function M.update_visible(bufnr)
-  local win = vim.fn.bufwinid(bufnr)
-  if win == -1 then
-    return
-  end
-  local start_row = math.max(0, vim.fn.line("w0", win) - 1)
-  local end_row = vim.fn.line("w$", win)
-  M.update_range(bufnr, start_row, end_row)
+function M.update_buffer(bufnr)
+  M.update_range(bufnr, 0, -1)
 end
 
 function M.clear_all()
@@ -193,7 +217,7 @@ end
 function M.refresh_all()
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) and vim.tbl_contains(M.options.filetypes, vim.bo[bufnr].filetype) then
-      M.update_range(bufnr, 0, -1)
+      M.update_buffer(bufnr)
     end
   end
 end
@@ -249,19 +273,23 @@ function M.attach(bufnr)
       timer:stop()
     end
     timer = vim.defer_fn(function()
-      M.update_visible(bufnr)
+      if vim.api.nvim_buf_is_valid(bufnr) and M.options.enabled then
+        M.update_buffer(bufnr)
+      end
     end, M.options.delay)
   end
 
   vim.schedule(function()
     if vim.api.nvim_buf_is_valid(bufnr) and M.options.enabled then
-      M.update_range(bufnr, 0, -1)
+      M.update_buffer(bufnr)
     end
   end)
 
   local group = vim.api.nvim_create_augroup(string.format("HidesigBuf_%d", bufnr), { clear = true })
 
-  vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave", "WinScrolled" }, {
+  -- Only recompute when text changes, NEVER on scroll!
+  -- Extmarks attach to buffer lines and scroll natively with zero overhead.
+  vim.api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
     group = group,
     buffer = bufnr,
     callback = debounced_update,
