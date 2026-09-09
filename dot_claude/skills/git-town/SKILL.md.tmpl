@@ -316,7 +316,8 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 
 - Ticket ID is a Linear issue number (`ENG-NNN`). Omit entirely if no ticket: `(fix) | Fix validation on breaks`
 - Type tags (lowercase, parenthesised): `(fix)` `(hotfix)` `(feature)` `(migration)` `(internal)`
-- Verb phrase: sentence case, imperative. Name what changed in the system and where it landed; leave the user-visible effect and any "when X" condition to the body. Reach for the exact name: terms of art (`DRY`, `N+1`, `flaky`) and backticked code references, e.g. `Fix N+1 in \`KeyAlert::SendAlertLogic\``
+- Verb phrase: sentence case, imperative. Reach for the exact name: terms of art (`DRY`, `N+1`, `flaky`) and backticked code references, e.g. `Fix N+1 in \`KeyAlert::SendAlertLogic\``
+- **The type tag governs the verb.** `(fix)`/`(hotfix)` leads with `Fix` and names the fault it removes — the wrong behaviour someone experienced, not the new mechanism that replaces it. `(internal)`/`(migration)` names the code motion and the real constant it moved, so the title reads as a change no user sees. `(feature)` names the new capability and where it appears. Get this right on the first write: a title describing the mechanism reads as the wrong type, and a refactor titled like a behaviour change is the worst of them. Leave any "when X" condition to the body.
 - No emoji in titles
 
 | Describes the behaviour | Match this |
@@ -324,6 +325,8 @@ Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
 | Show which step you're on when connecting a POS system | Add step display to the new POS picker |
 | Record the real exception when a job fails in development | Surface exceptions for jobs in development |
 | Enforce strict Sorbet sigils where directories are already strict | Add more directories to `Sorbet/StrictSigil` |
+| Juniors are underpaid on higher duties shifts | Fix juniors not being paid their own age rate on higher duties shifts |
+| Rate reading moves off the generator, changing no behaviour | Move award template rate reading out of `HigherDutiesGenerator` |
 
 ### Body Structure
 

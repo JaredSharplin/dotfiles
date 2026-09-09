@@ -252,13 +252,17 @@ Local DB targeting is automatic. `RUNNING_LOCAL_NATIVE_ENV=true` is exported fro
 bin/native/ensure_running.sh   # from inside the repo or worktree
 ```
 
-Installs/starts services (puma-dev, Postgres, MinIO, memcached, mailpit), writes a domain-templated `.native.env` (`APP_HOST_URL=<dirname>.test`), and creates the puma-dev symlink. After it finishes, the directory is browser-ready at `https://<dirname>.test`. It's idempotent, and safe alongside the dotfiles-managed `~/.zshenv`.
+Installs/starts services (puma-dev, Postgres, MinIO, memcached, mailpit), writes a domain-templated `.native.env` (`APP_HOST_URL=<dirname>.test`), and creates the puma-dev symlink. After it finishes, the directory serves at `https://<dirname>.test`. It's idempotent, and safe alongside the dotfiles-managed `~/.zshenv`.
+
+Serving is not the same as usable: **logging in also needs a Delayed Job worker running.** The six-digit login code is sent with `deliver_later`, so with no worker it sits in the queue and never arrives — the login page just keeps asking for a code. Start one with `bin/native/worker` (it stays in the foreground, so background it or give it its own terminal).
 
 The main repo → `https://payaus.test`. Worktrees use their directory name (e.g. `my-feature` → `https://my-feature.test`).
 
 ## Ephemeral worktrees from agent view
 
 When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolation: "worktree")`, and `claude --worktree`), the new worktree lands at `~/programming/worktrees/<name>/` — same path as manually-created worktrees. Payaus's `WorktreeCreate` hook (`.claude/hooks/worktree-create.rb`) routes through `bin/manage-worktrees`, so dependencies and a per-worktree test database are installed automatically. `bin/rails test` works inside immediately.
+
+**Keep the worktree warm.** That setup costs minutes, so spend one `EnterWorktree` per session: move in and run everything there, verification probes included. It stays warm after the task looks done — follow-up questions land in the same worktree. `ExitWorktree` is mine to call, at the session-exit prompt.
 
 Native dev is opt-in on top of that hook: when a task in an ephemeral worktree needs browser verification, run `bin/native/ensure_running.sh` from inside the worktree.
 
@@ -323,6 +327,10 @@ After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrom
 Use the **Local Dev Cafe** org for browser verification, not Team Tanda (sysadmin).
 
 - Login: `demoaccount+1@tanda.co` / `password123`
+
+Every password login then emails a six-digit code — these accounts have no authenticator app, so expect it every time. It only sends if a worker is running (above); read it from mailpit at http://localhost:8025, newest message. A code is good for ten minutes.
+
+**Never click "Email another one."** Each click immediately reissues the secret and voids the code already sent, while the replacement email is only rendered later by the worker. Clicking it is therefore the surest way to never hold a code that works — and nothing on the page says so, the code just comes back rejected. If no mail has arrived, wait; don't click.
 
 ## Full documentation
 
