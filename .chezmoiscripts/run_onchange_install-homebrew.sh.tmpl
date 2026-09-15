@@ -14,6 +14,7 @@ fi
 
 # Homebrew 7 validates formulae at tap time and refuses untrusted taps, so trust precedes bundle.
 brew trust --tap PeonPing/tap
+brew trust --tap sozercan/repo
 
 # Install packages from Brewfile
 cd "{{ .chezmoi.sourceDir }}"

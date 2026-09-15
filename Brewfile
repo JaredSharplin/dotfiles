@@ -45,5 +45,8 @@ cask "ghostty"              # config in dot_config/ghostty/
 cask "google-chrome"        # browser QA target; qa-handoff opens tabs in it
 cask "karabiner-elements"   # config in dot_config/private_karabiner/
 cask "rectangle"            # window management
+cask "alt-tab"              # Windows-like alt-tab
+cask "gitify"               # GitHub notifications in the menu bar
+cask "sozercan/repo/kaset"  # native YouTube Music client
 
 # Deliberately absent: trash — macOS ships /usr/bin/trash.
