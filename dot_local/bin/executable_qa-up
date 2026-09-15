@@ -18,7 +18,6 @@ require "json"
 require "open3"
 require "optparse"
 
-PAYAUS = File.expand_path("~/programming/payaus")
 CACHE = File.expand_path("~/.cache/qa-up")
 STATE_FILE = File.join(CACHE, "state.json")
 LAYOUT_FILE = File.join(CACHE, "layout.kdl")
@@ -66,6 +65,24 @@ def run(*args, allow_failure: false)
   stdout.strip
 end
 
+# Worktrees share the main checkout's git dir, so --git-common-dir resolves to it from any of
+# them and the path never has to be written down here. $PAYAUS_ROOT covers running from outside
+# a checkout, which is where the fzf picker is reached from.
+def payaus
+  @payaus ||= ENV["PAYAUS_ROOT"] || payaus_from_cwd ||
+    abort("Not in a payaus checkout, and PAYAUS_ROOT is unset.")
+end
+
+# The origin check keeps a run from some other repo out: git resolves a common dir there too,
+# and without it qa-up would bring a QA session up against the wrong tree.
+def payaus_from_cwd
+  git_dir = run("git", "rev-parse", "--path-format=absolute", "--git-common-dir", allow_failure: true)
+  return if git_dir.empty?
+
+  root = File.dirname(git_dir)
+  root if run("git", "-C", root, "remote", "get-url", "origin", allow_failure: true).include?("payaus")
+end
+
 def log_path(role) = File.join(CACHE, "#{role}.log")
 def exit_path(role) = File.join(CACHE, "#{role}.exit")
 
@@ -74,7 +91,7 @@ def exit_path(role) = File.join(CACHE, "#{role}.exit")
 def state = @state ||= JSON.parse(File.read(STATE_FILE), symbolize_names: true)
 
 def worktrees
-  run("git", "-C", PAYAUS, "worktree", "list", "--porcelain")
+  run("git", "-C", payaus, "worktree", "list", "--porcelain")
     .split("\n\n")
     .filter_map { it[/^worktree (.+)$/, 1] }
 end
@@ -204,7 +221,7 @@ def write_layout
   qa_up = File.expand_path($PROGRAM_NAME)
   tabs = ROLES.map do |role|
     <<~KDL
-      tab name="#{role}" cwd="#{PAYAUS}" {
+      tab name="#{role}" cwd="#{payaus}" {
           pane command="#{qa_up}" {
               args "run" "#{role}"
           }
@@ -266,7 +283,7 @@ end
 # --- pane wrappers (invoked by the zellij layout as `qa-up run <role>`) ---
 
 def run_role(role)
-  Dir.chdir(PAYAUS)
+  Dir.chdir(payaus)
   command =
     case role
     when "tunnel"
