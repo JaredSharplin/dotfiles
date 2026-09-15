@@ -27,8 +27,9 @@ git config core.hooksPath .githooks
 
 Parallel development runs through Claude Code's **agent view** (`claude agents`). Each dispatched
 session auto-isolates into its own git worktree, so multiple tasks run concurrently without a
-persistent slot setup. Worktrees land under `~/programming/worktrees/<name>/`; the main payaus repo
-at `~/programming/payaus` keeps `master` checked out as a clean baseline (and is where shared-dev-DB
+persistent slot setup. Worktrees land beside the checkout, under `~/programming/tanda/worktrees/<name>/` — payaus's
+`bin/manage-worktrees` derives that as a sibling. The main repo at `~/programming/tanda/payaus`
+keeps `master` checked out as a clean baseline (and is where shared-dev-DB
 rails console and exploratory sessions run).
 
 ### PR Workflow

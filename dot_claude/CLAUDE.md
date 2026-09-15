@@ -260,7 +260,7 @@ The main repo → `https://payaus.test`. Worktrees use their directory name (e.g
 
 ## Ephemeral worktrees from agent view
 
-When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolation: "worktree")`, and `claude --worktree`), the new worktree lands at `~/programming/worktrees/<name>/` — same path as manually-created worktrees. Payaus's `WorktreeCreate` hook (`.claude/hooks/worktree-create.rb`) routes through `bin/manage-worktrees`, so dependencies and a per-worktree test database are installed automatically. `bin/rails test` works inside immediately.
+When Claude Code's `EnterWorktree` tool runs (used by agent view, `Agent(isolation: "worktree")`, and `claude --worktree`), the new worktree lands at `~/programming/tanda/worktrees/<name>/` — same path as manually-created worktrees. Payaus's `WorktreeCreate` hook (`.claude/hooks/worktree-create.rb`) routes through `bin/manage-worktrees`, so dependencies and a per-worktree test database are installed automatically. `bin/rails test` works inside immediately.
 
 **Keep the worktree warm.** That setup costs minutes, so spend one `EnterWorktree` per session: move in and run everything there, verification probes included. It stays warm after the task looks done — follow-up questions land in the same worktree. `ExitWorktree` is mine to call, at the session-exit prompt.
 

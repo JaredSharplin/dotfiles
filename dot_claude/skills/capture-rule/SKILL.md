@@ -32,7 +32,7 @@ Anchor on:
 |---|---|
 | Cross-project, language-agnostic (e.g. "quote paths with spaces") | Global `~/.claude/CLAUDE.md` — chezmoi source `~/.local/share/chezmoi/dot_claude/CLAUDE.md` |
 | Cross-project, language/tool-specific (e.g. all Ruby work) | Global `CLAUDE.md` section, or a new global skill if it's a workflow |
-| Project-specific to payaus | `~/programming/payaus/.claude/` artifacts |
+| Project-specific to payaus | `~/programming/tanda/payaus/.claude/` artifacts |
 | Project-specific to another repo | That repo's `.claude/` or `CLAUDE.md` |
 
 If you can't tell, default to project scope — narrower is safer than broader.
@@ -61,7 +61,7 @@ Everything a pattern can match stays a write-rule, which wins on three counts:
 
 The cop's compensation is that it catches code you write by hand, not only Claude's edits. The two stack, and the strongest rules run both.
 
-A personal cop lives in chezmoi and stays out of every project's shared config, whatever repo the rule is about. `~/programming/payaus/rubocop/custom_cops/` is the team's, and a rule landing there fails their CI.
+A personal cop lives in chezmoi and stays out of every project's shared config, whatever repo the rule is about. `~/programming/tanda/payaus/rubocop/custom_cops/` is the team's, and a rule landing there fails their CI.
 
 ## Step 4: Draft the wording
 

@@ -49,7 +49,7 @@ If AWS SSO has expired, the tunnel tab runs `aws sso login` itself, which opens 
 
 ### 6. Test-org discovery
 
-After QA_READY, follow the dev-console contract (`payaus/.claude/skills/dev-console/SKILL.md` — `bin/dev runner`, strictly read-only, run from `~/programming/payaus`).
+After QA_READY, follow the dev-console contract (`payaus/.claude/skills/dev-console/SKILL.md` — `bin/dev runner`, strictly read-only, run from `~/programming/tanda/payaus`).
 
 Start from:
 

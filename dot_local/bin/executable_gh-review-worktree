@@ -10,7 +10,7 @@
 # this lands you in a worktree for the PR branch so you can edit files with LSP
 # and push fixes — for your own PRs. It prefers an existing worktree on the branch
 # and otherwise creates a disposable one under ~/.cache/gh-dash-review, so the main
-# repo's master baseline and your real ~/programming/worktrees are never touched.
+# repo's master baseline and your real ~/programming/tanda/worktrees are never touched.
 #
 # Worktree hygiene (the whole point of the cache root): every run first prunes
 # review worktrees that are clean AND untouched for a week, so they never pile up;
