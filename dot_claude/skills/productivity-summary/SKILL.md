@@ -127,6 +127,12 @@ It renders every diagram, writes `~/.local/share/productivity/study.html`, and o
 something actually changed. **Print the path it prints, and nothing else.** No status list, no
 per-PR lines, no description of the garden — it speaks for itself.
 
+**Diagrams are currently switched off.** `study.rb`'s `RENDERER` points at
+`~/.local/share/mermaid-render/render.mjs`, which these dotfiles no longer ship. Every specimen
+sheet shows the render warning in place of its diagram; the rest of the garden works. To turn them
+back on, restore the renderer and its `npm ci` install script — both were removed deliberately, so
+they're in the history rather than missing by accident.
+
 ### The brief for each subagent
 
 Read `gh pr view <number> --json title,body,additions,deletions` and then the diff, following the
