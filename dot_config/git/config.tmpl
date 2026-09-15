@@ -50,9 +50,9 @@
 	enabled = true           # Record and reuse conflict resolutions
 	autoupdate = true        # Apply stored conflict resolutions automatically
 
-# Personal git-town preferences. Repo-specific keys (main-branch, forge-type,
-# github-connector) stay per-repo / auto-detected — not set here.
+# Personal git-town preferences. main-branch and forge-type stay per-repo — they vary.
 [git-town]
+	github-connector = gh              # reuses the gh CLI's auth, so there's no token to manage
 	sync-feature-strategy = merge      # merge, not compress/rebase: never rewrites history, so push-branches=false stays conflict-free
 	sync-prototype-strategy = rebase
 	sync-perennial-strategy = ff-only
