@@ -3,3 +3,6 @@
 
 {{/* Absorbed into productivity-summary: its garden is now study.rb's page. */}}
 .claude/skills/get-moving
+
+{{/* Mermaid renderer, dropped as unused. Takes node_modules with it. */}}
+.local/share/mermaid-render
