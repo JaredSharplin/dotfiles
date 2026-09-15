@@ -25,13 +25,23 @@ Two things `chezmoi apply` cannot do for you:
 for them and exit 1 if they are absent. Those come from here: the `Brewfile` and
 `dot_config/mise/config.toml`, so apply these dotfiles first.
 
-Two things that bite on a fresh machine:
+Homebrew 7 needs both of payaus's third-party taps trusted before the script runs, or it fails on
+them. `install-homebrew.sh` handles this repo's own taps, not payaus's:
+
+```bash
+brew trust --tap puma/puma                          # puma_dev.pp taps before it trusts, so the tap fails
+brew trust --cask puppetlabs/puppet/puppet-agent    # installed untrusted, so brew warns on every command after
+```
+
+Two more things that bite on a fresh machine:
 
 - **Don't run payaus's `bin/setup`.** It appends `eval "$(mise activate zsh)"` to `~/.zshrc`, which
   both contradicts the shims-over-activate reasoning in `.zprofile` and drifts a managed file. Its
   useful parts are `brew bundle` and `mise install`, which you can run directly.
-- **`puma_dev.pp` taps before it trusts**, so on Homebrew 7 the tap fails and puma-dev never
-  installs. Run `brew trust --tap puma/puma` first, then re-run the script.
+- **The run exits 6 regardless**, on MinIO's `mc alias` step — `mc` and `minio` both segfault on
+  Apple silicon (`go-m1cpu`), and there is no fixed build published. Everything before it applies,
+  so `.pumaenv`, `.native.env` and the puma-dev symlink are written; `bundle install` and
+  `yarn install` are skipped and need running by hand.
 
 ## Platform Support
 
