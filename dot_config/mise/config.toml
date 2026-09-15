@@ -1,20 +1,10 @@
-# Global runtime versions.
-#
-# The PATH strategy in .zshenv / .zprofile / .zshrc is built entirely on mise shims
-# (~/.local/share/mise/shims), and dot_config/nvim/lua/plugins/ruby.lua points the Ruby LSP at a
-# shim by absolute path — but nothing here declared which runtimes to install, so a fresh machine
-# got the shims directory and no shims.
-#
-# Versions track payaus (.ruby-version, .nvmrc, mise.toml). Keep them exact, not major-only:
-# payaus's useful_scripts/puppet/manifests/node.pp greps `mise list node` for the literal string
-# in .nvmrc, so a "24" resolving to a newer patch fails its check and ensure_running.sh exits 1.
+# Versions track payaus (.ruby-version, .nvmrc, mise.toml). Exact, not major-only: payaus's
+# node.pp greps `mise list node` for the literal .nvmrc string.
 [tools]
 node = "24.16.0"
 ruby = "3.4.9"
 yarn = "4.16.0"
 
 [settings]
-# payaus's mise.toml declares only node and yarn — its Ruby lives in .ruby-version, which mise
-# ignores unless idiomatic version files are enabled per tool. Without this, payaus resolves the
-# global Ruby instead of its own and ruby.pp's version check fails.
+# payaus's Ruby lives in .ruby-version, which mise ignores without this.
 idiomatic_version_file_enable_tools = ["ruby", "node"]

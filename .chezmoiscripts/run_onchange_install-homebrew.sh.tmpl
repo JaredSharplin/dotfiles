@@ -12,10 +12,7 @@ if ! command -v brew &> /dev/null; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
-# Homebrew 7 refuses to load formulae from untrusted third-party taps, and validates them at TAP
-# time — so an untrusted tap fails the tap itself, and `brew bundle` dies on that line. Trust has
-# to come first. (payaus's puppet manifest gets this backwards and cannot install puma-dev on a
-# fresh machine as a result.) `brew trust --tap` on an untapped name is fine; it records intent.
+# Homebrew 7 validates formulae at tap time and refuses untrusted taps, so trust precedes bundle.
 brew trust --tap PeonPing/tap
 
 # Install packages from Brewfile

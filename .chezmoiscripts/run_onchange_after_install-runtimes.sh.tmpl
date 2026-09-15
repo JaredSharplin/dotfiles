@@ -1,31 +1,19 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/bin/bash
-# Install the mise runtimes, and the gems that live outside any project bundle.
-#
-# chezmoi re-runs this when the global mise config changes, via the hash below (run_onchange_).
-# Named run_onchange_after_ so it lands after run_onchange_install-homebrew, which installs mise.
-#
+# Runtimes and the gems that live outside any project bundle.
 # config.toml hash: {{ include "dot_config/mise/config.toml" | sha256sum }}
-#
-# Bash rather than Ruby (against the usual preference in ~/.claude/CLAUDE.md) because this is the
-# script that installs Ruby — it has to run before a usable one exists. It is command glue only.
+# Bash, not Ruby: this is what installs Ruby.
 
 set -e
 
 command -v mise >/dev/null 2>&1 || { echo "mise not installed — skipping runtimes"; exit 0; }
 
-echo "Installing mise runtimes..."
 mise install
 
-# standardrb lints this repo (AGENTS.md) and ruby-lsp backs nvim's Ruby LSP. Both are global on
-# purpose — a project's own bundle supplies its own rubocop.
+# standardrb lints this repo; ruby-lsp backs nvim's Ruby LSP. Global on purpose — a project's
+# bundle supplies its own rubocop.
 for gem_name in standard ruby-lsp; do
-  if mise exec -- gem list -i "^${gem_name}$" >/dev/null 2>&1; then
-    echo "  ✓ ${gem_name}"
-  else
-    echo "  + installing ${gem_name}"
-    mise exec -- gem install "${gem_name}"
-  fi
+  mise exec -- gem list -i "^${gem_name}$" >/dev/null 2>&1 || mise exec -- gem install "${gem_name}"
 done
 
 echo "Runtimes ready"
