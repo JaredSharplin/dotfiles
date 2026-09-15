@@ -1,0 +1,18 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# settings.json wires ten hook events to peon.sh, which ships with the packs rather than this
+# repo. Setup rewrites config.json with its defaults, so the managed copy goes back afterwards.
+# Packs come from config.json's own rotation, so the list is stated once.
+
+set -e
+
+config="{{ .chezmoi.sourceDir }}/dot_claude/hooks/peon-ping/config.json"
+
+command -v peon-ping-setup >/dev/null 2>&1 || { echo "peon-ping not installed — skipping"; exit 0; }
+[ -f "$HOME/.claude/hooks/peon-ping/peon.sh" ] && exit 0
+
+peon-ping-setup --packs="$(jq -r '.pack_rotation | join(",")' "$config")"
+cp "$config" "$HOME/.claude/hooks/peon-ping/config.json"
+
+echo "peon-ping ready"
+{{ end -}}
