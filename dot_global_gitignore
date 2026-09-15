@@ -8,8 +8,7 @@ backlog/*
 backlog
 .pr-review
 
-# Native local dev — deployed files (source of truth is chezmoi)
+# Native local dev — written per checkout by payaus's native_markers.pp, not by chezmoi
 .pumaenv
-config/initializers/99_local_native_dev.rb
 
 **/.claude/settings.local.json

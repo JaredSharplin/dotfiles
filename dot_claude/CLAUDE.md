@@ -326,7 +326,7 @@ After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrom
 
 Use the **Local Dev Cafe** org for browser verification, not Team Tanda (sysadmin).
 
-- Login: `demoaccount+1@tanda.co` / `password123`
+- Login: `demoaccount+1@tanda.co` / `TandaDemoOrg1!` (sysadmin: `info@tanda.co` / `TandaLocalDev1!`)
 
 Every password login then emails a six-digit code — these accounts have no authenticator app, so expect it every time. It only sends if a worker is running (above); read it from mailpit at http://localhost:8025, newest message. A code is good for ten minutes.
 
