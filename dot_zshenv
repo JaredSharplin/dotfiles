@@ -12,9 +12,10 @@ mise_shims_first() { export PATH="$HOME/.local/share/mise/shims:$PATH" }
 # file guaranteed to run for all shells).
 export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 export PATH="$PATH:/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin"
+# keg-only, so this is the only psql. Here, not .zshrc: bin/rails db:* shells out to it from
+# whatever shell ran it — a script, a git hook, an agent.
+export PATH="$PATH:/opt/homebrew/opt/postgresql@17/bin"
 mise_shims_first
-
-[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # payaus native dev. In .zshenv (not .zshrc) so non-interactive shells — scripts, git hooks, agents —
 # see it, not just interactive terminals. config/boot.rb loads .env.local when set (skipped in tests);
