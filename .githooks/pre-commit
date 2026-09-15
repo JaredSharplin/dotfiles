@@ -12,9 +12,13 @@
 require "digest"
 require "open3"
 
-# The shebang resolves whichever ruby is first on PATH, which for a hook invoked
-# outside an interactive shell can be macOS's 2.6. Say so instead of dying on a
-# NameError the first time a block uses `it`.
+# The shebang resolves whichever ruby is first on PATH, which for a hook invoked outside an
+# interactive shell is macOS's 2.6. Re-exec under the shim rather than making the caller fix
+# their PATH; the env marker stops a shim that is itself too old from looping.
+if RUBY_VERSION < "3.4" && !ENV.key?("PRE_COMMIT_REEXEC")
+  shim = File.join(Dir.home, ".local", "share", "mise", "shims", "ruby")
+  exec({"PRE_COMMIT_REEXEC" => "1"}, shim, __FILE__, *ARGV) if File.executable?(shim)
+end
 abort "pre-commit needs Ruby 3.4+, found #{RUBY_VERSION} — is mise on PATH?" if RUBY_VERSION < "3.4"
 
 def git(*args)
