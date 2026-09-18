@@ -1,11 +1,12 @@
 # PATH is reordered by three actors during startup: the inherited env, macOS path_helper
 # (login shells, via /etc/zprofile), and antidote's zephyr plugins (interactive shells,
-# which re-run `brew shellenv`). Homebrew's bin holds a `node` that overlaps mise's, so the
-# shims must stay ahead of it. mise_shims_first re-asserts that after each reorderer; each
-# shell class calls it from its last-running startup file (.zshenv / .zprofile / .zshrc).
+# which re-run `brew shellenv`). Two of our dirs must stay ahead of Homebrew's bin: mise's
+# shims, whose node it overlaps, and ~/.local/bin, whose rg and chezmoi wrappers shadow it.
+# shims_and_wrappers_first re-asserts both after each reorderer; each shell class calls it
+# from its last-running startup file (.zshenv / .zprofile / .zshrc).
 # typeset -U makes the prepend a move-to-front, not a grow.
 typeset -U path PATH
-mise_shims_first() { export PATH="$HOME/.local/share/mise/shims:$PATH" }
+shims_and_wrappers_first() { export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$PATH" }
 
 # Append system dirs so shells that inherit a stripped PATH still find git/wc/tr, then
 # assert shims-first for this and every non-interactive shell (.zshenv is the only startup
@@ -15,7 +16,7 @@ export PATH="$PATH:/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin"
 # keg-only, so this is the only psql. Here, not .zshrc: bin/rails db:* shells out to it from
 # whatever shell ran it — a script, a git hook, an agent.
 export PATH="$PATH:/opt/homebrew/opt/postgresql@17/bin"
-mise_shims_first
+shims_and_wrappers_first
 
 # payaus native dev. In .zshenv (not .zshrc) so non-interactive shells — scripts, git hooks, agents —
 # see it, not just interactive terminals. config/boot.rb loads .env.local when set (skipped in tests);

@@ -55,7 +55,7 @@ fi
 
 # antidote's zephyr plugins (loaded above) re-run `brew shellenv`, re-prepending
 # /opt/homebrew/bin — whose node overlaps mise's. This is the last actor to touch PATH in an
-# interactive shell, so re-assert shims-first here (mise_shims_first is defined in .zshenv).
+# interactive shell, so re-assert shims-first here (shims_and_wrappers_first is defined in .zshenv).
 # Non-interactive shells return at the top of this file, before antidote, and keep the
 # .zshenv/.zprofile ordering.
-mise_shims_first
+shims_and_wrappers_first

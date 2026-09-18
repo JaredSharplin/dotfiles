@@ -29,6 +29,7 @@ brew "timg"         # Terminal image/video viewer (PR screenshots via gh-pr-shot
 brew "eza"          # Modern ls replacement
 brew "ripgrep"      # Better grep
 brew "fd"           # Better find
+brew "uv"           # Python env for ~/programming/terminal_chat
 
 # payaus native dev
 # puma-dev, memcached, mailpit and MinIO come from payaus's Puppet run. Postgres does not — that

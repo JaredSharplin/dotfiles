@@ -6,3 +6,8 @@
 
 {{/* Mermaid renderer, dropped as unused. Takes node_modules with it. */}}
 .local/share/mermaid-render
+
+{{/* Replaced by the exhalekit plugin. rubycritic went with them: bin/diff-quality runs it. */}}
+.claude/hooks/exhale-reminder.sh
+.claude/skills/simplify-with-analysis
+.claude/skills/rubycritic

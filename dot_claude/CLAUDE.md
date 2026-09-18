@@ -41,7 +41,7 @@ The agent-loop default is to add features without stepping back, which degrades 
 
 The exhale isn't optional; skipping it compounds complexity. Only exemption: genuinely-trivial changes (typos, single-line config).
 
-For payaus, the canonical exhale tool is `/simplify-with-analysis` — gathers findings report-only (a `/code-review` pass, a cold Beck-rules subagent, and `bin/diff-quality`: rubycritic + SimpleCov coverage vs `master`), posts one consolidated summary before editing, then applies one follow-up pass. Other projects: `/simplify` (built-in) is fine.
+The exhale comes from the `exhalekit` plugin (`TandaHQ/claude-plugins`): a hook fires after every non-refactor commit, and `/simplify-with-analysis` runs `/simplify` then `bin/diff-quality`. In payaus pass the base branch — `/simplify-with-analysis master` — since the command defaults to `main`. After a single commit, `bin/diff-quality --no-browser --no-tests --last-commit` scopes the check to just that commit.
 
 ## Planning coding work
 
