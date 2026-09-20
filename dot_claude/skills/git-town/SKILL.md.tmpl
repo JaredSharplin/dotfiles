@@ -35,10 +35,10 @@ Pushing is **off by default** (`push-branches = false` in global git config). Th
 
 - `git town sync` (and `sync -s`) update branches **locally only** — they do **not** push to the remote.
 - To push on purpose: **`git town sync --push`** (overrides the config for that run). Use `git town sync -s --push` to push the whole stack.
-- `gh pr create --draft` pushes the branch as part of opening the PR — that's a new branch's first push. Because the PR opens as a draft, no CI runs; CI first runs when the PR is marked ready for review.
+- `gh pr create --draft` pushes the branch as part of opening the PR — that's a new branch's first push. Because the PR opens as a draft, no CI runs.
 - `observe` branches never push regardless (they're read-only).
 
-Rule of thumb: sync freely to stay up to date; push only when you actually want the remote / PR updated. Pushing a *draft* runs no CI (Buildkite skips drafts without the `run-bk` label) — CI runs when the PR is marked ready.
+Rule of thumb: sync freely to stay up to date; push only when you actually want the remote / PR updated. Pushing a *draft* runs no CI unless the PR carries the `run-bk` label — deciding whether it should is Claude's call, see *Running CI on a draft*.
 
 ## When to Use Git Town vs Standard Git
 
@@ -211,7 +211,22 @@ Choose the type label by the nature of the change. If unsure, ask before creatin
 
 Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
 
-**Every PR starts as a draft** — *not yet marked ready by the developer; the ready-flip is their review gate*. Marking a PR ready-for-review (`gh pr ready`) triggers its first CI run; Claude does this only when the developer asks. Otherwise the draft stays put — but a draft PR still gets full browser QA from Claude before handoff: screenshots filled (see *Screenshots* below) and the Manual Browser QA boxes checked for every task Claude verified (see *Checking the boxes after QA*). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
+**Every PR is a draft, and the developer alone flips it ready.** `gh pr ready` is **off the table for Claude** — no exceptions, not on request, not as the obvious last step of a finished task. The ready-flip is the developer's review gate and stays in their hands; when a PR looks ready, say so and leave the command to them.
+
+The draft still gets full browser QA from Claude before handoff: screenshots filled (see *Screenshots* below) and the Manual Browser QA boxes checked for every task Claude verified (see *Checking the boxes after QA*). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
+
+### Running CI on a draft (`run-bk`)
+
+Since the PR stays a draft, attaching `run-bk` is what runs CI on the branch. Attach it when the branch is finished and going to review — a colleague won't review without a green build. While commits are still landing, leave it off.
+
+**Mechanics.** The label alone starts nothing: `prepare-pipeline.sh` reads it when a build begins (payaus #56255), so label first, then push the build.
+
+```bash
+gh pr edit <number> --add-label run-bk
+git town sync --push                    # merges master in and pushes — this is what triggers the build
+```
+
+State the call in the handoff, either way, so the developer can overrule it in a word.
 
 ## Working on Someone Else's Branch
 
@@ -302,7 +317,7 @@ The plain-writing craft below applies to PR bodies in this voice:
 On top of that, for PR bodies specifically:
 
 - **Short by default.** A reviewer should be able to read the whole body in under ~30 seconds. When in doubt, cut. The diff carries the detail — the body just frames it.
-- **Vocabulary: the product's words.** Use what the user reads on screen — button labels (Delete, Disconnect), page names, and the domain nouns the app itself uses (permission, integration, pay run) — in the title and the body. Class / method / file names belong in the diff. Paraphrasing around the product's own term is circumlocution: "hides buttons you don't have permission for", never "stops offering buttons the user isn't allowed to press".
+- **Vocabulary: name the identifiers, not the mechanics.** Use what the user reads on screen — button labels (Delete, Disconnect), page names, and the domain nouns the app itself uses (permission, integration, pay run). When the PR fixes a specific failure, reach for the name a developer recognises: the error class and the system or class it came from, backticked. `Fix ActiveRecord::RecordInvalid on missing name in Roller` beats `Fix an unnamed POS location failing the data stream lookup`, and someone grepping the error finds the PR. A domain-flavoured paraphrase is the failure to avoid — "a Smart Retail till stopped answering" tells a reviewer less than `Net::OpenTimeout` connecting to Smart Retail. Stop at the name: method signatures, parameter changes and how the fix works stay in the diff. Paraphrasing around the product's own term is circumlocution too: "hides buttons you don't have permission for", never "stops offering buttons the user isn't allowed to press".
 - **No padding.** Don't restate the title. Don't walk through the changes file-by-file or commit-by-commit. (Opening with "This PR adds…" / "This PR fixes…" is fine — leading with what it does beats easing in with context.)
 - **Only what the PR does.** No commentary on how the problem was found or how bad the old state was, and no questions, requests or open decisions aimed at reviewers — the body goes out in Jared's name. Anything you're unsure about or chose not to fix goes to him in the chat.
 - **The subject is the system, never the reader.** Every sentence in Background and Features is about the thing that changed — the page, the form, the integration. Never "you", "people", "someone", "a user", "nobody", "everybody". Write "the setup page records each step", not "you see what happens as people use it". Features bullets read best led by the verb: "Moves the API token onto the main form", "Alerts in Sentry when a system is unreachable". QA tasks are instructions to a reviewer and stay imperative — "Add a Redcat integration and confirm…" is right.
@@ -400,6 +415,7 @@ slice of the Manage Data Streams reshape — the previous slice left a slot for 
 - **2–4 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the outcome and the motivation.
 - After the lede: one or two sentences of context — the reported problem (bug), the product need (feature), or where this sits in a larger effort
 - Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
+- **Link the fault.** A `(fix)` names where the failure was seen, on its own line after the prose: `**Sentry:** [PAYAUS-RAILS-15NF](https://tandahq.sentry.io/issues/PAYAUS-RAILS-15NF)`, or `**Setup log:**` with the counts and window when the fault raised no error. A reviewer opens the evidence rather than taking the Background's word for it.
 - Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
 - Prose, not bullet points
 - Use `NOTE:` callouts inline for important constraints
@@ -432,9 +448,11 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 
 #### Checking the boxes after QA
 
-Write these tasks as unchecked (`- [ ]`) at `gh pr create` time — QA hasn't run yet. Then, like the screenshot placeholders, they're a to-do list Claude comes back to: after the final browser QA on native dev, **check (`- [x]`) every task Claude actually verified, and leave unchecked every task it did not.** When the QA run covered every task, that means checking all of them; when it covered only some (a path Claude couldn't reach locally, a step needing data it didn't have), the rest stay `[ ]` for the developer to verify. Do the checking with a surgical body edit (see *⛔ Editing PR Bodies*), never a wholesale replace.
+Write these tasks as unchecked (`- [ ]`) at `gh pr create` time — QA hasn't run yet. They're a to-do list Claude comes back to: after the final browser QA on native dev, **check (`- [x]`) every task it verified.** Do the checking with a surgical body edit (see *⛔ Editing PR Bodies*), never a wholesale replace.
 
-A checked box is Claude's assertion "I ran this step and it passed" — never check one that wasn't actually verified, and if a step failed, don't check it; fix the code or raise it. If none of the tasks were verified (e.g. no browser QA was possible), leave them all unchecked and say so on handoff.
+**Every task that ships is one Claude verified.** An empty box asserts nothing and explains nothing, so the developer gains no information from it. By handover each task is either checked or gone: verify it, or delete it and account for it. When QA couldn't run at all, replace the whole list with `None` and one line naming what stopped it — `None. Reaching this needs a POS system that refuses to answer, which the seeded data has none of.` A PR handed over with a list of empty boxes is an incomplete PR.
+
+A checked box is Claude's assertion "I ran this step and it passed" — never check one that wasn't actually verified, and if a step failed, don't check it; fix the code or raise it.
 
 ### Screenshots
 
@@ -503,7 +521,7 @@ It opens a background tab, signed in as Local Dev Cafe, on that page. One tab, f
 
 - A FAIL means fix the code and verify again.
 - A PARTIAL that stalled means re-dispatch that task.
-- A box left unchecked *deliberately* — a path Claude can't reach locally, a step needing data it doesn't have — clears the gate. Those are the cases the developer most needs the tab for.
+- A task removed *deliberately*, with the reason standing in place of the list — a path Claude can't reach locally, a step needing data it doesn't have — clears the gate. Those are the cases the developer most needs the tab for.
 
 "Nothing fell over" is the bar, not "every box ticked". The handoff is what a clean QA run earns, which is why it goes last.
 

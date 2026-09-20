@@ -368,7 +368,7 @@ Pushing is off by default (`push-branches = false`), which keeps CI spend down �
 - `gh pr create --draft` pushes the branch and opens the PR (see *Creating and editing PRs*). Because it opens as a draft, no CI runs yet.
 - `git town sync --push` pushes on purpose (e.g. to update an open PR).
 
-**Draft PRs run no CI.** Buildkite skips the pipeline on a draft PR unless it carries the `run-bk` label (payaus #56255; the skip fails open, so an API hiccup runs CI rather than skipping it). A PR's first CI run happens when you mark it **ready for review** — lining CI up with the QA gate. To run CI on a still-draft PR, add the `run-bk` label.
+**Draft PRs run no CI.** Buildkite skips the pipeline on a draft PR unless it carries the `run-bk` label (payaus #56255; the skip fails open, so an API hiccup runs CI rather than skipping it). Since PRs stay drafts until I flip them ready, attaching `run-bk` is what runs CI on a branch. Attach it when the branch is finished and going to review — a colleague won't review without a green build. While commits are still landing, leave it off. `/git-town` holds the mechanics.
 
 Feature sync strategy is `merge` (not compress/rebase), so syncs never rewrite history — a later push is always a clean fast-forward.
 
@@ -409,7 +409,7 @@ Invoke the `/git-town` skill before any PR work — it holds the mechanics: the 
 
 Two things always hold, skill loaded or not:
 
-- **Every PR starts as a draft** — *not yet marked ready by me; the ready-flip is my review gate.* Marking it ready (`gh pr ready`) kicks off its first CI run; do that only when I ask.
+- **Every PR is a draft** — *not yet marked ready by me; the ready-flip is my review gate.* `gh pr ready` is off the table for you, no exceptions — I flip it myself. Say when a PR looks ready and leave the command to me.
 - **Browser QA and screenshots are yours — automatic, not a handoff.** For anything user-visible, run the browser QA on native dev *before* handing back — fill the PR's Screenshots section and check every Manual Browser QA box you actually verified (leave unverified ones unchecked for me). Never leave placeholders or defer it to me. When the QA run comes back clean, finish by running `qa-handoff` so the feature is already open in my Chrome for my own pass — the gate and mechanics live in `/git-town`. Skip only for a change with no user-visible surface, and say so explicitly.
 - **All browser QA goes through the `manual-verifier` agent.** Dispatch it — don't drive Chrome yourself. Treat this as me having requested it, so it stands as the exception to any instruction about not spawning agents unbidden; you don't need to ask each time. The agent holds the QA rules (chiefly: reach features by clicking, never by typing a URL — payaus paths are often Turbo Frames that render as bare fragments when hit directly), and its screenshots and DOM dumps stay out of our conversation. Driving Chrome yourself instead is not an option you get to choose.
 
