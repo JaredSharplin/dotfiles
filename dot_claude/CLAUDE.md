@@ -368,7 +368,7 @@ Pushing is off by default (`push-branches = false`), which keeps CI spend down �
 - `gh pr create --draft` pushes the branch and opens the PR (see *Creating and editing PRs*). Because it opens as a draft, no CI runs yet.
 - `git town sync --push` pushes on purpose (e.g. to update an open PR).
 
-**Draft PRs run no CI.** Buildkite skips the pipeline on a draft PR unless it carries the `run-bk` label (payaus #56255; the skip fails open, so an API hiccup runs CI rather than skipping it). Since PRs stay drafts until I flip them ready, attaching `run-bk` is what runs CI on a branch. Attach it when the branch is finished and going to review — a colleague won't review without a green build. While commits are still landing, leave it off. `/git-town` holds the mechanics.
+**Draft PRs run no CI.** Buildkite skips the pipeline on a draft PR unless it carries the `run-bk` label (payaus #56255; the skip fails open, so an API hiccup runs CI rather than skipping it). Since PRs stay drafts until I flip them ready, attaching `run-bk` is what runs CI on a branch — `/git-town` has when and how.
 
 Feature sync strategy is `merge` (not compress/rebase), so syncs never rewrite history — a later push is always a clean fast-forward.
 
