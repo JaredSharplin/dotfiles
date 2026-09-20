@@ -73,6 +73,19 @@ When the shaping doc already has a selected shape:
 
 This gives the user immediate context on where the shaping stands and what needs attention.
 
+## Ending a Session
+
+`~/notes` is a git repo (`JaredSharplin/notes`), and shaping documents only leave this machine once they're pushed. So every shaping session ends with the notes repo committed and pushed — here that's part of the work, and it overrides the usual "push only when asked".
+
+```bash
+cd ~/notes
+git add shaping/<project>
+git commit -m "<short message>"
+git town sync --push
+```
+
+Stage the project directory so only this session's files go in. `git town sync --push` pulls remote edits before pushing, keeping notes written on another machine intact. A conflict during the sync is the user's to settle — stop and report it.
+
 ---
 
 ## Core Concepts
