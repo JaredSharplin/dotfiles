@@ -1,6 +1,6 @@
 ---
 name: git-town
-description: Use this skill when working with git branches, creating PRs, or managing stacked changes. Triggers include "create branch", "new feature branch", "git town", "stacked PR", "split PR", "rebase", "resolve conflicts", "checkout branch", "adopt PR", "work on someone's PR", "merge conflicts", "make a pr", "create a pr", "open a pr", or any branch management operations. MUST be loaded before any `gh pr create`, `gh pr edit`, `git town sync`, `git checkout`, `git rebase`, `git push`, `git stash`, `git clone`, or branch switching operation. (user)
+description: Use this skill when working with git branches, creating PRs, or managing stacked changes. Triggers include "create branch", "new feature branch", "git town", "stacked PR", "split PR", "restack a PR", "rebase", "resolve conflicts", "checkout branch", "adopt PR", "work on someone's PR", "merge conflicts", "make a pr", "create a pr", "open a pr", or any branch management operations. MUST be loaded before any `gh pr create`, `gh pr edit`, `gh pr close`, `git town sync`, `git checkout`, `git rebase`, `git push`, `git stash`, `git clone`, or branch switching operation. (user)
 ---
 
 # Git Town Stacked Changes Guide
@@ -327,10 +327,12 @@ If the body reads like a changelog of code edits, rewrite it as a couple of plai
 
 ### Title Format
 
-Exact template: `<TICKET_ID> (<type>) | <Verb phrase>`
+Exact template: `<TICKET_ID> (<type>) <N>/<M> | <Verb phrase>`
 
 - Ticket ID is a Linear issue number (`ENG-NNN`). Omit entirely if no ticket: `(fix) | Fix validation on breaks`
 - Type tags (lowercase, parenthesised): `(fix)` `(hotfix)` `(feature)` `(migration)` `(internal)`
+- **`<N>/<M>` is the PR's place in its stack** — `N` counting from the trunk (the PR based on master is 1), `M` the number of open PRs in the stack: `ENG-812 (feature) 1/4 | Add step display to the new POS picker`. Read the shape off `git town branch`, which prints the hierarchy with the trunk at the top and each stack indented below it, and count only the branches carrying an open PR — a WIP branch with no PR is invisible to a reviewer, so numbering it leaves a gap they can't follow. **Omit the position on a standalone PR** — `1/1` is noise.
+- **A stack that changes shape retitles the PRs already in it.** `append`, `prepend`, `set-parent`, `swap`, `detach` and `delete` all move `N` or `M` for branches other than the one you ran the command on, and so does opening or merging a PR mid-stack. Re-read the stack afterwards and fix every open PR whose numbers moved: `gh pr edit <number> --title "..."`. (`--title` replaces only the title — the wholesale-replacement ban below is about `--body`.)
 - Verb phrase: sentence case, imperative. Reach for the exact name: terms of art (`DRY`, `N+1`, `flaky`) and backticked code references, e.g. `Fix N+1 in \`KeyAlert::SendAlertLogic\``
 - **The type tag governs the verb.** `(fix)`/`(hotfix)` leads with `Fix` and names the fault it removes — the wrong behaviour someone experienced, not the new mechanism that replaces it. `(internal)`/`(migration)` names the code motion and the real constant it moved, so the title reads as a change no user sees. `(feature)` names the new capability and where it appears. Get this right on the first write: a title describing the mechanism reads as the wrong type, and a refactor titled like a behaviour change is the worst of them. Leave any "when X" condition to the body.
 - No emoji in titles
@@ -533,6 +535,21 @@ It opens a background tab, signed in as Local Dev Cafe, on that page. One tab, f
 - Background is prose paragraphs, not bullet points
 - Section headers are always `###`, never `#` or `##`
 - Bold only for link labels (`**Linear**`, `**Related PR:**`), not for emphasis in body text
+
+---
+
+## Restacking an Open PR
+
+A PR moves with its branch. When a branch changes place in the stack — onto a different parent, off the stack onto the trunk, or deeper into it — `set-parent` plus a sync carries the open PR with it, base included:
+
+```bash
+git town set-parent <new-parent>
+git town sync -s --push
+```
+
+Where a PR needs pointing by hand, both ends are editable: the base with `gh pr edit --base`, the head from the PR's **Edit** control in the GitHub UI. `gh pr edit` offering only `--base` is a limit of the CLI, not of GitHub — a missing `gh` flag is never grounds to conclude a PR must be replaced.
+
+**Closing a PR and opening a replacement is FORBIDDEN** — same severity as `git push --force`. It discards the PR's number, review history, comments and CI record. Restack the branch; the PR follows.
 
 ---
 
