@@ -144,8 +144,11 @@ def remove_session(name)
   run("zellij", "delete-session", "--force", name, allow_failure: true)
 end
 
+# The budget has to cover a cold connection, not a reused one: the ssh config's
+# ControlMaster is often gone by teardown, and a fresh one is built by a ProxyCommand
+# that talks to AWS first. Five seconds only ever succeeded when the master was warm.
 def stop_remote_containers
-  _, _, status = Open3.capture3("ssh", "-F", SSH_CONFIG, "-o", "ConnectTimeout=5", "devbox",
+  _, _, status = Open3.capture3("ssh", "-F", SSH_CONFIG, "-o", "ConnectTimeout=30", "devbox",
     "docker rm -f #{REMOTE_APP_CONTAINERS.join(" ")}")
   if status.success?
     puts "stopped remote app containers"
@@ -220,13 +223,14 @@ def announce_removal(existing, session)
   end
 end
 
-# The syncer goes before the panes: zellij kill-session signals them with TERM, and
-# bin/tunnel's EXIT trap turns any status but 0 or 130 into a critical macOS alert.
-# kill_tunnel! is a no-op when nothing matches, so --down calling it first costs nothing.
+# Order matters twice over. The containers go first, while the tunnel's ssh ControlMaster
+# is still alive to carry the command — killing the syncer's process group takes the master
+# with it. The syncer then goes before the panes, because zellij kill-session signals them
+# with TERM and bin/tunnel's EXIT trap turns any status but 0 or 130 into a critical alert.
 def teardown(sessions)
+  stop_remote_containers
   kill_tunnel!
   sessions.each { remove_session(it[:name]) }
-  stop_remote_containers
 end
 
 # Pane wrappers only write an .exit file when their command exits on its own;
@@ -367,10 +371,10 @@ end
 # --- teardown ---
 
 def down!
-  kill_tunnel!
   sessions = qa_sessions
   clear_run_artifacts
   if sessions.empty?
+    kill_tunnel!
     puts "No qa- session running."
     return
   end
