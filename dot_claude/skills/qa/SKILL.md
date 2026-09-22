@@ -27,7 +27,7 @@ Run `git town sync` in the worktree first, so QA runs against code that's curren
 qa-up --no-attach
 ```
 
-Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~30s → (a few quiet minutes) → `Server up …` → `QA_READY …`. QA_READY means usable in the browser — the server responds *and* webpack's first compile is done. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
+Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~45s → (a few quiet minutes) → `Server up …` → `QA_READY …`. QA_READY means usable in the browser — the server responds *and* webpack's first compile is done. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
 
 If it reports "switched from <other>", relay that to the user — their previous QA session was torn down.
 
@@ -42,7 +42,7 @@ If it reports "switched from <other>", relay that to the user — their previous
 
 Two phases, with very different timing — don't conflate them:
 
-- **Tunnel sync is fast (seconds).** `Tunnel synced` should print within ~30s of `Launched`. If it hasn't after a minute, something is wrong — **do not tell the user to keep waiting.** Run `qa-up status` to see the tunnel tab and diagnose.
+- **Tunnel sync is fast (seconds).** `Tunnel synced` should print within ~45s of `Launched` — the syncer rehashes the worktree first, which measures at a few seconds for ~39k files. If it hasn't after a minute, something is wrong — **do not tell the user to keep waiting.** Run `qa-up status` to see the tunnel tab and diagnose.
 - **Server boot is the slow part (a few minutes).** Only *after* `Tunnel synced` is a stretch of no output expected. `QA_READY url=… session=qa-<worktree>` is the success signal.
 
 If AWS SSO has expired, the tunnel tab runs `aws sso login` itself, which opens the user's browser — tell the user to approve it; the run continues automatically after approval (`qa-up status` shows the tunnel tab if unsure). Other failures are fast and explicit: dev box stopped (`bin/dev start`), or a pane exited (prints that pane's last output). Relay whatever qa-up prints. If output stalls with no such message, run `qa-up status` — never report a stall as normal.

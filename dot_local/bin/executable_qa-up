@@ -26,7 +26,10 @@ SESSION_PREFIX = "qa-"
 # domain can't drift apart. Make it env-derived if this ever goes multi-region.
 REGION = "apac"
 DEVELOPER = "jaredsharplin"
-ENTANGLER_PGREP = "entangler.*payaus_dev_config_#{REGION}".freeze
+# Matches either syncer bin/tunnel can run — entangler, or pylon under
+# --experimental-syncer. Mirrors bin/tunnel's own pattern so the two can't
+# disagree about what counts as a tunnel already syncing to this region.
+SYNCER_PGREP = "(entangler|pylon sync).*payaus_dev_config_#{REGION}".freeze
 SSH_CONFIG = File.expand_path("~/.ssh/payaus_dev_config_#{REGION}")
 APP_URL = "https://#{DEVELOPER}.dev.#{REGION}.adnat.co".freeze
 ROLES = %w[tunnel server worker webpack].freeze
@@ -42,6 +45,8 @@ WEBPACK_TIMEOUT = 900
 # Any bundle the login page needs works as the "assets are servable" probe.
 ASSET_PROBE_URL = "#{APP_URL}/assets/webpack/application.js".freeze
 BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
+# Per signal, how long a syncer gets to disappear from pgrep before escalating.
+KILL_TUNNEL_GRACE = 5
 
 # zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
 # background Claude task's $TMPDIR is longer still — either can exceed the ~103-byte
@@ -146,14 +151,37 @@ def stop_remote_containers
   end
 end
 
-def kill_tunnel!
-  pids = `pgrep -f "#{ENTANGLER_PGREP}"`.split.map(&:to_i)
-  return if pids.empty?
+def syncer_pids = `pgrep -f "#{SYNCER_PGREP}"`.split.map(&:to_i)
 
-  signal_process_groups("TERM", pids)
-  sleep 2
-  survivors = `pgrep -f "#{ENTANGLER_PGREP}"`.split.map(&:to_i)
-  signal_process_groups("KILL", survivors)
+# Signalling is not the synchronisation point: bin/tunnel refuses to start while any
+# syncer still reaches this region, and asks on stdin whether to stop it. In a detached
+# pane that read never returns, so the caller has to wait for the pattern to go quiet
+# rather than assume the signal landed.
+#
+# INT rather than TERM, because bin/tunnel traps EXIT and pops a critical macOS alert
+# for any status but 0 or 130. A TERMed bash exits 143 and alerts on every teardown;
+# 130 is the ctrl-c pylon documents, and it suppresses the alert.
+def kill_tunnel!
+  return if syncer_pids.empty?
+
+  signal_process_groups("INT", syncer_pids)
+  return if syncer_stopped_within?(KILL_TUNNEL_GRACE)
+
+  signal_process_groups("KILL", syncer_pids)
+  return if syncer_stopped_within?(KILL_TUNNEL_GRACE)
+
+  abort "a syncer survived SIGKILL (#{syncer_pids.join(", ")}). Stop it by hand — " \
+        "bin/tunnel blocks on a prompt while one is alive."
+end
+
+def syncer_stopped_within?(seconds)
+  deadline = Time.now + seconds
+  until syncer_pids.empty?
+    return false if Time.now > deadline
+
+    sleep 0.5
+  end
+  true
 end
 
 def signal_process_groups(signal, pids)
@@ -189,9 +217,11 @@ def announce_removal(existing, session)
   end
 end
 
-# The launch path kills the tunnel unconditionally afterwards, and --down kills it
-# first, so teardown itself only removes sessions and stops their remote containers.
+# The syncer goes before the panes: zellij kill-session signals them with TERM, and
+# bin/tunnel's EXIT trap turns any status but 0 or 130 into a critical macOS alert.
+# kill_tunnel! is a no-op when nothing matches, so --down calling it first costs nothing.
 def teardown(sessions)
+  kill_tunnel!
   sessions.each { remove_session(it[:name]) }
   stop_remote_containers
 end
@@ -247,8 +277,13 @@ def log_reached?(role, marker)
     File.exist?(log_path(role)) && File.read(log_path(role)).include?(marker)
 end
 
-# entangler mirrors "INFO: Ready!" to stdout when its initial sync reaches steady state.
-def sync_ready? = log_reached?("tunnel", "INFO: Ready!")
+# Each syncer announces steady state in its own words: entangler mirrors "INFO: Ready!",
+# pylon prints the ctrl-c hint beneath its ready line. Neither string is interpolated, and
+# --brand leaves pylon's alone. Both are listed so a tunnel started without
+# --experimental-syncer still reaches the gate.
+SYNC_MARKERS = ["INFO: Ready!", "watching for changes, ctrl-c to stop"].freeze
+
+def sync_ready? = SYNC_MARKERS.any? { log_reached?("tunnel", it) }
 
 def http_ready?(url)
   code, = Open3.capture3("curl", "-so", File::NULL, "-w", "%{http_code}", "--max-time", "5", url)
@@ -287,7 +322,7 @@ def run_role(role)
   command =
     case role
     when "tunnel"
-      "bin/tunnel #{state[:worktree]}"
+      "bin/tunnel --experimental-syncer #{state[:worktree]}"
     when "server"
       gate(role, "tunnel sync", timeout: SYNC_TIMEOUT) { sync_ready? }
       "bin/dev server"
@@ -396,9 +431,10 @@ write_layout
 launch_session(session)
 puts "Launched #{session} (tabs: #{ROLES.join(", ")} + scratch shell)"
 
-# The tunnel connects and does its initial sync in seconds; silence here means trouble —
+# Pylon re-hashes a tree whose inodes it does not recognise, which sounds expensive and is
+# not: ~39k files in a little over 4s, measured. So silence here still means trouble —
 # unless bin/tunnel just opened a browser SSO prompt that's awaiting approval.
-wait_for("tunnel sync", timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 30,
+wait_for("tunnel sync", timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 45,
   hint: "this should be quick unless a browser SSO prompt is awaiting approval — " \
         "run `qa-up status` to see the tunnel tab; if the dev box is down, `bin/dev start`") do
   sync_ready?
