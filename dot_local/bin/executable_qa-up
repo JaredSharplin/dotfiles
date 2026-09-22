@@ -45,7 +45,10 @@ WEBPACK_TIMEOUT = 900
 # Any bundle the login page needs works as the "assets are servable" probe.
 ASSET_PROBE_URL = "#{APP_URL}/assets/webpack/application.js".freeze
 BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
-# Per signal, how long a syncer gets to disappear from pgrep before escalating.
+# Escalation order for stopping a syncer, and how long each signal gets to take effect
+# before the next one. INT first because bin/tunnel's EXIT trap alerts on anything but
+# 0 or 130 — see kill_tunnel!.
+SYNCER_SIGNALS = %w[INT KILL].freeze
 KILL_TUNNEL_GRACE = 5
 
 # zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
@@ -164,14 +167,14 @@ def syncer_pids = `pgrep -f "#{SYNCER_PGREP}"`.split.map(&:to_i)
 def kill_tunnel!
   return if syncer_pids.empty?
 
-  signal_process_groups("INT", syncer_pids)
-  return if syncer_stopped_within?(KILL_TUNNEL_GRACE)
+  stopped = SYNCER_SIGNALS.any? do |signal|
+    signal_process_groups(signal, syncer_pids)
+    syncer_stopped_within?(KILL_TUNNEL_GRACE)
+  end
+  return if stopped
 
-  signal_process_groups("KILL", syncer_pids)
-  return if syncer_stopped_within?(KILL_TUNNEL_GRACE)
-
-  abort "a syncer survived SIGKILL (#{syncer_pids.join(", ")}). Stop it by hand — " \
-        "bin/tunnel blocks on a prompt while one is alive."
+  abort "a syncer survived SIG#{SYNCER_SIGNALS.last} (#{syncer_pids.join(", ")}). Stop it by " \
+        "hand — bin/tunnel blocks on a prompt while one is alive."
 end
 
 def syncer_stopped_within?(seconds)
