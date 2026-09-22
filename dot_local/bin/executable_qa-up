@@ -562,12 +562,13 @@ end
 
 def head_of(worktree_dir) = run("git", "-C", worktree_dir, "rev-parse", "HEAD")
 
+# Asked for as bare paths rather than parsed out of --porcelain, whose two status columns
+# and leading space do not survive the strip in run, and whose rename entries carry two
+# paths on one line.
 def dirty_paths(worktree_dir)
-  run("git", "-C", worktree_dir, "status", "--porcelain", "--untracked-files=all")
-    .split("\n")
-    .flat_map { it[3..].to_s.split(" -> ") }
-    .map(&:strip)
-    .reject(&:empty?)
+  modified = run("git", "-C", worktree_dir, "diff", "--name-only", "HEAD")
+  untracked = run("git", "-C", worktree_dir, "ls-files", "--others", "--exclude-standard")
+  [modified, untracked].flat_map { it.split("\n") }.reject(&:empty?)
 end
 
 def reloadable?(path)
