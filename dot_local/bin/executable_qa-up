@@ -1,13 +1,18 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# qa-up — bring up (or tear down) a remote-devbox QA session for a payaus worktree.
+# qa-up — bring up, swap, or tear down a remote-devbox QA session for a payaus worktree.
 #
-# Creates a detached zellij session `qa-<worktree>` with four tabs:
+# Creates a detached zellij session `qa` with four tabs:
 #   tunnel  — bin/tunnel <worktree>
 #   server  — bin/dev server   (waits for the tunnel's initial sync)
 #   worker  — bin/dev worker   (waits for the server to respond)
 #   webpack — bin/dev webpack  (waits for the server to respond)
+#
+# Each tab runs a supervisor rather than the command itself, so pointing qa-up at another
+# worktree restarts only what that change actually invalidates — usually just the tunnel,
+# because the containers bind-mount the synced directory and Rails reloads from it. The
+# session, its tabs and their scrollback live across a swap.
 #
 # All devbox logic stays in bin/tunnel and bin/dev; this script only
 # orchestrates zellij and polls files/URLs for readiness.
@@ -20,8 +25,13 @@ require "optparse"
 
 CACHE = File.expand_path("~/.cache/qa-up")
 STATE_FILE = File.join(CACHE, "state.json")
+LOCK_FILE = File.join(CACHE, "lock")
 LAYOUT_FILE = File.join(CACHE, "layout.kdl")
-SESSION_PREFIX = "qa-"
+# One session, whatever it currently serves. The worktree lives in state.json and in the
+# tab bar instead: a name that moves with the worktree goes stale inside every pane that
+# already read $ZELLIJ_SESSION_NAME, and leaves the old name behind as resurrectable —
+# which the next run would then tear down as if it were a second session.
+SESSION = "qa"
 # Single-region developer; stated once so the pgrep pattern, ssh config, and app
 # domain can't drift apart. Make it env-derived if this ever goes multi-region.
 REGION = "apac"
@@ -50,6 +60,30 @@ BRINGUP_TIMEOUT = SYNC_TIMEOUT + SERVER_TIMEOUT
 # 0 or 130 — see kill_tunnel!.
 SYNCER_SIGNALS = %w[INT KILL].freeze
 KILL_TUNNEL_GRACE = 5
+# How often a role supervisor looks for its child dying or its generation moving. The
+# whole cost of the supervisor is four processes stat-ing one file at this rate.
+SUPERVISOR_TICK = 1
+# How long a deliberately stopped child gets to go before the supervisor stops waiting.
+CHILD_STOP_GRACE = 15
+
+# Paths whose difference between two worktrees decides how much of a running session has
+# to be rebuilt. Tier 2 first: these feed BUILD_LOCK_HASH in set-dev-env.sh, and compose.yml
+# pins every service to ${IMAGE_NAME}:${BUILD_LOCK_HASH}, so a difference means the running
+# containers are on the wrong image. Compared by content rather than by recomputing the
+# hash, which word-splits through an unquoted echo and shells out to sha256sum.
+IMAGE_PATHS = %w[
+  Gemfile Gemfile.lock Dockerfile yarn.lock .ruby-version compose.yml
+  useful_scripts/dev-tunnel/set-dev-env.sh
+].freeze
+# Tier 0 is a whitelist on purpose. A leaky whitelist costs a restart nobody needed; a
+# leaky blacklist means QA silently passes against code that is not running. app/middleware
+# is carved out because the stack is built once at boot and holds instances, so editing one
+# reloads the class and changes nothing. lib is not autoloaded at all.
+# Beyond app code: sorbet holds RBIs nothing requires at boot, and .buildkite, .github and
+# .claude are CI and tooling config the running app never reads. Together they account for
+# most of what a branch based on a different master drags along.
+RELOADABLE_PATHS = %w[app test db/migrate docs sorbet .buildkite .github .claude].freeze
+RELOAD_EXCEPTIONS = %w[app/middleware].freeze
 
 # zellij derives its IPC socket path from $TMPDIR. The macOS default is long, and a
 # background Claude task's $TMPDIR is longer still — either can exceed the ~103-byte
@@ -93,10 +127,42 @@ end
 
 def log_path(role) = File.join(CACHE, "#{role}.log")
 def exit_path(role) = File.join(CACHE, "#{role}.exit")
+# The generation a role is actually running, written after its child is spawned. Readers
+# use it to tell this run's output from the run before it.
+def gen_path(role) = File.join(CACHE, "#{role}.gen")
+def pid_path(role) = File.join(CACHE, "#{role}.pid")
 
-# state.json is written once before any poller starts, so memoizing is safe and
-# avoids re-parsing it every poll tick across the foreground and pane processes.
-def state = @state ||= JSON.parse(File.read(STATE_FILE), symbolize_names: true)
+# Deliberately not memoized: a swap rewrites this file underneath the running supervisors,
+# and a cached copy is exactly how a role would sleep through its own restart.
+def state = JSON.parse(File.read(STATE_FILE), symbolize_names: true)
+
+# Renamed into place, so no supervisor can catch it half-written.
+def write_state(**attributes)
+  FileUtils.mkdir_p(CACHE)
+  incoming = "#{STATE_FILE}.incoming"
+  File.write(incoming, JSON.pretty_generate(attributes))
+  File.rename(incoming, STATE_FILE)
+end
+
+# Each role carries its own generation, so a swap can restart the tunnel while leaving the
+# server and worker where they are simply by bumping one of them.
+def target_generation(role) = state[:generations].fetch(role.to_sym)
+
+def running_generation(role)
+  File.read(gen_path(role)).strip.to_i if File.exist?(gen_path(role))
+end
+
+# qa-up runs from a terminal and, through the /qa skill, in the background at the same
+# time. Two swaps interleaving their state writes would leave the roles on different
+# worktrees, which is unrecoverable without a teardown.
+def with_lock
+  FileUtils.mkdir_p(CACHE)
+  File.open(LOCK_FILE, File::CREAT | File::RDWR) do |lock|
+    abort "another qa-up is running (#{LOCK_FILE} is held)." unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+
+    yield
+  end
+end
 
 def worktrees
   run("git", "-C", payaus, "worktree", "list", "--porcelain")
@@ -135,7 +201,9 @@ def qa_sessions
 
   stdout.split("\n").filter_map do |line|
     name = line.split.first
-    {name:, exited: line.include?("EXITED")} if name&.start_with?(SESSION_PREFIX)
+    # The "qa-<worktree>" form is what this script used to create; matching it too means a
+    # session left over from that scheme gets torn down rather than orphaned.
+    {name:, exited: line.include?("EXITED")} if name == SESSION || name&.start_with?("#{SESSION}-")
   end
 end
 
@@ -201,27 +269,27 @@ def signal_process_groups(signal, pids)
     end
 end
 
-def handle_existing_sessions(session)
-  existing = qa_sessions
-  return if existing.empty?
-
-  target = existing.find { it[:name] == session }
-  if target && !target[:exited] && !previous_run_failed?
-    puts "#{session} is already running. Attach with: qa-up attach #{session.delete_prefix(SESSION_PREFIX)}"
-    exit 0
-  end
-
-  existing.each { announce_removal(it, session) }
-  teardown(existing)
+# A swap only lands on a session whose supervisors are alive to notice the generation move.
+# Anything else — no session, a resurrectable husk, a pane whose supervisor died — has to be
+# built from scratch, because there is nothing running to take the instruction.
+def swappable?
+  live = qa_sessions.find { it[:name] == SESSION && !it[:exited] }
+  live && File.exist?(STATE_FILE) && ROLES.all? { supervisor_alive?(it) }
 end
 
-def announce_removal(existing, session)
-  if existing[:name] == session
-    puts "relaunching (previous run was not healthy)"
-  else
-    puts "switched from #{existing[:name].delete_prefix(SESSION_PREFIX)}"
-  end
+def supervisor_alive?(role)
+  return false unless File.exist?(pid_path(role))
+
+  Process.kill(0, File.read(pid_path(role)).strip.to_i)
+  true
+rescue Errno::ESRCH, Errno::EPERM, ArgumentError
+  false
 end
+
+# A role whose child exited stays down until something bumps it, so every swap carries the
+# dead ones along with whatever its tier calls for. That is what makes "it will restart on
+# the next swap" true.
+def dead_roles = ROLES.select { File.exist?(exit_path(it)) }
 
 # Order matters twice over. The containers go first, while the tunnel's ssh ControlMaster
 # is still alive to carry the command — killing the syncer's process group takes the master
@@ -233,25 +301,18 @@ def teardown(sessions)
   sessions.each { remove_session(it[:name]) }
 end
 
-# Pane wrappers only write an .exit file when their command exits on its own;
-# a clean teardown kills them first, so a leftover .exit marks a failed run.
-def previous_run_failed?
-  ROLES.any? { File.exist?(exit_path(it)) }
-end
-
-# Per-run logs and exit markers, cleared at bring-up and teardown so `status` never
+# Per-run logs and markers, cleared at bring-up and teardown so `status` never
 # shows output from a run that's no longer live.
 def clear_run_artifacts
   ROLES.each do |role|
-    FileUtils.rm_f(log_path(role))
-    FileUtils.rm_f(exit_path(role))
+    [log_path(role), exit_path(role), gen_path(role), pid_path(role)].each { FileUtils.rm_f(it) }
   end
 end
 
 def prepare_state(worktree_dir)
   FileUtils.mkdir_p(CACHE)
   clear_run_artifacts
-  File.write(STATE_FILE, JSON.pretty_generate(worktree: File.basename(worktree_dir)))
+  write_state(worktree: File.basename(worktree_dir), generations: ROLES.to_h { [it, 1] })
 end
 
 def write_layout
@@ -269,18 +330,57 @@ def write_layout
   File.write(LAYOUT_FILE, "layout {\n#{tabs.join.gsub(/^/, "    ")}}\n")
 end
 
-def launch_session(session)
-  run("zellij", "attach", "--create-background", session)
-  run("zellij", "--session", session, "--layout", LAYOUT_FILE)
+def launch_session
+  run("zellij", "attach", "--create-background", SESSION)
+  run("zellij", "--session", SESSION, "--layout", LAYOUT_FILE)
+end
+
+def bring_up(worktree_dir)
+  kill_tunnel!
+  prepare_state(worktree_dir)
+  write_layout
+  launch_session
+  puts "Launched #{SESSION} (tabs: #{ROLES.join(", ")} + scratch shell)"
+  await_bring_up
+end
+
+def await_bring_up
+  # Pylon re-hashes a tree whose inodes it does not recognise, which sounds expensive and is
+  # not: ~39k files in a little over 4s, measured. So silence here still means trouble —
+  # unless bin/tunnel just opened a browser SSO prompt that's awaiting approval.
+  wait_for("tunnel sync", timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 45,
+    hint: "this should be quick unless a browser SSO prompt is awaiting approval — " \
+          "run `qa-up status` to see the tunnel tab; if the dev box is down, `bin/dev start`") do
+    sync_ready?
+  end
+  puts "Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected)."
+  wait_for("server to respond", timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
+  puts "Server up — waiting for webpack to finish its first compile (assets hang until then)."
+  wait_for("webpack assets", timeout: WEBPACK_TIMEOUT, failed_if_exited: %w[tunnel server webpack]) do
+    http_ready?(ASSET_PROBE_URL)
+  end
+end
+
+def announce(worktree_dir)
+  branch = run("git", "-C", worktree_dir, "rev-parse", "--abbrev-ref", "HEAD")
+  puts
+  puts "Worktree: #{File.basename(worktree_dir)} (#{branch})"
+  puts "App:      #{APP_URL}"
+  puts "Session:  #{SESSION} (qa-up attach)"
+  puts "Teardown: qa-up --down"
+  puts
+  puts "QA_READY url=#{APP_URL} session=#{SESSION}"
 end
 
 # --- readiness signals (shared by the foreground monitor and the pane gates) ---
 
-# The pane tees each command's output to <role>.log, truncated per run, so a
-# marker is this run's. Memoize once seen — the file only grows while we wait.
+# The supervisor empties each log before it spawns, so a marker found here belongs to the
+# generation currently running. Memoize once seen — the file only grows while we wait — but
+# key the memo by that generation, so a swap invalidates it rather than carrying a stale
+# "ready" into the next run.
 def log_reached?(role, marker)
   @log_reached ||= {}
-  @log_reached["#{role}/#{marker}"] ||=
+  @log_reached["#{role}/#{running_generation(role)}/#{marker}"] ||=
     File.exist?(log_path(role)) && File.read(log_path(role)).include?(marker)
 end
 
@@ -290,7 +390,14 @@ end
 # --experimental-syncer still reaches the gate.
 SYNC_MARKERS = ["INFO: Ready!", "watching for changes, ctrl-c to stop"].freeze
 
-def sync_ready? = SYNC_MARKERS.any? { log_reached?("tunnel", it) }
+# Only the tunnel's current generation counts. A swap empties tunnel.log and starts a new
+# sync; the marker from the run before it must never satisfy this gate, or a swap reports
+# itself complete before a single file has moved.
+def sync_ready?
+  return false unless running_generation("tunnel") == target_generation("tunnel")
+
+  SYNC_MARKERS.any? { log_reached?("tunnel", it) }
+end
 
 def http_ready?(url)
   code, = Open3.capture3("curl", "-so", File::NULL, "-w", "%{http_code}", "--max-time", "5", url)
@@ -322,33 +429,92 @@ def abort_with_log_tail(role)
   abort "#{role} exited before QA came up. Last output:\n#{tail}"
 end
 
-# --- pane wrappers (invoked by the zellij layout as `qa-up run <role>`) ---
+# --- role supervisors (invoked by the zellij layout as `qa-up run <role>`) ---
 
+# The supervisor never exits. It owns spawning, signalling and reaping its own child, so a
+# swap is a number changing in state.json rather than an outside process signalling into a
+# pane and a monitor trying to work out afterwards whether that was deliberate. The tab,
+# its id, its position and its scrollback all survive a restart, and zellij's "press Enter
+# to re-run" prompt now only ever appears when the supervisor itself has died.
 def run_role(role)
   Dir.chdir(payaus)
-  command =
-    case role
-    when "tunnel"
-      "bin/tunnel --experimental-syncer #{state[:worktree]}"
-    when "server"
-      gate(role, "tunnel sync", timeout: SYNC_TIMEOUT) { sync_ready? }
-      "bin/dev server"
-    when "worker", "webpack"
-      # Wait for the server to actually serve HTTP, not just finish its deps step:
-      # "Running server at" prints before the server's docker compose run pulls the
-      # app image, and concurrent pulls of a missing image corrupt containerd's ingest.
-      gate(role, "server to respond", timeout: BRINGUP_TIMEOUT) do
-        http_ready?(APP_URL)
-      end
-      "bin/dev #{role}"
-    else
-      abort "Unknown role '#{role}'"
-    end
+  File.write(pid_path(role), Process.pid)
+  loop { run_generation(role) }
+end
 
-  system("bash", "-o", "pipefail", "-c", "#{command} 2>&1 | tee #{log_path(role)}")
-  status = $CHILD_STATUS.exitstatus
-  File.write(exit_path(role), status.to_s)
-  exit status
+def run_generation(role)
+  generation = target_generation(role)
+  await_gate(role)
+  # Emptied before the spawn rather than left to tee, so that a reader seeing the new
+  # generation can never also be seeing the previous run's output.
+  File.write(log_path(role), "")
+  child = Process.spawn("bash", "-o", "pipefail", "-c",
+    "#{role_command(role)} 2>&1 | tee #{log_path(role)}", pgroup: true)
+  File.write(gen_path(role), generation.to_s)
+  supervise(role, generation, child)
+end
+
+def role_command(role)
+  case role
+  when "tunnel" then "bin/tunnel --experimental-syncer #{state[:worktree]}"
+  when "server", "worker", "webpack" then "bin/dev #{role}"
+  else abort "Unknown role '#{role}'"
+  end
+end
+
+def await_gate(role)
+  case role
+  when "server"
+    gate(role, "tunnel sync", timeout: SYNC_TIMEOUT) { sync_ready? }
+  when "worker", "webpack"
+    # Wait for the server to actually serve HTTP, not just finish its deps step:
+    # "Running server at" prints before the server's docker compose run pulls the
+    # app image, and concurrent pulls of a missing image corrupt containerd's ingest.
+    gate(role, "server to respond", timeout: BRINGUP_TIMEOUT) { http_ready?(APP_URL) }
+  end
+end
+
+def supervise(role, generation, child)
+  while target_generation(role) == generation
+    child = nil if child && reaped?(role, child)
+    sleep SUPERVISOR_TICK
+  end
+  stop_child(role, child) if child
+end
+
+# A child that exits on its own leaves its .exit marker and stays down — the pane keeps its
+# supervisor, so the role comes back on the next swap instead of needing the session rebuilt.
+def reaped?(role, child)
+  finished, status = Process.wait2(child, Process::WNOHANG)
+  return false unless finished
+
+  File.write(exit_path(role), status.exitstatus.to_s)
+  puts "#{role} exited with #{status.exitstatus} — it will restart on the next bring-up or swap"
+  true
+rescue Errno::ECHILD
+  true
+end
+
+# The child is its own process group (pgroup: true), so this reaches bin/tunnel or bin/dev
+# and everything they started without the supervisor signalling itself. INT for the reason
+# kill_tunnel! uses it: their EXIT traps alert on any status but 0 or 130.
+def stop_child(role, child)
+  terminate(child)
+  FileUtils.rm_f(exit_path(role))
+  # pylon can outlive the wrapper that started it, and bin/tunnel stops to ask a question
+  # if any syncer still reaches this region when the next one starts.
+  kill_tunnel! if role == "tunnel"
+end
+
+def terminate(child)
+  Process.kill("-INT", child)
+  deadline = Time.now + CHILD_STOP_GRACE
+  until Process.wait2(child, Process::WNOHANG)
+    Process.kill("-KILL", child) if Time.now > deadline
+    sleep SUPERVISOR_TICK
+  end
+rescue Errno::ESRCH, Errno::ECHILD
+  nil
 end
 
 def gate(role, label, timeout:)
@@ -368,6 +534,111 @@ def gate(role, label, timeout:)
   end
 end
 
+# --- swapping the deployed worktree ---
+
+# How much of a live session a worktree change costs. Committed differences come from git;
+# uncommitted and untracked ones from each side's status, because the normal QA state is a
+# tree with work in it. Gitignored files are invisible to both — of the ones that reach the
+# box, only .env matters, and require_env_file covers it.
+def restart_tier(outgoing_dir, incoming_dir)
+  changed = changed_paths(outgoing_dir, incoming_dir)
+  return :rebuild if changed.any? { IMAGE_PATHS.include?(it) }
+  return :tunnel if changed.all? { reloadable?(it) }
+
+  :app
+end
+
+def changed_paths(outgoing_dir, incoming_dir)
+  committed = run("git", "-C", payaus, "diff", "--name-only",
+    head_of(outgoing_dir), head_of(incoming_dir)).split("\n")
+  (committed + dirty_paths(outgoing_dir) + dirty_paths(incoming_dir)).uniq
+end
+
+def head_of(worktree_dir) = run("git", "-C", worktree_dir, "rev-parse", "HEAD")
+
+def dirty_paths(worktree_dir)
+  run("git", "-C", worktree_dir, "status", "--porcelain", "--untracked-files=all")
+    .split("\n")
+    .flat_map { it[3..].to_s.split(" -> ") }
+    .map(&:strip)
+    .reject(&:empty?)
+end
+
+def reloadable?(path)
+  return false if RELOAD_EXCEPTIONS.any? { path == it || path.start_with?("#{it}/") }
+
+  RELOADABLE_PATHS.any? { path == it || path.start_with?("#{it}/") }
+end
+
+ROLES_BY_TIER = {tunnel: %w[tunnel], app: %w[tunnel server worker]}.freeze
+
+def swap!(incoming_dir)
+  outgoing = state[:worktree]
+  incoming = File.basename(incoming_dir)
+  tier = restart_tier(pick_worktree_by_name(outgoing), incoming_dir)
+  return rebuild(incoming_dir, outgoing) if tier == :rebuild
+
+  roles = ROLES_BY_TIER.fetch(tier) | dead_roles
+  puts "Swapping #{outgoing} → #{incoming} (restarting: #{roles.join(", ")})"
+  bump_generations(incoming, roles)
+  await_swap(roles)
+  report_migrations(pick_worktree_by_name(outgoing), incoming_dir)
+end
+
+# The single commit point of a swap: every supervisor takes its cue from this one write.
+def bump_generations(worktree, roles)
+  generations = state[:generations]
+  roles.each { generations[it.to_sym] += 1 }
+  write_state(worktree:, generations:)
+end
+
+def await_swap(roles)
+  roles.each do |role|
+    wait_for("#{role} to pick up the swap", timeout: SYNC_TIMEOUT) do
+      running_generation(role) == target_generation(role)
+    end
+  end
+  wait_for("tunnel sync", timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel]) { sync_ready? }
+  return unless roles.include?("server")
+
+  puts "Tunnel synced — the server is restarting for a config change."
+  wait_for("server to respond", timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) do
+    http_ready?(APP_URL)
+  end
+end
+
+# Never gated on: the app raises PendingMigrationError on the next page load by itself
+# (development.rb sets migration_error = :page_load), and asking the box costs a container
+# and a full Rails boot to learn what the browser will tell you for nothing.
+def report_migrations(outgoing_dir, incoming_dir)
+  return if changed_paths(outgoing_dir, incoming_dir).none? { it.start_with?("db/migrate/") }
+
+  puts "Migrations differ between the two worktrees — run `bin/dev migrate` if the app raises."
+end
+
+# The syncer mirrors this machine onto the box on its first cycle, deleting whatever the box
+# has that the worktree doesn't. .env is gitignored, so it is per-worktree, and it is not one
+# of the syncer's ignored paths — so syncing a worktree without one removes the box's copy.
+#
+# Nothing here creates it: bin/tunnel's check_developer_site_instance writes .env into
+# $PAYAUS_DIR, which is the main checkout this script runs it from, never the worktree it
+# is told to sync. Compose only reads the file to interpolate defaults it already has, so
+# this is worth saying and not worth refusing over.
+def warn_about_env(worktree_dir)
+  return if File.exist?(File.join(worktree_dir, ".env"))
+
+  puts "#{File.basename(worktree_dir)} has no .env, so the box's copy goes with this sync. " \
+       "Compose falls back to its defaults; run bin/tunnel from inside that worktree once if " \
+       "you need its own values."
+end
+
+def rebuild(incoming_dir, outgoing)
+  puts "Swapping #{outgoing} → #{File.basename(incoming_dir)} needs a rebuild " \
+       "(the image inputs differ), so this takes as long as a fresh bring-up."
+  teardown(qa_sessions)
+  bring_up(incoming_dir)
+end
+
 # --- teardown ---
 
 def down!
@@ -375,7 +646,7 @@ def down!
   clear_run_artifacts
   if sessions.empty?
     kill_tunnel!
-    puts "No qa- session running."
+    puts "No QA session running."
     return
   end
 
@@ -385,13 +656,27 @@ end
 
 def status!
   sessions = qa_sessions
-  puts sessions.empty? ? "No qa- session." : sessions.map { "session #{it[:name]}#{" (EXITED)" if it[:exited]}" }
-  ROLES.each do |role|
-    exited = File.exist?(exit_path(role)) ? " [exited #{File.read(exit_path(role)).strip}]" : ""
-    log = log_path(role)
-    tail = (File.exist?(log) && !File.empty?(log)) ? File.readlines(log).last(12).join.rstrip : "(no output yet)"
-    puts "\n── #{role}#{exited} ──\n#{tail}"
+  if sessions.empty?
+    puts "No QA session."
+  else
+    puts sessions.map { "session #{it[:name]}#{" (EXITED)" if it[:exited]}" }
+    puts "serving #{state[:worktree]}" if File.exist?(STATE_FILE)
   end
+  ROLES.each { puts "\n── #{it}#{role_state(it)} ──\n#{log_tail(it)}" }
+end
+
+def role_state(role)
+  return " [exited #{File.read(exit_path(role)).strip}]" if File.exist?(exit_path(role))
+  return " [no supervisor]" unless supervisor_alive?(role)
+
+  ""
+end
+
+def log_tail(role)
+  log = log_path(role)
+  return "(no output yet)" unless File.exist?(log) && !File.empty?(log)
+
+  File.readlines(log).last(12).join.rstrip
 end
 
 # --- main ---
@@ -401,10 +686,7 @@ if ARGV.first == "run"
   exit
 end
 
-if ARGV.first == "attach"
-  worktree = File.basename(ARGV[1] || resolve_worktree(nil))
-  exec("zellij", "attach", "#{SESSION_PREFIX}#{worktree}")
-end
+exec("zellij", "attach", SESSION) if ARGV.first == "attach"
 
 if ARGV.first == "status"
   status!
@@ -413,7 +695,7 @@ end
 
 options = {attach: $stdout.tty?}
 OptionParser.new do |o|
-  o.banner = "Usage: qa-up [worktree] [--down | attach [worktree] | status] [--no-attach]"
+  o.banner = "Usage: qa-up [worktree] [--down | attach | status] [--no-attach]"
   o.on("--down", "Tear down the QA session and tunnel") { options[:down] = true }
   o.on("--no-attach", "Do not attach to the zellij session when ready") { options[:attach] = false }
   o.on("-h", "--help") do
@@ -428,38 +710,20 @@ if options[:down]
 end
 
 worktree_dir = resolve_worktree(ARGV.first)
-worktree = File.basename(worktree_dir)
-session = "#{SESSION_PREFIX}#{worktree}"
 
-handle_existing_sessions(session)
-kill_tunnel!
-prepare_state(worktree_dir)
-write_layout
-launch_session(session)
-puts "Launched #{session} (tabs: #{ROLES.join(", ")} + scratch shell)"
-
-# Pylon re-hashes a tree whose inodes it does not recognise, which sounds expensive and is
-# not: ~39k files in a little over 4s, measured. So silence here still means trouble —
-# unless bin/tunnel just opened a browser SSO prompt that's awaiting approval.
-wait_for("tunnel sync", timeout: SYNC_TIMEOUT, failed_if_exited: %w[tunnel], hint_after: 45,
-  hint: "this should be quick unless a browser SSO prompt is awaiting approval — " \
-        "run `qa-up status` to see the tunnel tab; if the dev box is down, `bin/dev start`") do
-  sync_ready?
-end
-puts "Tunnel synced — now booting the server (remote deps + boot take a few minutes; quiet is expected)."
-wait_for("server to respond", timeout: SERVER_TIMEOUT, failed_if_exited: %w[tunnel server]) { http_ready?(APP_URL) }
-puts "Server up — waiting for webpack to finish its first compile (assets hang until then)."
-wait_for("webpack assets", timeout: WEBPACK_TIMEOUT, failed_if_exited: %w[tunnel server webpack]) do
-  http_ready?(ASSET_PROBE_URL)
+with_lock do
+  warn_about_env(worktree_dir)
+  if swappable?
+    if state[:worktree] == File.basename(worktree_dir)
+      puts "#{SESSION} is already serving #{state[:worktree]}. Attach with: qa-up attach"
+      exit 0
+    end
+    swap!(worktree_dir)
+  else
+    teardown(qa_sessions)
+    bring_up(worktree_dir)
+  end
+  announce(worktree_dir)
 end
 
-branch = run("git", "-C", worktree_dir, "rev-parse", "--abbrev-ref", "HEAD")
-puts
-puts "Worktree: #{worktree} (#{branch})"
-puts "App:      #{APP_URL}"
-puts "Session:  #{session} (qa-up attach #{worktree})"
-puts "Teardown: qa-up --down"
-puts
-puts "QA_READY url=#{APP_URL} session=#{session}"
-
-exec("zellij", "attach", session) if options[:attach] && ENV["ZELLIJ"].nil?
+exec("zellij", "attach", SESSION) if options[:attach] && ENV["ZELLIJ"].nil?
