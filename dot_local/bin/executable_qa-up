@@ -540,8 +540,7 @@ end
 # uncommitted and untracked ones from each side's status, because the normal QA state is a
 # tree with work in it. Gitignored files are invisible to both — of the ones that reach the
 # box, only .env matters, and require_env_file covers it.
-def restart_tier(outgoing_dir, incoming_dir)
-  changed = changed_paths(outgoing_dir, incoming_dir)
+def restart_tier(changed)
   return :rebuild if changed.any? { IMAGE_PATHS.include?(it) }
   return :tunnel if changed.all? { reloadable?(it) }
 
@@ -575,14 +574,15 @@ ROLES_BY_TIER = {tunnel: %w[tunnel], app: %w[tunnel server worker]}.freeze
 def swap!(incoming_dir)
   outgoing = state[:worktree]
   incoming = File.basename(incoming_dir)
-  tier = restart_tier(pick_worktree_by_name(outgoing), incoming_dir)
+  changed = changed_paths(pick_worktree_by_name(outgoing), incoming_dir)
+  tier = restart_tier(changed)
   return rebuild(incoming_dir, outgoing) if tier == :rebuild
 
   roles = ROLES_BY_TIER.fetch(tier) | dead_roles
   puts "Swapping #{outgoing} → #{incoming} (restarting: #{roles.join(", ")})"
   bump_generations(incoming, roles)
   await_swap(roles)
-  report_migrations(pick_worktree_by_name(outgoing), incoming_dir)
+  report_migrations(changed)
 end
 
 # The single commit point of a swap: every supervisor takes its cue from this one write.
@@ -610,8 +610,8 @@ end
 # Never gated on: the app raises PendingMigrationError on the next page load by itself
 # (development.rb sets migration_error = :page_load), and asking the box costs a container
 # and a full Rails boot to learn what the browser will tell you for nothing.
-def report_migrations(outgoing_dir, incoming_dir)
-  return if changed_paths(outgoing_dir, incoming_dir).none? { it.start_with?("db/migrate/") }
+def report_migrations(changed)
+  return if changed.none? { it.start_with?("db/migrate/") }
 
   puts "Migrations differ between the two worktrees — run `bin/dev migrate` if the app raises."
 end
