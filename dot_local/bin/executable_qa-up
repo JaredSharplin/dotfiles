@@ -239,7 +239,7 @@ def kill_tunnel!
   return if syncer_pids.empty?
 
   stopped = SYNCER_SIGNALS.any? do |signal|
-    signal_process_groups(signal, syncer_pids)
+    signal_tree(signal, syncer_pids)
     syncer_stopped_within?(KILL_TUNNEL_GRACE)
   end
   return if stopped
@@ -258,15 +258,22 @@ def syncer_stopped_within?(seconds)
   true
 end
 
-def signal_process_groups(signal, pids)
-  pids
-    .filter_map { `ps -o pgid= -p #{it}`.strip.to_i.nonzero? }
-    .uniq
-    .each do |pgid|
-      Process.kill("-#{signal}", pgid)
-    rescue Errno::ESRCH
-      nil
-    end
+# One process at a time, never by process group. A role's child has to stay in its
+# supervisor's group, because that group is the pane's foreground group — put it anywhere
+# else and it takes SIGTTIN the moment bin/dev's ssh reads the terminal, and stops dead.
+# That makes the group useless as a unit of killing, since the supervisor is in it.
+def signal_tree(signal, pids)
+  pids.flat_map { [it] + descendants_of(it) }.uniq.reverse_each { signal_quietly(signal, it) }
+end
+
+def descendants_of(pid)
+  `pgrep -P #{pid}`.split.map(&:to_i).flat_map { [it] + descendants_of(it) }
+end
+
+def signal_quietly(signal, pid)
+  Process.kill(signal, pid)
+rescue Errno::ESRCH
+  nil
 end
 
 # A swap only lands on a session whose supervisors are alive to notice the generation move.
@@ -448,8 +455,10 @@ def run_generation(role)
   # Emptied before the spawn rather than left to tee, so that a reader seeing the new
   # generation can never also be seeing the previous run's output.
   File.write(log_path(role), "")
+  # Deliberately in the supervisor's own process group — see signal_tree. The pane's
+  # foreground group is the only place a child that talks to the terminal can run.
   child = Process.spawn("bash", "-o", "pipefail", "-c",
-    "#{role_command(role)} 2>&1 | tee #{log_path(role)}", pgroup: true)
+    "#{role_command(role)} 2>&1 | tee #{log_path(role)}")
   File.write(gen_path(role), generation.to_s)
   supervise(role, generation, child)
 end
@@ -495,25 +504,23 @@ rescue Errno::ECHILD
   true
 end
 
-# The child is its own process group (pgroup: true), so this reaches bin/tunnel or bin/dev
-# and everything they started without the supervisor signalling itself. INT for the reason
-# kill_tunnel! uses it: their EXIT traps alert on any status but 0 or 130.
+# INT for the reason kill_tunnel! uses it: bin/tunnel and bin/dev trap EXIT and alert on
+# any status but 0 or 130.
 def stop_child(role, child)
   terminate(child)
-  FileUtils.rm_f(exit_path(role))
   # pylon can outlive the wrapper that started it, and bin/tunnel stops to ask a question
   # if any syncer still reaches this region when the next one starts.
   kill_tunnel! if role == "tunnel"
 end
 
 def terminate(child)
-  Process.kill("-INT", child)
+  signal_tree("INT", [child])
   deadline = Time.now + CHILD_STOP_GRACE
   until Process.wait2(child, Process::WNOHANG)
-    Process.kill("-KILL", child) if Time.now > deadline
+    signal_tree("KILL", [child]) if Time.now > deadline
     sleep SUPERVISOR_TICK
   end
-rescue Errno::ESRCH, Errno::ECHILD
+rescue Errno::ECHILD
   nil
 end
 
@@ -586,9 +593,14 @@ def swap!(incoming_dir)
 end
 
 # The single commit point of a swap: every supervisor takes its cue from this one write.
+# The exit markers go first, so that nothing watching can see a role both restarting and
+# still carrying the marker from the run that killed it.
 def bump_generations(worktree, roles)
   generations = state[:generations]
-  roles.each { generations[it.to_sym] += 1 }
+  roles.each do |role|
+    FileUtils.rm_f(exit_path(role))
+    generations[role.to_sym] += 1
+  end
   write_state(worktree:, generations:)
 end
 
