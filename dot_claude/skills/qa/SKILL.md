@@ -27,9 +27,11 @@ Run `git town sync` in the worktree first, so QA runs against code that's curren
 qa-up --no-attach
 ```
 
-Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~45s → (a few quiet minutes) → `Server up …` → `QA_READY …`. QA_READY means usable in the browser — the server responds *and* webpack's first compile is done. **Never start a second copy**; if qa-up reports the session already running, skip to step 5.
+Run via Bash with `run_in_background: true`. qa-up streams milestones as it goes: `Launched …` immediately → `Tunnel synced …` within ~45s → (a few quiet minutes) → `Server up …` → `QA_READY …`. QA_READY means usable in the browser — the server responds *and* webpack's first compile is done. **Never start a second copy**; if qa-up reports the session is already serving this worktree, skip to step 5.
 
-If it reports "switched from <other>", relay that to the user — their previous QA session was torn down.
+There is one session, always named `qa`, and pointing qa-up at another worktree swaps it in place rather than rebuilding. If it reports `Swapping <old> → <new> (restarting: …)`, relay which roles are restarting: a tunnel-only swap is seconds, one that also restarts the server is a couple of minutes, and `needs a rebuild (the image inputs differ)` means the full bring-up time because Gemfile, yarn.lock or the Dockerfile differ between the two worktrees.
+
+Relay a `has no .env` line too — the box's copy goes with that sync and compose falls back to its defaults.
 
 ### 4. QA checklist from the PR
 
@@ -42,8 +44,8 @@ If it reports "switched from <other>", relay that to the user — their previous
 
 Two phases, with very different timing — don't conflate them:
 
-- **Tunnel sync is fast (seconds).** `Tunnel synced` should print within ~45s of `Launched` — the syncer rehashes the worktree first, which measures at a few seconds for ~39k files. If it hasn't after a minute, something is wrong — **do not tell the user to keep waiting.** Run `qa-up status` to see the tunnel tab and diagnose.
-- **Server boot is the slow part (a few minutes).** Only *after* `Tunnel synced` is a stretch of no output expected. `QA_READY url=… session=qa-<worktree>` is the success signal.
+- **Tunnel sync is fast (seconds).** `Tunnel synced` should print within ~45s of `Launched` — the syncer rehashes the worktree first, which measures at a few seconds for ~39k files. If it hasn't after a minute, something is wrong — **do not tell the user to keep waiting.** Run `qa-up status` to see each role's state and its last output, and diagnose.
+- **Server boot is the slow part (a few minutes).** Only *after* `Tunnel synced` is a stretch of no output expected. `QA_READY url=… session=qa` is the success signal.
 
 If AWS SSO has expired, the tunnel tab runs `aws sso login` itself, which opens the user's browser — tell the user to approve it; the run continues automatically after approval (`qa-up status` shows the tunnel tab if unsure). Other failures are fast and explicit: dev box stopped (`bin/dev start`), or a pane exited (prints that pane's last output). Relay whatever qa-up prints. If output stalls with no such message, run `qa-up status` — never report a stall as normal.
 
@@ -64,5 +66,5 @@ Refine by what the diff touches — pick an org with real data on the changed mo
 - QA checklist (numbered)
 - Test org name + id
 - App URL (from the QA_READY line)
-- `qa-up attach <worktree>` to watch the tabs
+- `qa-up attach` to watch the tabs. The tab bar carries the state: the first tab names the worktree and branch being served, and each role tab is marked ○ waiting, ● running or ✗ dead
 - `qa-up --down` to tear down when finished

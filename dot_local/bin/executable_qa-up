@@ -26,7 +26,6 @@ require "optparse"
 CACHE = File.expand_path("~/.cache/qa-up")
 STATE_FILE = File.join(CACHE, "state.json")
 LOCK_FILE = File.join(CACHE, "lock")
-LAYOUT_FILE = File.join(CACHE, "layout.kdl")
 # One session, whatever it currently serves. The worktree lives in state.json and in the
 # tab bar instead: a name that moves with the worktree goes stale inside every pane that
 # already read $ZELLIJ_SESSION_NAME, and leaves the old name behind as resurrectable —
@@ -131,6 +130,11 @@ def exit_path(role) = File.join(CACHE, "#{role}.exit")
 # use it to tell this run's output from the run before it.
 def gen_path(role) = File.join(CACHE, "#{role}.gen")
 def pid_path(role) = File.join(CACHE, "#{role}.pid")
+def status_path(role) = File.join(CACHE, "#{role}.status")
+
+# What a role's tab shows once its supervisor has said so. Waiting means held at a gate,
+# running means its child is up, dead means the child exited and nothing has replaced it.
+STATUS_MARKS = {waiting: "○", running: "●", dead: "✗"}.freeze
 
 # Deliberately not memoized: a swap rewrites this file underneath the running supervisors,
 # and a cached copy is exactly how a role would sleep through its own restart.
@@ -312,7 +316,8 @@ end
 # shows output from a run that's no longer live.
 def clear_run_artifacts
   ROLES.each do |role|
-    [log_path(role), exit_path(role), gen_path(role), pid_path(role)].each { FileUtils.rm_f(it) }
+    [log_path(role), exit_path(role), gen_path(role), pid_path(role), status_path(role)]
+      .each { FileUtils.rm_f(it) }
   end
 end
 
@@ -322,30 +327,37 @@ def prepare_state(worktree_dir)
   write_state(worktree: File.basename(worktree_dir), generations: ROLES.to_h { [it, 1] })
 end
 
-def write_layout
-  qa_up = File.expand_path($PROGRAM_NAME)
-  tabs = ROLES.map do |role|
-    <<~KDL
-      tab name="#{role}" cwd="#{payaus}" {
-          pane command="#{qa_up}" {
-              args "run" "#{role}"
-          }
-      }
-    KDL
-  end
-
-  File.write(LAYOUT_FILE, "layout {\n#{tabs.join.gsub(/^/, "    ")}}\n")
-end
-
+# Built a tab at a time rather than from a layout file, because new-tab is the only form
+# that hands back the tab's id — and without ids the supervisors have no way to write their
+# own state into the tab bar later. --no-focus leaves an attached client where it was.
 def launch_session
   run("zellij", "attach", "--create-background", SESSION)
-  run("zellij", "--session", SESSION, "--layout", LAYOUT_FILE)
+  tabs = ROLES.to_h { [it, create_tab(it)] }
+  write_state(**state, tabs:)
+end
+
+def create_tab(role)
+  run("zellij", "-s", SESSION, "action", "new-tab", "--name", role, "--cwd", payaus,
+    "--no-focus", "--", File.expand_path($PROGRAM_NAME), "run", role).to_i
+end
+
+# Tab 0 is the shell `attach --create-background` opens with the session, and the only tab
+# no role owns — so it carries what the whole session is serving.
+IDENTITY_TAB = "0"
+
+def label_identity(worktree_dir, branch)
+  rename_tab(IDENTITY_TAB, "#{File.basename(worktree_dir)} #{branch}")
+end
+
+def branch_of(worktree_dir) = run("git", "-C", worktree_dir, "rev-parse", "--abbrev-ref", "HEAD")
+
+def rename_tab(tab, name)
+  run("zellij", "-s", SESSION, "action", "rename-tab-by-id", tab.to_s, name, allow_failure: true)
 end
 
 def bring_up(worktree_dir)
   kill_tunnel!
   prepare_state(worktree_dir)
-  write_layout
   launch_session
   puts "Launched #{SESSION} (tabs: #{ROLES.join(", ")} + scratch shell)"
   await_bring_up
@@ -369,7 +381,8 @@ def await_bring_up
 end
 
 def announce(worktree_dir)
-  branch = run("git", "-C", worktree_dir, "rev-parse", "--abbrev-ref", "HEAD")
+  branch = branch_of(worktree_dir)
+  label_identity(worktree_dir, branch)
   puts
   puts "Worktree: #{File.basename(worktree_dir)} (#{branch})"
   puts "App:      #{APP_URL}"
@@ -451,6 +464,7 @@ end
 
 def run_generation(role)
   generation = target_generation(role)
+  set_status(role, :waiting)
   await_gate(role)
   # Emptied before the spawn rather than left to tee, so that a reader seeing the new
   # generation can never also be seeing the previous run's output.
@@ -460,7 +474,17 @@ def run_generation(role)
   child = Process.spawn("bash", "-o", "pipefail", "-c",
     "#{role_command(role)} 2>&1 | tee #{log_path(role)}")
   File.write(gen_path(role), generation.to_s)
+  set_status(role, :running)
   supervise(role, generation, child)
+end
+
+# Written on transition rather than on a timer: a handful of calls per run, no polling, and
+# the tab bar is the one surface this config lets a script write to. A rename that fails is
+# cosmetic — it must never take a role down with it.
+def set_status(role, status)
+  File.write(status_path(role), status.to_s)
+  tab = state[:tabs]&.dig(role.to_sym)
+  rename_tab(tab, "#{role} #{STATUS_MARKS.fetch(status)}") if tab
 end
 
 def role_command(role)
@@ -498,6 +522,7 @@ def reaped?(role, child)
   return false unless finished
 
   File.write(exit_path(role), status.exitstatus.to_s)
+  set_status(role, :dead)
   puts "#{role} exited with #{status.exitstatus} — it will restart on the next bring-up or swap"
   true
 rescue Errno::ECHILD
@@ -681,6 +706,7 @@ end
 def role_state(role)
   return " [exited #{File.read(exit_path(role)).strip}]" if File.exist?(exit_path(role))
   return " [no supervisor]" unless supervisor_alive?(role)
+  return " [#{File.read(status_path(role)).strip}]" if File.exist?(status_path(role))
 
   ""
 end
