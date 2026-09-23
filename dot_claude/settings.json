@@ -156,10 +156,6 @@
     "developer-tooling@tanda-plugins": true,
     "exhalekit@tanda-plugins": true
   },
-  "effortLevel": "high",
-  "autoMemoryEnabled": false,
-  "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true,
   "extraKnownMarketplaces": {
     "tanda-plugins": {
       "source": {
@@ -167,5 +163,9 @@
         "repo": "TandaHQ/claude-plugins"
       }
     }
-  }
+  },
+  "effortLevel": "high",
+  "autoMemoryEnabled": false,
+  "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true
 }

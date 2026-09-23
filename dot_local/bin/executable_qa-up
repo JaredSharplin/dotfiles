@@ -19,9 +19,11 @@
 
 require "English"
 require "fileutils"
+require "io/console"
 require "json"
 require "open3"
 require "optparse"
+require "pty"
 
 CACHE = File.expand_path("~/.cache/qa-up")
 STATE_FILE = File.join(CACHE, "state.json")
@@ -325,18 +327,65 @@ def prepare_state(worktree_dir)
   write_state(worktree: File.basename(worktree_dir), generations: ROLES.to_h { [it, 1] })
 end
 
-# Built a tab at a time rather than from a layout file, because new-tab is the only form
-# that hands back the tab's id — and without ids the supervisors have no way to write their
-# own state into the tab bar later. --no-focus leaves an attached client where it was.
+# Built a tab at a time, each named for its role, which is how a supervisor finds its own tab
+# again later. --no-focus leaves an attached client wherever it already was.
 def launch_session
   run("zellij", "attach", "--create-background", SESSION)
-  tabs = ROLES.to_h { [it, create_tab(it)] }
-  write_state(**state, tabs:)
+  with_attached_client { ROLES.each { create_tab(it) } }
+end
+
+# zellij lays a tab's pane out against the size of an attached client, and a session made
+# with --create-background has none — so every tab it is handed gets created with no pane
+# ("Failed to apply layout: Not enough room for panes" in zellij's own log) and is dropped
+# the moment a real client does attach. That is why the session listed all its tabs to the
+# CLI and still opened empty. Holding a sized client open while the tabs are built fixes the
+# placement, and the panes outlive the client.
+CLIENT_WINSIZE = [50, 160].freeze
+CLIENT_CONNECT_TIMEOUT = 10
+CLIENT_STOP_GRACE = 5
+
+def with_attached_client
+  reader, writer, pid = PTY.spawn("zellij", "attach", SESSION)
+  reader.winsize = CLIENT_WINSIZE
+  # The client redraws the whole UI continuously. Left unread its pty fills, zellij blocks
+  # part-way through a write, and it can no longer act on the TERM that ends this block — so
+  # throw the frames away as fast as they arrive.
+  drain = Thread.new do
+    loop { reader.readpartial(4096) }
+  rescue IOError, Errno::EIO
+    nil
+  end
+  unless reader.wait_readable(CLIENT_CONNECT_TIMEOUT)
+    abort "zellij did not draw a client within #{CLIENT_CONNECT_TIMEOUT}s; tabs would be created empty."
+  end
+
+  yield
+ensure
+  release_client(reader, writer, pid, drain)
+end
+
+def release_client(reader, writer, pid, drain)
+  stop_client(pid)
+  drain&.kill
+  [reader, writer].each { it&.close }
+end
+
+def stop_client(pid)
+  return unless pid
+
+  Process.kill("TERM", pid)
+  deadline = Time.now + CLIENT_STOP_GRACE
+  until Process.wait(pid, Process::WNOHANG)
+    Process.kill("KILL", pid) if Time.now > deadline
+    sleep 0.2
+  end
+rescue Errno::ECHILD, Errno::ESRCH
+  nil
 end
 
 def create_tab(role)
   run("zellij", "-s", SESSION, "action", "new-tab", "--name", role, "--cwd", payaus,
-    "--no-focus", "--", File.expand_path($PROGRAM_NAME), "run", role).to_i
+    "--no-focus", "--", File.expand_path($PROGRAM_NAME), "run", role)
 end
 
 # Tab 0 is the shell `attach --create-background` opens with the session, and the only tab
@@ -480,8 +529,20 @@ end
 # the tab bar is the one surface this config lets a script write to. A rename that fails is
 # cosmetic — it must never take a role down with it.
 def mark_tab(role, status)
-  tab = state[:tabs]&.dig(role.to_sym)
+  tab = tab_id_for(role)
   rename_tab(tab, "#{role} #{STATUS_MARKS.fetch(status)}") if tab
+end
+
+# Looked up by name rather than remembered at launch, because a tab's supervisor starts the
+# moment the tab exists — before the launcher has finished creating the rest and could write
+# any of their ids down. The name is already the role, and stays so once the mark is appended.
+def tab_id_for(role)
+  run("zellij", "-s", SESSION, "action", "list-tabs", allow_failure: true)
+    .lines
+    .drop(1)
+    .map { it.split(/\s+/, 3) }
+    .find { it[2].to_s.split.first == role }
+    &.first
 end
 
 def role_command(role)
