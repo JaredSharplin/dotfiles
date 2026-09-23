@@ -130,10 +130,9 @@ def exit_path(role) = File.join(CACHE, "#{role}.exit")
 # use it to tell this run's output from the run before it.
 def gen_path(role) = File.join(CACHE, "#{role}.gen")
 def pid_path(role) = File.join(CACHE, "#{role}.pid")
-def status_path(role) = File.join(CACHE, "#{role}.status")
 
-# What a role's tab shows once its supervisor has said so. Waiting means held at a gate,
-# running means its child is up, dead means the child exited and nothing has replaced it.
+# What a role's tab shows. Waiting means held at a gate, running means its child is up,
+# dead means the child exited and nothing has replaced it yet.
 STATUS_MARKS = {waiting: "○", running: "●", dead: "✗"}.freeze
 
 # Deliberately not memoized: a swap rewrites this file underneath the running supervisors,
@@ -316,8 +315,7 @@ end
 # shows output from a run that's no longer live.
 def clear_run_artifacts
   ROLES.each do |role|
-    [log_path(role), exit_path(role), gen_path(role), pid_path(role), status_path(role)]
-      .each { FileUtils.rm_f(it) }
+    [log_path(role), exit_path(role), gen_path(role), pid_path(role)].each { FileUtils.rm_f(it) }
   end
 end
 
@@ -464,7 +462,7 @@ end
 
 def run_generation(role)
   generation = target_generation(role)
-  set_status(role, :waiting)
+  mark_tab(role, :waiting)
   await_gate(role)
   # Emptied before the spawn rather than left to tee, so that a reader seeing the new
   # generation can never also be seeing the previous run's output.
@@ -474,15 +472,14 @@ def run_generation(role)
   child = Process.spawn("bash", "-o", "pipefail", "-c",
     "#{role_command(role)} 2>&1 | tee #{log_path(role)}")
   File.write(gen_path(role), generation.to_s)
-  set_status(role, :running)
+  mark_tab(role, :running)
   supervise(role, generation, child)
 end
 
-# Written on transition rather than on a timer: a handful of calls per run, no polling, and
+# Painted on transition rather than on a timer: a handful of calls per run, no polling, and
 # the tab bar is the one surface this config lets a script write to. A rename that fails is
 # cosmetic — it must never take a role down with it.
-def set_status(role, status)
-  File.write(status_path(role), status.to_s)
+def mark_tab(role, status)
   tab = state[:tabs]&.dig(role.to_sym)
   rename_tab(tab, "#{role} #{STATUS_MARKS.fetch(status)}") if tab
 end
@@ -522,7 +519,7 @@ def reaped?(role, child)
   return false unless finished
 
   File.write(exit_path(role), status.exitstatus.to_s)
-  set_status(role, :dead)
+  mark_tab(role, :dead)
   puts "#{role} exited with #{status.exitstatus} — it will restart on the next bring-up or swap"
   true
 rescue Errno::ECHILD
@@ -706,9 +703,9 @@ end
 def role_state(role)
   return " [exited #{File.read(exit_path(role)).strip}]" if File.exist?(exit_path(role))
   return " [no supervisor]" unless supervisor_alive?(role)
-  return " [#{File.read(status_path(role)).strip}]" if File.exist?(status_path(role))
+  return " [waiting]" unless running_generation(role) == target_generation(role)
 
-  ""
+  " [running]"
 end
 
 def log_tail(role)
