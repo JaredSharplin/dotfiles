@@ -18,7 +18,7 @@
   "session_start_cooldown_seconds": 30,
   "suppress_idle_prompt_repeats": true,
   "idle_prompt_suppress_window_seconds": 3600,
-  "suppress_subagent_complete": false,
+  "suppress_subagent_complete": true,
   "suppress_delegate_sessions": false,
   "no_rc": false,
   "pack_rotation": [
