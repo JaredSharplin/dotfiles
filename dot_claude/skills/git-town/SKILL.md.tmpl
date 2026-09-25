@@ -292,6 +292,8 @@ git town observe <branch-name>
 git town sync   # pulls their latest, doesn't push anything
 ```
 
+An observed branch is the sandbox for trying changes on someone else's PR: a spike, a proposed fix, a verification edit. Make the edit directly on it. Git town never pushes an observed branch, so it needs no scratch branch to protect it.
+
 ### Switching Back to Default
 
 To return a branch to normal feature behaviour:
