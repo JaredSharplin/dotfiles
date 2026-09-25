@@ -1,6 +1,9 @@
 prSections:
-- title: My Open Pull Requests
-  filters: is:open author:@me
+- title: My Ready PR's
+  filters: is:open author:@me -is:draft
+  type: null
+- title: My Draft PR's
+  filters: is:open author:@me is:draft
   type: null
 - title: Needs My Review
   filters: is:open review-requested:@me
