@@ -164,9 +164,9 @@
       }
     }
   },
+  "feedbackDrafts": "off",
   "effortLevel": "high",
   "autoMemoryEnabled": false,
   "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true,
-  "feedbackDrafts": "off"
+  "skipAutoPermissionPrompt": true
 }
