@@ -547,7 +547,7 @@ end
 
 def role_command(role)
   case role
-  when "tunnel" then "bin/tunnel --experimental-syncer #{state[:worktree]}"
+  when "tunnel" then "bin/tunnel #{state[:worktree]}"
   when "server", "worker", "webpack" then "bin/dev #{role}"
   else abort "Unknown role '#{role}'"
   end
