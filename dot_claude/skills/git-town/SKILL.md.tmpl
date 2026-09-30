@@ -45,6 +45,7 @@ Rule of thumb: sync freely to stay up to date; push only when you actually want 
 **Use Git Town for:**
 - Branch creation and hierarchy management (`hack`, `append`, `prepend`)
 - Keeping stacks synchronized (`sync`) — also what writes PR stack-nav links
+- Carrying a parent's new commits down into its children — `git town sync -s` from the child, resolving conflicts with `git town continue`. It is the one path for keeping stack branches current: a hand-run `git merge` between them skips git town's stack bookkeeping and the PR stack links.
 - Modifying stack relationships (`set-parent`)
 
 (PRs are created with `gh pr create --draft` — see "Creating a PR".)
@@ -450,17 +451,28 @@ This section is step-by-step instructions for a reviewer to manually verify the 
 - NEVER include `bin/rails test`, automated test results, or descriptions of test coverage — that's what CI is for
 - NEVER write "Small change which is hard to manually test." — think through the user journey and describe it. Every change that touches code a user can trigger is testable through the browser. The only exception is a pure internal refactor with zero UI effect (e.g. renaming a private method, changing a log format) — and even then, describe what you'd check to confirm nothing broke
 
+#### Where QA runs and what it covers
+
+Pick the environment before writing the tasks — it decides what the reviewer can reproduce:
+
+- **Remote devbox via `/qa`** — the bug or behaviour belongs to a specific customer's data (a ticket naming an org, user, or record). The prod-scrubbed copy already holds that shape, so QA replays the reported steps on the reported org rather than an imitation of it.
+- **Native dev (local DB)** — everything else. The local DB is ours to shape: when the scenario needs data the seeds lack (a partner org, an archived record, a failing customer), build it with `bin/rails runner` as part of the QA.
+
+Cover every outcome the change can show, not only the success path. A feature that reports results gets a task per result it can report (success, partial failure, failure); a bug fix gets the reported failure replayed and seen to pass.
+
+When QA crosses background work (a job the button queues), split the `manual-verifier` dispatch around it: one dispatch presses the button, you watch the job finish (worker log, or a read-only console query), and a second dispatch checks the result. The verifier never waits on a job itself.
+
 #### Checking the boxes after QA
 
-Write these tasks as unchecked (`- [ ]`) at `gh pr create` time — QA hasn't run yet. They're a to-do list Claude comes back to: after the final browser QA on native dev, **check (`- [x]`) every task it verified.** Do the checking with a surgical body edit (see *⛔ Editing PR Bodies*), never a wholesale replace.
+Write these tasks as unchecked (`- [ ]`) at `gh pr create` time — QA hasn't run yet. They're a to-do list Claude comes back to: after the final browser QA (see *Where QA runs and what it covers*), **check (`- [x]`) every task it verified.** Do the checking with a surgical body edit (see *⛔ Editing PR Bodies*), never a wholesale replace.
 
-**Every task that ships is one Claude verified.** An empty box asserts nothing and explains nothing, so the developer gains no information from it. By handover each task is either checked or gone: verify it, or delete it and account for it. When QA couldn't run at all, replace the whole list with `None` and one line naming what stopped it — `None. Reaching this needs a POS system that refuses to answer, which the seeded data has none of.` A PR handed over with a list of empty boxes is an incomplete PR.
+**Every task that ships is one Claude verified.** An empty box asserts nothing and explains nothing, so the developer gains no information from it. By handover each task is either checked or gone: verify it, or delete it and account for it. `None` is for a change with no user-visible surface, and its one line names that — `None. This only changes agent guidance and the rubric the abide PR check reads.` Data the scenario needs is QA setup, reached by the environment choice above, so it is never the line after `None`. A PR handed over with a list of empty boxes is an incomplete PR.
 
 A checked box is Claude's assertion "I ran this step and it passed" — never check one that wasn't actually verified, and if a step failed, don't check it; fix the code or raise it.
 
 ### Screenshots
 
-At `gh pr create` time, leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. These placeholders are a to-do list for Claude, not a handoff to the developer: before handing the PR back, Claude does the browser QA on native dev, captures the screenshots (see *Capturing during final QA*), and replaces every placeholder with the uploaded image (see *Uploading to the PR*). Handing back a user-visible PR with unfilled placeholders is incomplete. Use "None." only for pure internal changes with no user-visible surface.
+At `gh pr create` time, leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. These placeholders are a to-do list for Claude, not a handoff to the developer: before handing the PR back, Claude does the browser QA (see *Where QA runs and what it covers*), captures the screenshots (see *Capturing during final QA*), and replaces every placeholder with the uploaded image (see *Uploading to the PR*). Handing back a user-visible PR with unfilled placeholders is incomplete. Use "None." only for pure internal changes with no user-visible surface.
 
 #### Capturing during final QA
 
@@ -521,7 +533,7 @@ qa-handoff <the QA_HANDOFF url the verifier returned>   # add -w <worktree> when
 
 It opens a background tab, signed in as Local Dev Cafe, on that page. One tab, for the primary user-visible change — a second or third only for genuinely distinct surfaces, three is the cap.
 
-**The gate: no unresolved FAIL, PARTIAL or BLOCKED.** QA of one feature often spans several verifier runs — the agent has a 40-call budget, and a big change has more surfaces than one dispatch covers — so the last run's PASS says nothing about the runs before it. Read the whole *Manual Browser QA Tasks* checklist, which is the record across every run:
+**The gate: no unresolved FAIL, PARTIAL or BLOCKED.** QA of one feature often spans several verifier runs — the agent has an 80-call budget, background jobs split a run, and a big change has more surfaces than one dispatch covers — so the last run's PASS says nothing about the runs before it. Read the whole *Manual Browser QA Tasks* checklist, which is the record across every run:
 
 - A FAIL means fix the code and verify again.
 - A PARTIAL that stalled means re-dispatch that task.

@@ -63,8 +63,9 @@ Payaus is Rails + Turbo, so many URLs are Turbo Frame endpoints rather than page
 
 ## Budget — never loop
 
-You have a hard budget of **40 tool calls** for the entire verification — clicking your way in costs a few, so the budget accounts for it. Loops are how a run blows up silently, so:
+You have a hard budget of **80 tool calls** for the entire verification — clicking your way in costs a few, so the budget accounts for it. Loops are how a run blows up silently, so:
 
+- **Waiting on background work is the parent's job.** When a step kicks off a job that finishes later (a sync, an import, a queued email), press it, record what the page says, and return. The parent watches the job finish and dispatches the check that follows. Polling a page until a job lands is a loop, not verification.
 - **Retry at most once.** If a `navigate`/`wait_for`/click times out or errors, try it one more time. If the second attempt also fails, that's a verdict (FAIL or BLOCKED) — never a third try.
 - **If you hit the budget without reaching a verdict, stop and return PARTIAL** (shape below) with what you established and the step you stalled on. Don't push past it.
 
@@ -120,7 +121,7 @@ VERDICT: PARTIAL
 SCENARIO: <one-line restatement>
 VERIFIED: <what passed before you ran out of budget>
 STALLED_AT: <the step that wouldn't progress — what you tried, what happened>
-REASON: <hit 40-call budget | step kept timing out | ...>
+REASON: <hit 80-call budget | step kept timing out | ...>
 QA_HANDOFF:
   url: <full-page URL>
   then: <clicks remaining, or "already there">

@@ -61,7 +61,15 @@ Organisation.where(is_active: true).where.not(demo: true).where(country: "Austra
 
 Refine by what the diff touches — pick an org with real data on the changed models (e.g. rostering change → orgs with recent rosters; timesheet change → recent timesheets). Return 1–3 candidates with name + id.
 
-### 7. Report
+### 7. Open the login tab, then hand over
+
+The devbox login is the one step only the user can do. Agents hold no credentials for the prod-scrubbed data: its Google login rejects the devbox callback URL (`redirect_uri_mismatch`), and the local seeded accounts don't exist there.
+
+Everything before the login is yours. The moment QA_READY prints, open the QA_READY URL with `mcp__chrome-devtools__new_page`. That opens it in the Chrome profile `manual-verifier` drives, so the session the user creates there is the one the verifier reuses. Never use `open -a "Google Chrome"`: that is the user's everyday profile, and a login there never reaches the verifier.
+
+Then tell the user the tab is open in the MCP Chrome and ask them to sign in as a sysadmin. Dispatch `manual-verifier` once they confirm.
+
+### 8. Report
 
 - QA checklist (numbered)
 - Test org name + id
