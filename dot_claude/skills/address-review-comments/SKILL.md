@@ -141,10 +141,10 @@ gh api graphql -f query='
       comment { url }
     }
   }
-' -F threadId="$THREAD_ID" -F body="Fixed in $SHA"
+' -F threadId="$THREAD_ID" -F body="Thanks, fixed in $SHA"
 ```
 
-**The reply body is `Fixed in <sha>` and nothing else.** No description of the approach, no pointers to other tests, no offers, no reasoning — the SHA is what the reviewer needs and the diff carries the rest.
+**The reply body is `Thanks, fixed in <sha>` and nothing else.** No description of the approach, no pointers to other tests, no offers, no reasoning — the SHA is what the reviewer needs and the diff carries the rest.
 
 For a **deferred** or **disputed** thread there is no such reply: bring the wording to the user and let them post it. Writing prose in their voice is not yours to do.
 
@@ -162,7 +162,7 @@ Summarise to the user:
 - **Never resolve threads.** That's the reviewer's job — resolving prematurely makes it harder for them to track that they actually checked the fix.
 - **One commit per logical group, not per thread.** Reviewers reading the diff want to see the net change, not a thread-by-thread audit trail.
 - **Don't expand scope.** Address only what was raised. Adjacent cleanup goes in a follow-up.
-- **A reply is `Fixed in <sha>` and nothing else.** No approach summary, no context, no offers. Anything beyond the SHA is speaking for the user — for a deferred or disputed thread, hand them the wording instead of posting it.
+- **A reply is `Thanks, fixed in <sha>` and nothing else.** No approach summary, no context, no offers. Anything beyond the SHA is speaking for the user — for a deferred or disputed thread, hand them the wording instead of posting it.
 - **Don't push hooks-skip flags.** Per global CLAUDE.md, `--no-verify` is off the table; let pre-commit hooks run.
 - **Don't auto-iterate on verification failures.** If manual-verifier returns FAIL, surface and stop. The user decides whether to retry.
 
