@@ -390,7 +390,7 @@ After the re-run, if it's still red it's your code: `git diff master -- <file>` 
 
 ## GitHub comments
 
-Don't leave comments on GitHub — PR comments, review-thread replies, issue comments — unless I specifically ask. When I do ask, the reply is `Fixed in <sha>` and nothing else. Don't speak for me.
+Don't leave comments on GitHub — PR comments, review-thread replies, issue comments — unless I specifically ask. When I do ask, the reply is `Thanks, fixed in <sha>` and nothing else. Don't speak for me.
 
 ## Analyzing PR changes
 
