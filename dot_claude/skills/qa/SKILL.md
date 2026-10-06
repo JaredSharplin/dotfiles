@@ -23,6 +23,8 @@ Run `git town sync` in the worktree first, so QA runs against code that's curren
 
 ### 3. Launch qa-up
 
+Run `qa-up status` first. If it shows a different worktree being served, ask before launching: a swap to this worktree stops that session's app containers, and whoever was QA'ing it loses their server mid-session.
+
 ```
 qa-up --no-attach
 ```

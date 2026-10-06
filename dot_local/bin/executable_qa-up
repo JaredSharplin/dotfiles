@@ -676,6 +676,15 @@ def swap!(incoming_dir)
   report_migrations(changed)
 end
 
+# A re-run for the worktree already being served restarts only the roles whose child exited,
+# without a rebuild. Otherwise a dead role would wait for a swap that never comes.
+def revive!(worktree)
+  roles = dead_roles
+  puts "Restarting #{roles.join(", ")} for #{worktree}"
+  bump_generations(worktree, roles)
+  await_swap(roles)
+end
+
 # The single commit point of a swap: every supervisor takes its cue from this one write.
 # The exit markers go first, so that nothing watching can see a role both restarting and
 # still carrying the marker from the run that killed it.
@@ -811,11 +820,14 @@ worktree_dir = resolve_worktree(ARGV.first)
 with_lock do
   warn_about_env(worktree_dir)
   if swappable?
-    if state[:worktree] == File.basename(worktree_dir)
+    if state[:worktree] != File.basename(worktree_dir)
+      swap!(worktree_dir)
+    elsif dead_roles.any?
+      revive!(state[:worktree])
+    else
       puts "#{SESSION} is already serving #{state[:worktree]}. Attach with: qa-up attach"
       exit 0
     end
-    swap!(worktree_dir)
   else
     teardown(qa_sessions)
     bring_up(worktree_dir)

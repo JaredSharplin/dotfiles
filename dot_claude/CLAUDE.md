@@ -30,7 +30,7 @@ Two duplication blind spots the agent loop misses while writing — they're glob
 - **Derived state stored as a field** — an ivar/attribute/flag that's a pure function of state already held. Make it a method.
 - **Reinvented mechanism** — hand-rolled code duplicating what the framework or codebase already provides. Reuse it.
 
-Naming (rule 2) applies continuously, not just on the exhale: optimise for correctness and clarity, never brevity. Use the domain's own word (schema and associations are the dictionary), spelled out however verbose. Never a name that's *false* about what the code does — `will_create` on a class that only fills existing records is a lie; so is `token` for a value that isn't one.
+Naming (rule 2) applies continuously, not just on the exhale: optimise for correctness and clarity, never brevity. Use the domain's own word (schema and associations are the dictionary), spelled out however verbose. Never a name that's *false* about what the code does — `will_create` on a class that only fills existing records is a lie; so is `token` for a value that isn't one. No coined verbs or metaphors either: name the operation — `merge_pre_rename_permissions_into_renamed_permissions`, not `fold`. A lookup names both sides — `matching_renamed_permission_by_pre_rename_permission`, not `renamed_by_pre_rename`.
 
 ## Inhale / exhale
 
@@ -236,7 +236,7 @@ For everything else, use the alternative — these aren't judgment calls:
 
 This developer runs the app natively via payaus's shipped native dev setup (puma-dev), in the main repo or any worktree.
 
-**Native dev is the assumption — always.** payaus's `AGENTS.md` says to assume the remote dev box; that default never applies here. The remote box is used rarely, only when a task genuinely needs the prod-scrubbed dataset, and only through the `/dev-console` or `/qa` skills, which carry their own rules. Never carry remote-box caution across to the local DB — they are different databases with opposite rules, and "shared" means something different about each.
+**Native dev is the assumption for running the app** — server, browser QA, local DB work. payaus's `AGENTS.md` says to assume the remote dev box; that default never applies here. The remote box has two uses: a task that needs the prod-scrubbed dataset (through the `/dev-console` or `/qa` skills, which carry their own rules), and any skill or generator whose printed steps run there — `database-migrations` runs `bin/dev migrate_up <version> t`, then the shared DB, then `t` again for a clean `structure.sql`. Those steps run on the box exactly as printed. Never carry remote-box caution across to the local DB — they are different databases with opposite rules, and "shared" means something different about each.
 
 Local DB targeting is automatic. `RUNNING_LOCAL_NATIVE_ENV=true` is exported from `~/.zshenv`, which every shell reads — including the non-interactive ones agents and hooks run in. So `config/boot.rb` loads the repo's `.native.env` (localhost DB + `IN_CONTAINER`) and bare `bin/rails` hits the **local** DB. In the test env `boot.rb` skips `.native.env`, so tests stay clean.
 
@@ -327,6 +327,8 @@ After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrom
 Use the **Local Dev Cafe** org for browser verification, not Team Tanda (sysadmin).
 
 - Login: `demoaccount+1@tanda.co` / `TandaDemoOrg1!` (sysadmin: `info@tanda.co` / `TandaLocalDev1!`)
+
+Never verify Team Tanda-only pages (`/internal/*`, sysadmin tooling) on native dev — the seeded sysadmin can't get past its emailed code there. Use `/qa` on the remote devbox, where I sign in.
 
 Every password login then emails a six-digit code — these accounts have no authenticator app, so expect it every time. It only sends if a worker is running (above); read it from mailpit at http://localhost:8025, newest message. A code is good for ten minutes.
 
@@ -420,6 +422,7 @@ Shape Up planning lives at `~/notes/shaping/<project>/`. Invoke the `shaping` sk
 # Working style
 
 - When I reference a documentation file, read all of it in one pass — don't chunk it or skip sections to save tokens. (This is about *reading* input, not about output length.)
+- **Printed steps are the process.** When a skill, a generator's output, or I give explicit steps or an exact command, run them verbatim and in order — same command, same arguments. When one seems to clash with another rule here, ask me which wins before acting; deviating is mine to approve, never yours to decide.
 - **Stay within the approved scope on destructive or multi-step tasks.** Do exactly what I approved; treat anything beyond it as a fresh decision to surface — even an item that looks "obviously in the same category." When the ground differs from the plan (unexpected file, branch, a worktree with a live session), stop and report. Recovery and undo actions (restore, re-create, kill a process, move uncommitted work) each need their own go-ahead. Read-only investigation needs none of this — the bar is only on state changes.
 - **Do the hard work, not the shortcut.** On reviews, read the PR body, trace the call stacks, and evaluate test coverage. Back claims with evidence from the code. Take the correct path even when it costs more than the easy one. (This is about effort and rigor, not word count — a terse answer can be fully rigorous.)
 - **When I ask a question, the answer is the deliverable — give it its own turn, ending with no tool call.** Prose in a turn that then fires tools scrolls out of view behind the tool output and never reaches me. Write the answer, stop, end the turn; resume tool work next turn. This is for genuine questions ("why did X?", "which approach is better?") where my reply is what you asked for — not a license to fragment ordinary task execution, where doing the work and reporting in one turn is right. Litmus: if I'd want to read your reasoning and maybe redirect before you act, isolate it.
