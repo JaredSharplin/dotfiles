@@ -1,0 +1,96 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# dev-sign-in-url — print a one-time sign-in URL for a seeded account on a native dev worktree.
+#
+# Opening the URL signs the browser straight in: it skips the password, two-factor and the
+# emailed login code, so signing in needs no worker, no mailpit and no code. Each URL works
+# once, so fetch a fresh one for every sign-in.
+#
+#   dev-sign-in-url                       # Local Dev Cafe on the current worktree
+#   dev-sign-in-url sysadmin              # Team Tanda's sysadmin, for /internal pages
+#   dev-sign-in-url cafe -w my-worktree   # another worktree, from anywhere
+
+require "open3"
+require "optparse"
+
+PUMA_DEV = File.expand_path("~/.puma-dev")
+EMAIL_BY_ACCOUNT = {
+  "cafe" => "demoaccount+1@tanda.co",
+  "sysadmin" => "info@tanda.co"
+}.freeze
+# A cold Rails boot is tens of seconds; well past that means it is stuck, not slow.
+RUNNER_TIMEOUT = 300
+
+SIGN_IN_TOKEN_SCRIPT = <<~'RUBY'
+  auth_user = AuthUser.find_by(email: ENV.fetch("DEV_SIGN_IN_EMAIL"))
+  abort("no AuthUser for #{ENV.fetch("DEV_SIGN_IN_EMAIL")} — is the local database seeded?") unless auth_user
+  puts "DEV_SIGN_IN_TOKEN=#{auth_user.generate_magic_link}"
+RUBY
+
+def served_hosts = Dir.children(PUMA_DEV).sort
+
+def resolve_worktree(name)
+  return name if name
+
+  toplevel, _, status = Open3.capture3("git", "rev-parse", "--show-toplevel")
+  abort("Not inside a git checkout. Pass -w with one of: #{served_hosts.join(", ")}") unless status.success?
+
+  File.basename(toplevel.strip)
+end
+
+def checkout_for(worktree)
+  served = File.join(PUMA_DEV, worktree)
+  unless File.exist?(served)
+    abort("puma-dev does not serve #{worktree}.test — run bin/native/ensure_running.sh from that " \
+          "directory first. Currently served: #{served_hosts.join(", ")}")
+  end
+
+  File.realpath(served)
+end
+
+# Without the marker and .native.env, bin/rails targets the remote dev box's shared database.
+def ensure_local_database(checkout)
+  abort("RUNNING_LOCAL_NATIVE_ENV is not true in this shell, so bin/rails would not use the local database.") unless ENV["RUNNING_LOCAL_NATIVE_ENV"] == "true"
+  return if File.exist?(File.join(checkout, ".native.env"))
+
+  abort("#{checkout} has no .native.env — run bin/native/ensure_running.sh there first.")
+end
+
+def sign_in_token(checkout, email)
+  Open3.popen3({"DEV_SIGN_IN_EMAIL" => email}, "bin/rails", "runner", SIGN_IN_TOKEN_SCRIPT,
+    chdir: checkout, pgroup: true) do |stdin, stdout, stderr, runner|
+    stdin.close
+    out = Thread.new { stdout.read }
+    err = Thread.new { stderr.read }
+    unless runner.join(RUNNER_TIMEOUT)
+      Process.kill("-TERM", runner.pid)
+      abort("bin/rails runner did not finish within #{RUNNER_TIMEOUT}s")
+    end
+
+    token = out.value.slice(/DEV_SIGN_IN_TOKEN=(\S+)/, 1)
+    return token if runner.value.success? && token
+
+    abort("Could not create a sign-in link:\n#{err.value.lines.last(5).join}")
+  end
+end
+
+options = {}
+OptionParser.new do |parser|
+  parser.banner = "Usage: dev-sign-in-url [#{EMAIL_BY_ACCOUNT.keys.join("|")}] [-w worktree]"
+  parser.on("-w", "--worktree NAME", "Worktree to sign in to (default: the current checkout)") do
+    options[:worktree] = it
+  end
+  parser.on("-h", "--help") do
+    puts parser
+    exit
+  end
+end.parse!
+
+account = ARGV.first || "cafe"
+email = EMAIL_BY_ACCOUNT.fetch(account) { abort("Unknown account #{account}. Use one of: #{EMAIL_BY_ACCOUNT.keys.join(", ")}") }
+worktree = resolve_worktree(options[:worktree])
+checkout = checkout_for(worktree)
+ensure_local_database(checkout)
+
+puts "https://#{worktree}.test/login/to/#{sign_in_token(checkout, email)}"

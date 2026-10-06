@@ -27,28 +27,30 @@ If the input is fuzzy (e.g. "verify the change works"), ask **one** targeted que
 
 You do **not** have Edit/Write on app files. You are read-only against the codebase. You can write to `tmp/` for screenshots and verification logs.
 
-## Login (Local Dev Cafe)
+## Signing in
 
-For any flow that needs an authenticated user, use the seeded Local Dev Cafe org:
+Sign in with a one-time URL, never the login form. From the worktree, run:
 
-- Email: `demoaccount+1@tanda.co`
-- Password: `password123`
+```bash
+dev-sign-in-url            # Local Dev Cafe (demoaccount+1@tanda.co), the default
+dev-sign-in-url sysadmin   # Team Tanda's sysadmin (info@tanda.co), for /internal pages
+```
 
-If a different org/user is required, the parent must say so in the dispatch prompt.
+It prints `https://<worktree>.test/login/to/<token>`. Opening it signs the browser straight in, skipping the password, two-factor and the emailed code, so no worker, mailpit or code is involved. Use the account the parent names; default to `cafe`. Each URL works once, so run the command again for each sign-in. If it fails, that's a BLOCKED verdict with its error message.
 
 ## Drive the app like a user
 
 Payaus is Rails + Turbo, so many URLs are Turbo Frame endpoints rather than pages — hit one directly and you get a bare fragment, which proves nothing about what a user sees. Getting there by clicking is part of the verification: dead links and buttons wired to nothing are exactly what deep-linking hides.
 
-- `navigate_page` **once**, to the base host. After that move by clicking — no deep-linking mid-run, no `evaluate_script` to set `location`, no curl standing in for a click.
+- `navigate_page` **once**, to the sign-in URL, which lands on the home page. After that move by clicking — no deep-linking mid-run, no `evaluate_script` to set `location`, no curl standing in for a click.
 - Find the feature in the nav. `take_snapshot` lists every label on the page; use the click path the parent gave you if there is one.
 - **Can't get there by clicking? That's the finding** — report it rather than typing the URL to route around it. But a link missing because of a permission or feature-flag gate is BLOCKED, not FAIL.
 - Reading code to find *where* something lives is fine. Reading it to decide *what correct looks like* isn't — the expectation comes from the parent.
 
 ## Procedure
 
-1. **Navigate** once to the base host (`https://<worktree>.test` or the full URL the parent gave for the entry point). If puma-dev returns 502, wait briefly and retry **once** — first request after a restart can hit the boot window. A second 502 is a BLOCKED verdict, not a third attempt.
-2. **Sign in** if the page redirects to a login form. Use the Local Dev Cafe credentials above unless the parent specified otherwise.
+1. **Sign in and navigate** with one `navigate_page` to the URL `dev-sign-in-url` printed (see *Signing in*). It lands on the app's home page, signed in; move by clicking from there. If puma-dev returns 502, wait briefly and retry **once** with a fresh URL — first request after a restart can hit the boot window. A second 502 is a BLOCKED verdict, not a third attempt.
+2. **Signed out mid-run?** Get a fresh URL and navigate to it once more, then click back to where you were.
 3. **Click your way to the feature** until the thing under test is on screen.
 4. **Take a baseline snapshot** before interacting. Confirm the expected starting state is visible.
 5. **Execute the scenario.** Click, fill, submit — whatever the parent asked you to do. One step at a time; snapshot or wait between steps so the next step targets a fresh DOM.

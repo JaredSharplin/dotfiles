@@ -254,7 +254,7 @@ bin/native/ensure_running.sh   # from inside the repo or worktree
 
 Installs/starts services (puma-dev, Postgres, MinIO, memcached, mailpit), writes a domain-templated `.native.env` (`APP_HOST_URL=<dirname>.test`), and creates the puma-dev symlink. After it finishes, the directory serves at `https://<dirname>.test`. It's idempotent, and safe alongside the dotfiles-managed `~/.zshenv`.
 
-Serving is not the same as usable: **logging in also needs a Delayed Job worker running.** The six-digit login code is sent with `deliver_later`, so with no worker it sits in the queue and never arrives — the login page just keeps asking for a code. Start one with `bin/native/worker` (it stays in the foreground, so background it or give it its own terminal).
+Queued jobs and mail need a Delayed Job worker: nothing supervises one, so `deliver_later` and queued jobs do nothing until you start `bin/native/worker` (it stays in the foreground, so background it or give it its own terminal). Signing in with `dev-sign-in-url` (below) doesn't need one.
 
 The main repo → `https://payaus.test`. Worktrees use their directory name (e.g. `my-feature` → `https://my-feature.test`).
 
@@ -322,17 +322,14 @@ Use `bin/native/restart`. It touches `tmp/restart.txt` (puma-dev's restart mecha
 
 After recompiling assets, hard-refresh the browser (`ignoreCache: true` in Chrome MCP) to avoid stale cached bundles.
 
-## Login credentials (local seeded DB)
+## Signing in (local seeded DB)
 
-Use the **Local Dev Cafe** org for browser verification, not Team Tanda (sysadmin).
+Browser verification signs in with `dev-sign-in-url`, never the login form. It prints a one-time `https://<worktree>.test/login/to/<token>` URL that skips the password, two-factor and the emailed code, so it needs no worker or mailpit. The `manual-verifier` agent runs it itself — name the account in the dispatch prompt:
 
-- Login: `demoaccount+1@tanda.co` / `TandaDemoOrg1!` (sysadmin: `info@tanda.co` / `TandaLocalDev1!`)
+- `cafe` (default) — the **Local Dev Cafe** org, `demoaccount+1@tanda.co`. Use it for anything a customer sees.
+- `sysadmin` — Team Tanda's `info@tanda.co`, for `/internal/*` and other sysadmin tooling. Those pages are verified on native dev like any other.
 
-Never verify Team Tanda-only pages (`/internal/*`, sysadmin tooling) on native dev — the seeded sysadmin can't get past its emailed code there. Use `/qa` on the remote devbox, where I sign in.
-
-Every password login then emails a six-digit code — these accounts have no authenticator app, so expect it every time. It only sends if a worker is running (above); read it from mailpit at http://localhost:8025, newest message. A code is good for ten minutes.
-
-**Never click "Email another one."** Each click immediately reissues the secret and voids the code already sent, while the replacement email is only rendered later by the worker. Clicking it is therefore the surest way to never hold a code that works — and nothing on the page says so, the code just comes back rejected. If no mail has arrived, wait; don't click.
+For my own manual sign-ins: `demoaccount+1@tanda.co` / `TandaDemoOrg1!`, `info@tanda.co` / `TandaLocalDev1!`.
 
 ## Full documentation
 
