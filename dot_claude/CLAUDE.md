@@ -53,6 +53,8 @@ Plans must also **name the skills to load as explicit, mandatory steps**, at the
 
 Use `bin/rails test file.rb:123` — always with the line number. Don't use `bin/dev test`.
 
+Match each test run to its cost. Quick runs go in the foreground: the tests covering the change, or a whole file of plain unit tests. Slow runs go in `run_in_background` so the conversation keeps moving: multi-file runs, files that build award template rules (`reload_local_rules!`, `create_local_rules!`, `run_test_on_each_award`), and any file an earlier run showed taking over a minute. In a slow file, run only the `file:line`s that prove the change — still in the background.
+
 ## Writing tests
 
 Good tests here:
