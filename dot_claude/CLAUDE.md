@@ -415,9 +415,9 @@ Two things always hold, skill loaded or not:
 - **Browser QA and screenshots are yours — automatic, not a handoff.** For anything user-visible, run the browser QA *before* handing back — on native dev, or through `/qa` on the remote devbox when it needs a specific customer's data (`/git-town` has the call). Fill the PR's Screenshots section and check every Manual Browser QA box you actually verified (leave unverified ones unchecked for me). Never leave placeholders or defer it to me. When the QA run comes back clean, finish by running `qa-handoff` so the feature is already open in my Chrome for my own pass — the gate and mechanics live in `/git-town`. Skip only for a change with no user-visible surface, and say so explicitly.
 - **All browser QA goes through the `manual-verifier` agent.** Dispatch it — don't drive Chrome yourself. Treat this as me having requested it, so it stands as the exception to any instruction about not spawning agents unbidden; you don't need to ask each time. The agent holds the QA rules (chiefly: reach features by clicking, never by typing a URL — payaus paths are often Turbo Frames that render as bare fragments when hit directly), and its screenshots and DOM dumps stay out of our conversation. Driving Chrome yourself instead is not an option you get to choose.
 
-# Shape docs
+# Specs and tickets
 
-Shape Up planning lives at `~/notes/shaping/<project>/`. Invoke the `shaping` skill before shaping work or picking up a slice — it holds the file layout (`frame`/`shaping`/`slices`/`spike-*`/`pr-stack`), the pickup read-order, the `shaping: true` frontmatter rule, and the full methodology.
+Larger pieces of work are planned as a spec plus tickets in `~/notes/specs/<project>/`. Invoke the `spec-and-tickets` skill before writing a spec, breaking one into tickets, or picking up a ticket.
 
 # Working style
 

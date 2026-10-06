@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 # import-source-doc — the deterministic half of importing an external source
-# document (Google Doc, Word doc, exported HTML) into a shaping project.
+# document (Google Doc, Word doc, exported HTML) into a spec project.
 #
 # Claude does the judgement work: fetching via MCP, naming the screenshots,
 # spotting gaps. This script does everything mechanical, so it can't drift:
@@ -21,7 +21,7 @@ require "fileutils"
 require "json"
 require "optparse"
 
-NOTES_ROOT = File.expand_path("~/notes/shaping")
+NOTES_ROOT = File.expand_path("~/notes/specs")
 IMAGE_DIR = "images"
 PLACEHOLDER = /\\?\[image\\?\]/
 
@@ -171,7 +171,7 @@ class Body
   end
 
   # Headings with nothing under them — the author left them blank. Worth
-  # surfacing: they're usually the sections shaping most needs filled in.
+  # surfacing: they're usually the sections the spec most needs filled in.
   # The document's own title heading is skipped; a title is always followed by
   # the first real heading and is never an empty section.
   def empty_sections
@@ -222,7 +222,7 @@ class Body
   end
 end
 
-# Writes the project's requirements doc: shaping frontmatter, a provenance
+# Writes the project's requirements doc: a provenance
 # block, then the source document verbatim.
 class RequirementsDoc
   def initialize(dir:, filename:, meta:, body:)
@@ -235,10 +235,6 @@ class RequirementsDoc
 
   def write(image_count)
     File.write(@path, <<~DOC)
-      ---
-      shaping: true
-      ---
-
       # #{@meta[:title]} — Source Requirements
 
       ## Source
@@ -365,7 +361,7 @@ class CLI
         import-source-doc.rb verify --project SLUG
 
       import options:
-        --project SLUG     project dir under ~/notes/shaping (required)
+        --project SLUG     project dir under ~/notes/specs (required)
         --export PATH      HTML export: MCP tool-result JSON, or a .html file (required)
         --markdown PATH    MCP read_file_content markdown — strongly preferred,
                            keeps headings/lists/tables that HTML flattening loses
@@ -376,7 +372,7 @@ class CLI
         --modified DATE    last-modified date
         --comments TEXT    e.g. "no comments" or "3 comment threads"
         --doc FILENAME     output filename (default: source-requirements.md)
-        --notes-dir DIR    override ~/notes/shaping
+        --notes-dir DIR    override ~/notes/specs
     USAGE
   end
 
