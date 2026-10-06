@@ -570,6 +570,8 @@ Where a PR needs pointing by hand, both ends are editable: the base with `gh pr 
 
 ## ⛔ Editing PR Bodies
 
+**Only ever edit the body of a PR the user authored.** Before any `gh pr edit --body` / `--body-file`, check `gh pr view <n> --json author`. Someone else's PR body is theirs alone, even when a plan step says to edit it: tell the user what you'd change and let them or the author decide.
+
 **`gh pr edit --body "full replacement"` is FORBIDDEN** — same severity as `git push --force`. It destroys checked checkboxes (`[x]` → `[ ]`), manually added notes, and any reviewer edits.
 
 ### Required Workflow — file on disk, Read/Edit, one push
