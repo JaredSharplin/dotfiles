@@ -26,7 +26,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Work on a branch git town didn't create | `git town set-parent <branch>` | Record the parent *before* the first sync — see "Branches Git Town Didn't Create" |
 | Change parent-child relationships | `git town set-parent <branch>` | Reorganize stack structure |
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
-| Contribute to someone's branch | `git town contribute <branch>` | Push your changes, but don't sync with parent |
+| Make changes on someone's active branch | `git town feature <branch>` + `git town set-parent <base>` | Never `contribute` — see "Working on Someone Else's Branch" |
 | Watch someone's branch (read-only) | `git town observe <branch>` | Pull only, don't push |
 
 ## Pushing (off by default)
@@ -237,11 +237,12 @@ When adopting an existing PR or working on a colleague's branch, use git town's 
 
 | Type | `sync` pulls from remote? | `sync` syncs with parent? | `sync` pushes? | Use when... |
 |------|--------------------------|--------------------------|----------------|-------------|
-| `feature` (default) | Yes | Yes | Only with `--push` | You own the branch — full control |
-| `contribute` | Yes | No | Only with `--push` | Collaborating — the other dev manages parent sync |
-| `observe` | Yes | No | Never | Read-only — just tracking their progress |
+| `feature` (default) | Yes | Yes | Only with `--push` | You're making changes — your own branch or a colleague's |
+| `observe` | Yes | No | Never | You're not making changes — reading or testing their branch |
 
-The "`sync` pushes?" column reflects this setup's `push-branches = false`: plain `sync` never pushes for any type. For `feature`/`contribute`, add `--push` when you want to push; `observe` branches never push.
+The "`sync` pushes?" column reflects this setup's `push-branches = false`: plain `sync` never pushes for any type. For `feature`, add `--push` when you want to push; `observe` branches never push.
+
+**Never use `contribute`.** Git town syncs a contribution branch by rebasing it onto its tracking branch, and that rebase flattens any merge commit. A master merged into the branch gets replayed as dozens of new commits and pushed onto the colleague's PR, where CODEOWNERS and labelers fire on every file master touched. `observe` covers reading a branch, `feature` covers changing one.
 
 ### Adopting a Stale/Abandoned PR
 
@@ -262,22 +263,22 @@ git town sync
 
 Use `feature` here because the original author is no longer managing the branch — you need full sync with parent to resolve staleness.
 
-### Contributing to an Active PR
+### Making Changes on a Colleague's Active PR
 
-When helping a colleague who is still actively working on their branch:
+When adding commits to a colleague's branch they're still working on:
 
 ```bash
 git fetch origin <branch-name>
 git checkout <branch-name>
 
-# Contribute mode: push your changes, but let them manage parent sync
-git town contribute <branch-name>
+git town feature <branch-name>
+git town set-parent <base-branch>   # the PR's base, usually master
 
-git town sync          # pulls their latest changes, skips parent sync (local only)
+git town sync          # merges their latest and the parent in (local only)
 git town sync --push   # when you want to push your changes back to share them
 ```
 
-Use `contribute` because the other dev is still responsible for rebasing onto parent.
+Use `feature`, never `contribute`: the merge strategy keeps their history and any parent merge intact.
 
 ### Reviewing a PR Locally (Read-Only)
 
