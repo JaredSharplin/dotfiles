@@ -1,6 +1,6 @@
 # Importing an external source document
 
-The import branch of [`spec-and-tickets`](SKILL.md): pulling a whole source document — a Google
+The import branch of [`spec`](SKILL.md): pulling a whole source document — a Google
 Doc pitch, a spec, an exported Word doc — into a spec project rather than pasting a paraphrase.
 Screenshots are usually the most information-dense part of a PM's doc, so **the images matter as
 much as the text**.
@@ -13,7 +13,7 @@ Everything mechanical is handled by the bundled importer, which must be used rat
 hand-rolling the extraction:
 
 ```
-~/.claude/skills/spec-and-tickets/scripts/import-source-doc.rb
+~/.claude/skills/spec/scripts/import-source-doc.rb
 ```
 
 **Step 1 — metadata and markdown.** Two Drive MCP calls:
@@ -34,7 +34,7 @@ export is ~100k tokens each way and will blow the output limit mid-write.
 **Step 3 — run the importer.** Save the Step 1 markdown to a scratch file, then:
 
 ```bash
-~/.claude/skills/spec-and-tickets/scripts/import-source-doc.rb import \
+~/.claude/skills/spec/scripts/import-source-doc.rb import \
   --project <slug> \
   --export <path-to-spilled-tool-result.txt> \
   --markdown <path-to-scratch.md> \
@@ -55,7 +55,7 @@ it aborts rather than misplacing screenshots.
 judgement step the script can't do:
 
 ```bash
-~/.claude/skills/spec-and-tickets/scripts/import-source-doc.rb rename --project <slug> \
+~/.claude/skills/spec/scripts/import-source-doc.rb rename --project <slug> \
   01=daily-view-graph 02=predictive-table-empty-state ...
 ```
 
