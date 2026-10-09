@@ -8,6 +8,10 @@ theme = gruvbox-material-medium-dark
 font-thicken = true
 font-size = 16
 
+# Working directory - always start in payaus
+working-directory = /Users/jaredsharplin/programming/tanda/payaus
+window-inherit-working-directory = false
+
 # macOS
 macos-option-as-alt = true
 
