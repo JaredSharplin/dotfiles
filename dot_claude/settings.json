@@ -3,6 +3,9 @@
     "defaultMode": "auto",
     "allow": [
       "EnterWorktree"
+    ],
+    "additionalDirectories": [
+      "~/.claude/skills/implement-spec"
     ]
   },
   "enabledMcpjsonServers": [
