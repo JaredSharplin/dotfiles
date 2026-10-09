@@ -40,7 +40,7 @@ Done when the workflow's completion notification arrives.
 
 ### 3. Record, then continue or relay
 
-Record the slice's branch and PR in the Build table, then commit and push `~/notes` (see `/spec`, "Ending a session"). A `done` slice sends the coordinator back to step 2 for the next one. Anything else is a **stop**: tell the user its stage and blockers in plain terms (table below), get the decision, and relaunch that slice with `existing` and `start_at`.
+Record the slice's branch and PR in the Build table, then commit and push `~/notes` (see `/spec`, "Ending a session"). Relay the result's `reviews` (each round's findings and what was applied) and `exhale_left` (smells an agent kept, with reasons) to the user. A `done` slice sends the coordinator back to step 2 for the next one. Anything else is a **stop**: tell the user its stage and blockers in plain terms (table below), get the decision, and relaunch that slice with `existing` and `start_at`.
 
 Done when every slice is `done` — a draft PR with QA screenshots and green CI — or the user holds the one decision that unblocks the next run.
 
@@ -49,7 +49,8 @@ Done when every slice is `done` — a draft PR with QA screenshots and green CI 
 | Stage | What it means |
 |---|---|
 | Preflight | Local dev isn't ready (a failing migration, git town or `gh` setup). The result names the one command for the user. |
-| Build / Review | The spec looks wrong for the slice, or a review finding needs a call. |
+| Build / Review | The spec looks wrong for the slice, or a fix agent couldn't apply a review finding. |
+| Review declined | A fix agent judged a review finding wrong. The user accepts the decline, or relaunches from `review` with their instruction. Both review rounds — the first, and the final one over commits added after it — stop this way. |
 | QA | The fix agent returned `blocked`, or three QA rounds still failed. |
 | CI | A check stayed red after three fix rounds. |
 
