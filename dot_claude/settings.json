@@ -1,6 +1,9 @@
 {
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "allow": [
+      "EnterWorktree"
+    ]
   },
   "enabledMcpjsonServers": [
     "chrome-devtools"
