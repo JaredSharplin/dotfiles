@@ -78,6 +78,8 @@ Leave out file paths and code snippets — they go stale fast. The exception is 
 
 Read `spec.md`, take the next slice without a PR, and plan it — the plan follows CLAUDE.md's TDD rules. A slice that reveals a decision the spec got wrong updates `spec.md` in the same change.
 
+To build the slices hands-off with agents, through to draft PRs, load `/implement-spec`.
+
 ## Ending a session
 
 `~/notes` is a git repo (`JaredSharplin/notes`), and the spec only leaves this machine once pushed. Whenever you've written or changed a file under `~/notes/specs/`, commit and push before handing back — this overrides the usual "push only when asked":
