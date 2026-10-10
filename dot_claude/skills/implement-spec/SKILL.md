@@ -28,13 +28,14 @@ Workflow({
     notes: "code the slice touches, open nits from earlier reviews, choices the spec leaves open",
     parent: { branch: "...", pr_number: 123 },   // the stacked-on slice, or null for master
     existing: null,                               // or { pr_number, branch, worktree_path, app_url, qa_checklist }
-    start_at: "build",                            // build | review | qa | ci
+    start_at: "build",                            // build | revise | review | qa | ci
+    revision: null,                               // with start_at "revise": the user's change, in their words
     known_issues: []                              // carried forward from the previous result
   }
 })
 ```
 
-A slice that already has a PR passes `existing` and the stage to restart from. The result carries everything the next launch needs: branch, PR, worktree, checklist and `known_issues`.
+A slice that already has a PR passes `existing` and the stage to restart from. When the user changes what an open PR should do, update the spec first, then relaunch it with `start_at: "revise"` and their instruction as `revision`: an agent syncs the branch with its parent, makes the change, rewrites the PR's description and QA boxes, and the slice runs review → QA → CI again. The result carries everything the next launch needs: branch, PR, worktree, checklist and `known_issues`.
 
 Done when the workflow's completion notification arrives.
 

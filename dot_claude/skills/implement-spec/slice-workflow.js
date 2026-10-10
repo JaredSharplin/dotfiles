@@ -14,7 +14,8 @@ export const meta = {
 
 const SPEC = args.spec
 const STAGES = ['build', 'review', 'qa', 'ci']
-const startIndex = STAGES.indexOf(args.start_at || 'build')
+const revising = args.start_at === 'revise'
+const startIndex = revising ? STAGES.indexOf('review') : STAGES.indexOf(args.start_at || 'build')
 const knownIssues = [...(args.known_issues || [])]
 
 const RULES = `Ground rules: CLAUDE.md applies. Work only in the worktree given, by absolute path (EnterWorktree is unavailable to you). Push only with \`git town sync --push\` (load /git-town first). The PR stays a draft: no gh pr ready, no run-bk label, no GitHub comments, no force-push or amend, no bare git stash. The notes repo belongs to the coordinator. If the spec looks wrong for this slice, return blocked and say what decision is needed. Exhale every commit: when the exhale hook fires after a non-refactor commit, run the command it names (\`bin/diff-quality --no-browser --no-tests --last-commit\`), apply the cleanups Beck's four rules call for in a separate refactor commit, and list each smell you leave in place, with the reason, in exhale_left.`
@@ -78,6 +79,17 @@ const QA = {
     problems: { type: 'array', items: { type: 'string' } },
   },
   required: ['verdict', 'pages', 'problems'],
+}
+const REVISE = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['ok', 'blocked'] },
+    qa_checklist: { type: 'string' },
+    summary: { type: 'string' },
+    blockers: { type: 'array', items: { type: 'string' } },
+    ...EXHALE_LEFT,
+  },
+  required: ['status', 'qa_checklist', 'summary', 'blockers'],
 }
 const QA_FIX = {
   type: 'object',
@@ -210,6 +222,24 @@ ${RULES}`, { label: `ci-${round}`, phase: 'CI', schema: CI }))
     if (!recheck.ok) return { ok: false, stage: `QA after CI fix (${round})`, detail: recheck }
   }
   return { ok: true, ci }
+}
+
+if (revising) {
+  const parentSync = args.parent ? `First bring the branch up to date with its parent ${args.parent.branch} (PR #${args.parent.pr_number}) using \`git town sync\`, resolving any conflicts in favour of the parent's current design.` : 'First bring the branch up to date with `git town sync`.'
+  const revised = track(await agent(`Revise draft PR #${slice.pr_number} (slice ${slice.slice} of ${SPEC}, branch ${slice.branch}, worktree ${slice.worktree_path}) to match the spec as it now stands. Read the whole spec — it has changed since this PR was built — and the PR's current diff (\`gh pr diff ${slice.pr_number}\`).
+${parentSync}
+
+The developer's instruction:
+${args.revision}
+
+${args.notes || ''}
+
+Make the change test-first: adjust or replace the tests for behaviour that changes, delete tests for behaviour that goes, then the implementation. Lint changed files, run the touched test files, commit, push. Update the PR title and body so they describe the PR as it now is (surgical edits, per /git-town), and rewrite its Manual Browser QA boxes to match the new checklist, unticked. ${PREP(slice.worktree_path)}
+
+Return qa_checklist: click-by-click instructions a browser verifier can follow for the revised PR — including Lookbook preview states of any ViewComponent it adds or changes.
+${RULES}`, { label: 'revise', phase: 'Build', schema: REVISE }))
+  if (!revised || revised.status !== 'ok') return stop('Revise', revised)
+  slice.qa_checklist = revised.qa_checklist
 }
 
 if (startIndex <= 1) {
