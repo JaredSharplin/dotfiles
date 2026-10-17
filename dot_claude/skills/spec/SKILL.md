@@ -74,11 +74,13 @@ The approved numbered list, in build order.
 
 Leave out file paths and code snippets — they go stale fast. The exception is a prototype snippet that encodes a decision more precisely than prose (a state machine, a schema): inline its decision-rich part and note it came from a prototype.
 
+### 5. Hand back with one next step
+
+Recommend `/implement-spec`, which builds the slices hands-off through to draft PRs. A slice that can't be built yet (a verify-after-release check) is noted as waiting.
+
 ## Picking up a slice
 
-Read `spec.md`, take the next slice without a PR, and plan it — the plan follows CLAUDE.md's TDD rules. A slice that reveals a decision the spec got wrong updates `spec.md` in the same change.
-
-To build the slices hands-off with agents, through to draft PRs, load `/implement-spec`.
+When the user wants to build a slice interactively in the conversation: read `spec.md`, take the next slice without a PR, and plan it — the plan follows CLAUDE.md's TDD rules. A slice that reveals a decision the spec got wrong updates `spec.md` in the same change.
 
 ## Ending a session
 
