@@ -17,10 +17,12 @@ const STAGES = ['build', 'review', 'qa', 'ci']
 const revising = args.start_at === 'revise'
 const startIndex = revising ? STAGES.indexOf('review') : STAGES.indexOf(args.start_at || 'build')
 const knownIssues = [...(args.known_issues || [])]
+const browserQa = args.qa !== false
+const NO_QA = 'This slice has no user-visible change, so it has no browser QA: return qa_checklist as an empty string, and say in the PR\'s Manual Browser QA section that there is nothing user-visible to verify.'
 
 const RULES = `Ground rules: CLAUDE.md applies. Work only in the worktree given, by absolute path (EnterWorktree is unavailable to you). Push only with \`git town sync --push\` (load /git-town first). The PR stays a draft: no gh pr ready, no run-bk label, no GitHub comments, no force-push or amend, no bare git stash. The notes repo belongs to the coordinator. If the spec looks wrong for this slice, return blocked and say what decision is needed. Exhale every commit: when the exhale hook fires after a non-refactor commit, run the command it names (\`bin/diff-quality --no-browser --no-tests --last-commit\`), apply the cleanups Beck's four rules call for in a separate refactor commit, and list each smell you leave in place, with the reason, in exhale_left.`
 
-const PREP = (worktree) => `Leave native dev ready for browser QA in ${worktree}: \`bin/native/ensure_running.sh\` (once), \`bin/rails db:migrate\` when migrations are pending, \`yarn build\`, then \`bin/native/restart\` (never piped through tail or head).`
+const PREP = (worktree) => browserQa ? `Leave native dev ready for browser QA in ${worktree}: \`bin/native/ensure_running.sh\` (once), \`bin/rails db:migrate\` when migrations are pending, \`yarn build\`, then \`bin/native/restart\` (never piped through tail or head).` : ''
 
 const EXHALE_LEFT = { exhale_left: { type: 'array', items: { type: 'string' } } }
 const RESULT = {
@@ -188,7 +190,7 @@ ${base}
 
 Process: load /git-town. Inhale — load /write-ruby-tests, failing tests first, then the implementation; load /design-system-haml before any HAML; commit. Exhale — /simplify-with-analysis master, cleanups in a separate commit. Lint changed files (rubocop, srb tc, haml-lint) and fix what they report. Run touched test files (bin/rails test file:line) and /flaky-test-check on new tests. Run the local Abide check (bin/abide_model.rb, bin/abide_check.rb) when feasible and fix act findings. Open the draft PR per /git-town (assignee, labels, short human body), leaving screenshots and QA boxes for a later step. ${PREP('your worktree')}
 
-Return qa_checklist: click-by-click instructions a browser verifier can follow — where to start, what to click, and exactly what must be true on each page, including org settings, feature flags or local data that change what shows and how to set them up. Write the PR's Manual Browser QA boxes from the same steps, one box per step, and add a step for each Lookbook preview state of any ViewComponent this slice adds or changes.
+${browserQa ? `Return qa_checklist: click-by-click instructions a browser verifier can follow — where to start, what to click, and exactly what must be true on each page, including org settings, feature flags or local data that change what shows and how to set them up. Write the PR's Manual Browser QA boxes from the same steps, one box per step, and add a step for each Lookbook preview state of any ViewComponent this slice adds or changes.` : NO_QA}
 ${RULES}`, { label: 'build', phase: 'Build', isolation: 'worktree', schema: BUILD }))
   if (!built || built.status !== 'ok' || !built.pr_number) return stop('Build', built)
   Object.assign(slice, { pr_number: built.pr_number, branch: built.branch, worktree_path: built.worktree_path, app_url: built.app_url, qa_checklist: built.qa_checklist })
@@ -217,7 +219,7 @@ async function ciAndRecheck(round) {
   const ci = track(await agent(`Get draft PR #${slice.pr_number}'s CI green (branch ${slice.branch}, worktree ${slice.worktree_path}). Drafts run the GitHub checks (Abide and others), not Buildkite. Up to 3 rounds: \`gh pr checks ${slice.pr_number} --watch\`; on a failure read \`gh run view <id> --log-failed\`, fix the cause (for Abide: .claude/ABIDE.md, the rule in .abide/rubric.json, and bin/abide_check.rb locally when feasible), run affected tests and lints, commit, push, watch again. A red check is this branch's to fix forward. Set ui_changed when a fix changes what renders. ${PREP(slice.worktree_path)}
 ${RULES}`, { label: `ci-${round}`, phase: 'CI', schema: CI }))
   if (!ci || ci.status !== 'green') return { ok: false, stage: `CI (${round})`, detail: ci }
-  if (ci.ui_changed) {
+  if (browserQa && ci.ui_changed) {
     const recheck = await qaGate()
     if (!recheck.ok) return { ok: false, stage: `QA after CI fix (${round})`, detail: recheck }
   }
@@ -236,7 +238,7 @@ ${args.notes || ''}
 
 Make the change test-first: adjust or replace the tests for behaviour that changes, delete tests for behaviour that goes, then the implementation. Lint changed files, run the touched test files, commit, push. Update the PR title and body so they describe the PR as it now is (surgical edits, per /git-town), and rewrite its Manual Browser QA boxes to match the new checklist, unticked. ${PREP(slice.worktree_path)}
 
-Return qa_checklist: click-by-click instructions a browser verifier can follow for the revised PR — including Lookbook preview states of any ViewComponent it adds or changes.
+${browserQa ? `Return qa_checklist: click-by-click instructions a browser verifier can follow for the revised PR — including Lookbook preview states of any ViewComponent it adds or changes.` : NO_QA}
 ${RULES}`, { label: 'revise', phase: 'Build', schema: REVISE }))
   if (!revised || revised.status !== 'ok') return stop('Revise', revised)
   slice.qa_checklist = revised.qa_checklist
@@ -247,7 +249,7 @@ if (startIndex <= 1) {
   if (!first.ok) return stop(first.stage, first.detail)
 }
 
-if (startIndex <= 2) {
+if (browserQa && startIndex <= 2) {
   const gate = await qaGate()
   if (!gate.ok) return stop('QA', gate)
   track(await agent(`Update draft PR #${slice.pr_number}'s body (worktree ${slice.worktree_path}): use the /git-town skill's screenshot workflow to upload these screenshots into the Screenshots section — including the Lookbook preview states — and tick each Manual Browser QA box this QA verified (QA passed, so that is every box). Edit those sections surgically and keep the rest of the body as it is.

@@ -30,7 +30,8 @@ Workflow({
     existing: null,                               // or { pr_number, branch, worktree_path, app_url, qa_checklist }
     start_at: "build",                            // build | revise | review | qa | ci
     revision: null,                               // with start_at "revise": the user's change, in their words
-    known_issues: []                              // carried forward from the previous result
+    known_issues: [],                             // carried forward from the previous result
+    qa: true                                      // false when the slice changes nothing user-visible (test-only, tooling)
   }
 })
 ```
@@ -58,6 +59,8 @@ Done when every slice is `done` — a draft PR with QA screenshots and green CI 
 ## The QA gate
 
 The gate is a workflow step of agent type `manual-verifier` — workflow agents have no Agent tool, so the script dispatches the verifier. A slice fails QA only on a defect its branch introduced. A console error that appears the same way on comparable pages the branch never touched is **known noise**: a fix agent proves it from the code, the script adds it to `known_issues`, and QA re-runs. Master is green, so known noise is the whole meaning of "not caused by this branch".
+
+A slice that changes nothing user-visible — test-only or tooling changes — launches with `qa: false`: it skips native dev prep, the gate and the screenshots, and runs build → review → CI.
 
 ## When the Workflow tool is unavailable
 
