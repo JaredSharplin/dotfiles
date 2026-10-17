@@ -76,7 +76,7 @@ const QA = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: ['PASS', 'FAIL', 'COULD_NOT_RUN'] },
-    pages: { type: 'array', items: { type: 'object', properties: { page: { type: 'string' }, result: { type: 'string' }, observations: { type: 'string' }, screenshot_path: { type: 'string' } }, required: ['page', 'result', 'observations'] } },
+    pages: { type: 'array', items: { type: 'object', properties: { page: { type: 'string' }, result: { type: 'string' }, observations: { type: 'string' }, screenshot_path: { type: 'string' }, prominence: { type: 'string', enum: ['lead', 'supplemental'] } }, required: ['page', 'result', 'observations'] } },
     noted_noise: { type: 'array', items: { type: 'string' } },
     problems: { type: 'array', items: { type: 'string' } },
   },
@@ -132,7 +132,7 @@ function stop(stage, detail) {
 
 function verify(attempt) {
   const known = knownIssues.length ? `\nKnown noise, already proven not caused by any branch — when seen, record it in noted_noise and keep going:\n- ${knownIssues.join('\n- ')}` : ''
-  return agent(`Browser-verify draft PR #${slice.pr_number} on native dev at ${slice.app_url} (worktree ${slice.worktree_path}). Sign in with dev-sign-in-url as \`cafe\`, run from that worktree. Reach every page by clicking through the app's menus.
+  return agent(`Browser-verify draft PR #${slice.pr_number} on native dev at ${slice.app_url} (worktree ${slice.worktree_path}). Sign in with dev-sign-in-url as \`cafe\`, run from that worktree. Reach every page by clicking through the app's menus. Change org settings, flags or data only with the checklist's \`bin/rails runner\` commands, run from that worktree against the local native DB, and run its restore command afterwards — observe in the browser, and leave settings forms unsubmitted. A step that needs a state change but gives no runner command is a step you could not check: name the state it needs.
 
 Checklist:
 ${slice.qa_checklist}
@@ -143,7 +143,7 @@ Coverage, on top of the checklist:
 
 Pass rule: PASS means every checklist step, every PR QA box and every changed component's previews were checked and held. FAIL on a defect this branch introduced — something the checklist expects that is missing or wrong, a broken interaction, or a console error from code the branch changed — and FAIL on any step you could not check (a feature flag, data or permission missing), naming what was missing so it can be set up. A console error that also appears on comparable pages the branch never touched is noise: record it in noted_noise and keep going.${known}
 
-Save one PNG screenshot per checklist page, PR box and preview state under ${slice.worktree_path}/tmp/qa-slice-${slice.slice}/ and return the paths.`, { label: `qa#${attempt}`, phase: 'QA', agentType: 'manual-verifier', schema: QA })
+Save one PNG screenshot per checklist page, PR box and preview state under ${slice.worktree_path}/tmp/qa-slice-${slice.slice}/ and return the paths. Mark each page's prominence: \`lead\` for the few that show this slice's main change (the ones a reviewer would miss if hidden, usually one to three), \`supplemental\` for the rest.`, { label: `qa#${attempt}`, phase: 'QA', agentType: 'manual-verifier', schema: QA })
 }
 
 async function qaGate() {
@@ -160,7 +160,7 @@ ${slice.qa_checklist}
 
 Find the root cause and return one outcome:
 - fixed: the branch caused it — fix it test-first where the behaviour is testable, run the affected tests (bin/rails test file:line) and lints on changed files, commit, push. Also fixed: the local QA data or native dev state the checklist relies on was missing, and you restored it in the local native DB. ${PREP(slice.worktree_path)}
-- checklist_wrong: the branch is right and the checklist sent QA to the wrong place or expected the wrong thing. Return corrected_checklist in full.
+- checklist_wrong: the branch is right and the checklist sent QA to the wrong place, expected the wrong thing, or needed a state change without a \`bin/rails runner\` command for it. Return corrected_checklist in full, with every state change as a runner command plus its restore command.
 - not_caused_by_branch: the symptom appears the same way on comparable pages the branch never touched. Prove it from the code (read originals with \`git show origin/master:<path>\`) and return known_issue: one line naming the symptom, the pages, and the cause.
 - blocked: none of the above, or it needs a decision.
 ${RULES}`, { label: `qa-fix#${attempt}`, phase: 'QA', schema: QA_FIX }))
@@ -190,7 +190,7 @@ ${base}
 
 Process: load /git-town. Inhale — load /write-ruby-tests, failing tests first, then the implementation; load /design-system-haml before any HAML; commit. Exhale — /simplify-with-analysis master, cleanups in a separate commit. Lint changed files (rubocop, srb tc, haml-lint) and fix what they report. Run touched test files (bin/rails test file:line) and /flaky-test-check on new tests. Run the local Abide check (bin/abide_model.rb, bin/abide_check.rb) when feasible and fix act findings. Open the draft PR per /git-town (assignee, labels, short human body), leaving screenshots and QA boxes for a later step. ${PREP('your worktree')}
 
-${browserQa ? `Return qa_checklist: click-by-click instructions a browser verifier can follow — where to start, what to click, and exactly what must be true on each page, including org settings, feature flags or local data that change what shows and how to set them up. Write the PR's Manual Browser QA boxes from the same steps, one box per step, and add a step for each Lookbook preview state of any ViewComponent this slice adds or changes.` : NO_QA}
+${browserQa ? `Return qa_checklist: click-by-click instructions a browser verifier can follow — where to start, what to click, and exactly what must be true on each page, including org settings, feature flags or local data that change what shows. Give every state change as a \`bin/rails runner\` command against the local native DB, each paired with a restore command — the verifier changes state only that way. Write the PR's Manual Browser QA boxes from the same steps, one box per step, and add a step for each Lookbook preview state of any ViewComponent this slice adds or changes.` : NO_QA}
 ${RULES}`, { label: 'build', phase: 'Build', isolation: 'worktree', schema: BUILD }))
   if (!built || built.status !== 'ok' || !built.pr_number) return stop('Build', built)
   Object.assign(slice, { pr_number: built.pr_number, branch: built.branch, worktree_path: built.worktree_path, app_url: built.app_url, qa_checklist: built.qa_checklist })
@@ -238,7 +238,7 @@ ${args.notes || ''}
 
 Make the change test-first: adjust or replace the tests for behaviour that changes, delete tests for behaviour that goes, then the implementation. Lint changed files, run the touched test files, commit, push. Update the PR title and body so they describe the PR as it now is (surgical edits, per /git-town), and rewrite its Manual Browser QA boxes to match the new checklist, unticked. ${PREP(slice.worktree_path)}
 
-${browserQa ? `Return qa_checklist: click-by-click instructions a browser verifier can follow for the revised PR — including Lookbook preview states of any ViewComponent it adds or changes.` : NO_QA}
+${browserQa ? `Return qa_checklist: click-by-click instructions a browser verifier can follow for the revised PR — including Lookbook preview states of any ViewComponent it adds or changes, and every org-state change as a \`bin/rails runner\` command against the local native DB paired with a restore command.` : NO_QA}
 ${RULES}`, { label: 'revise', phase: 'Build', schema: REVISE }))
   if (!revised || revised.status !== 'ok') return stop('Revise', revised)
   slice.qa_checklist = revised.qa_checklist
@@ -252,7 +252,7 @@ if (startIndex <= 1) {
 if (browserQa && startIndex <= 2) {
   const gate = await qaGate()
   if (!gate.ok) return stop('QA', gate)
-  track(await agent(`Update draft PR #${slice.pr_number}'s body (worktree ${slice.worktree_path}): use the /git-town skill's screenshot workflow to upload these screenshots into the Screenshots section — including the Lookbook preview states — and tick each Manual Browser QA box this QA verified (QA passed, so that is every box). Edit those sections surgically and keep the rest of the body as it is.
+  track(await agent(`Update draft PR #${slice.pr_number}'s body (worktree ${slice.worktree_path}): use the /git-town skill's screenshot workflow and follow its Screenshots rule — upload the screenshots QA marked \`lead\` prominently under their placeholders, and every \`supplemental\` one (other states, setup pages, Lookbook previews) in the collapsed More screenshots block — and tick each Manual Browser QA box this QA verified (QA passed, so that is every box). Edit those sections surgically and keep the rest of the body as it is.
 ${JSON.stringify(gate.qa, null, 2)}
 ${RULES}`, { label: 'pr-screenshots', phase: 'PR', schema: RESULT }))
 }

@@ -475,6 +475,18 @@ A checked box is Claude's assertion "I ran this step and it passed" — never ch
 
 At `gh pr create` time, leave one placeholder per user-visible behaviour — bold heading + `_<!-- what to capture -->_`. These placeholders are a to-do list for Claude, not a handoff to the developer: before handing the PR back, Claude does the browser QA (see *Where QA runs and what it covers*), captures the screenshots (see *Capturing during final QA*), and replaces every placeholder with the uploaded image (see *Uploading to the PR*). Handing back a user-visible PR with unfilled placeholders is incomplete. Use "None." only for pure internal changes with no user-visible surface.
 
+**Lead with what a reviewer must see.** Show only the lead screenshots prominently: the main change each placeholder names, usually one to three images in all. Every other image — other states, setup pages, Lookbook previews, screens the change leaves as they were — is supplemental and goes in one collapsed block under the leads, so the PR stays scannable:
+
+```markdown
+<details>
+<summary>More screenshots</summary>
+
+![...](...)
+</details>
+```
+
+Pick the leads by asking which images a reviewer would miss if they were hidden; a near-duplicate of a lead, a setup state or an unchanged screen belongs in the block.
+
 #### Capturing during final QA
 
 When taking screenshots via Chrome DevTools MCP for the placeholders above, decide the final destination up front — don't dump them somewhere intermediate and reorganise later.
@@ -520,7 +532,7 @@ gh image ~/Desktop/<branch-slug>-screenshots/*.png
 # → ![edit-this-week-daily.png](https://github.com/user-attachments/assets/<uuid>)
 ```
 
-Drop those lines as a single block under the `### Screenshots` heading, replacing the placeholder(s), via the surgical body edit in *⛔ Editing PR Bodies* below.
+Put the lead lines under their placeholders and the rest in the More screenshots block (see *Screenshots*), via the surgical body edit in *⛔ Editing PR Bodies* below.
 
 `gh image` authenticates from your browser's `github.com` session (no PAT). If it reports being logged out, sign into GitHub in the browser and retry.
 

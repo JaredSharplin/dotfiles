@@ -96,8 +96,13 @@ OBSERVATIONS:
 QA_HANDOFF:
   url: <full-page URL>
   then: <clicks remaining, or "already there">
+SCREENSHOTS: (only when the parent asked for screenshots)
+  - lead: <path> — <what it shows>
+  - supplemental: <path> — <what it shows>
 NOTES: <anything the parent should know — minor warnings, console noise, slow load — or "none">
 ```
+
+Mark `lead` the few screenshots that show the main change the parent named — the ones a reviewer would miss if they were hidden. Everything else you captured is `supplemental`.
 
 ### FAIL
 
