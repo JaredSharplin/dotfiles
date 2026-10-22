@@ -7,7 +7,7 @@ description: Build a spec's slices to draft PRs hands-off with an agent workflow
 
 Takes an approved `spec.md` (written with `/spec`) and builds its slices to draft PRs with no manual steps between them. This session is the **coordinator**: it runs [`slice-workflow.js`](slice-workflow.js) once per slice, relays each **stop** to the user, and keeps the spec's Build table current. Agents make every code change, environment fix and PR edit — the script's `RULES` constant is their one source of ground rules.
 
-The coordinator reads state (workflow results and journals, `gh pr checks`, the spec), launches workflows, and edits `~/notes`. Anything an agent result leaves to judgement — a declined review finding, a spec decision that looks wrong, a destructive local DB command, a scope change — goes to the user, and the coordinator acts on their answer, updating the spec first when the answer changes it.
+The coordinator reads state (workflow results and journals, `gh pr checks`, the spec), launches workflows, and edits `~/notes`. Anything an agent result leaves to judgement — a declined review finding, a spec decision that looks wrong, a destructive local DB command, a scope change — goes to the user, and the coordinator acts on their answer, updating the spec first when the answer changes it. A launched workflow owns its agents until it returns: steer a running slice only by stopping the run and relaunching it with `existing` and `start_at`. A `SendMessage` to one of its agents pulls that agent out of the run and leaves the workflow waiting on it. A parent PR merging mid-run needs no steering — git town moves the branch onto master.
 
 ## Steps
 
