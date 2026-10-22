@@ -322,10 +322,11 @@ On top of that, for PR bodies specifically:
 
 - **Short by default.** A reviewer should be able to read the whole body in under ~30 seconds. When in doubt, cut. The diff carries the detail — the body just frames it.
 - **Vocabulary: name the identifiers, not the mechanics.** Use what the user reads on screen — button labels (Delete, Disconnect), page names, and the domain nouns the app itself uses (permission, integration, pay run). When the PR fixes a specific failure, reach for the name a developer recognises: the error class and the system or class it came from, backticked. `Fix ActiveRecord::RecordInvalid on missing name in Roller` beats `Fix an unnamed POS location failing the data stream lookup`, and someone grepping the error finds the PR. A domain-flavoured paraphrase is the failure to avoid — "a Smart Retail till stopped answering" tells a reviewer less than `Net::OpenTimeout` connecting to Smart Retail. Stop at the name: method signatures, parameter changes and how the fix works stay in the diff. Paraphrasing around the product's own term is circumlocution too: "hides buttons you don't have permission for", never "stops offering buttons the user isn't allowed to press".
-- **No padding.** Don't restate the title. Don't walk through the changes file-by-file or commit-by-commit. (Opening with "This PR adds…" / "This PR fixes…" is fine — leading with what it does beats easing in with context.)
+- **No padding.** Don't restate the title. Don't walk through the changes file-by-file or commit-by-commit.
+- **Data goes in a table.** Run counts, timings, before/after measurements — any numbers a reviewer compares — sit in a markdown table, one row per case.
 - **Only what the PR does.** No commentary on how the problem was found or how bad the old state was, and no questions, requests or open decisions aimed at reviewers — the body goes out in Jared's name. Anything you're unsure about or chose not to fix goes to him in the chat.
 - **The subject is the system, never the reader.** Every sentence in Background and Features is about the thing that changed — the page, the form, the integration. Never "you", "people", "someone", "a user", "nobody", "everybody". Write "the setup page records each step", not "you see what happens as people use it". Features bullets read best led by the verb: "Moves the API token onto the main form", "Alerts in Sentry when a system is unreachable". QA tasks are instructions to a reviewer and stay imperative — "Add a Redcat integration and confirm…" is right.
-- **State the new behaviour, not the move from the old one.** No "Before, …", no "used to", no "instead of …", no "rather than …". If the old behaviour was wrong, "now correctly shows X" carries that without narrating it.
+- **Plain statements of problem and fix.** "This PR fixes an issue where <fault>. It does this by <change>." Each sentence says one thing directly; contrast scaffolding ("Before, …", "used to", "instead of …", "rather than …") reads as generated text.
 
 If the body reads like a changelog of code edits, rewrite it as a couple of plain sentences about what changed for the user or the system.
 
@@ -377,7 +378,7 @@ Always use `### Level-3 headers` and `<br/>` between every section, in this orde
 
 The rules above are easy to nod along to and still miss. This is the target to match — same PR, written the wrong way then the right way.
 
-**Wrong** — jargon, file-by-file walkthrough, lede buried under context:
+**Wrong** — jargon, file-by-file walkthrough, no problem stated:
 
 ```markdown
 ### Background
@@ -394,13 +395,13 @@ the rendering logic into a shared presenter.
 - Extracted `values_table` partial to share markup with the show page
 ```
 
-**Right** — leads with what it does, plain English, no code names:
+**Right** — problem first, then what the PR does, plain English, no code names:
 
 ```markdown
 ### Background
-This PR adds a chart and a values table to the data stream edit page, so you can
-see what a stream is actually producing without leaving the page. It's the fourth
-slice of the Manage Data Streams reshape — the previous slice left a slot for it.
+The data stream edit page shows nothing a stream produces, so checking one means
+leaving the page. This PR adds a chart and a values table to the edit page. It's the
+fourth slice of the Manage Data Streams reshape — the previous slice left a slot for it.
 
 <br/>
 
@@ -417,9 +418,8 @@ slice of the Manage Data Streams reshape — the previous slice left a slot for 
 
 ### Background
 
-- **Lead with what the PR does.** The first sentence states the change in plain terms ("This PR adds a chart and values table to the data stream edit page…"). Motivation and context come *after*, not before — never make the reader wait for the lede.
+- **Problem, then solution.** Open with the problem in plain terms — the fault someone hit (fix), the need the system doesn't meet yet (feature), or the cost the code carries (internal) — then how the PR solves it, and where it sits in a larger effort if it does.
 - **2–4 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the outcome and the motivation.
-- After the lede: one or two sentences of context — the reported problem (bug), the product need (feature), or where this sits in a larger effort
 - Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
 - **Link the fault.** A `(fix)` names where the failure was seen, on its own line after the prose: `**Sentry:** [PAYAUS-RAILS-15NF](https://tandahq.sentry.io/issues/PAYAUS-RAILS-15NF)`, or `**Setup log:**` with the counts and window when the fault raised no error. A reviewer opens the evidence rather than taking the Background's word for it.
 - Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
@@ -432,6 +432,7 @@ slice of the Manage Data Streams reshape — the previous slice left a slot for 
 - Keep it short. A reviewer skimming the list should understand the PR's impact in seconds
 - No code specifics — no method names, class names, file paths, parameter changes, or implementation details. The diff is right there
 - If it reads like a changelog of code edits, rewrite it
+- **Every removal carries its reason.** When the PR deletes a setting, call or behaviour a reviewer would expect to stay, name it and say why it can go — the one place a code name belongs in this section.
 
 > **Wrong**: Changed `allowance_tag_options` to accept the template as a kwarg instead of hardcoding `employment_condition_set_template`
 >
