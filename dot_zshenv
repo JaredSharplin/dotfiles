@@ -23,3 +23,9 @@ shims_and_wrappers_first
 # DEV_CATCH_EMAIL routes dev mail to the local mailpit catcher.
 export RUNNING_LOCAL_NATIVE_ENV=true
 export DEV_CATCH_EMAIL=true
+
+# eMudhra CA compromise (2026-10): mise's prebuilt Rubies read Apple's /etc/ssl/cert.pem, which
+# still trusts the roots behind the leaked intermediates. Homebrew's ca-certificates bundle has
+# them removed. Hardcoded path, not $(brew --prefix), since .zshenv runs for every shell.
+# Drop once Apple updates /etc/ssl/cert.pem (gist.github.com/camallen/6f52834eb738a3c642ae3f9bdde9ecf7).
+[[ -f /opt/homebrew/etc/ca-certificates/cert.pem ]] && export SSL_CERT_FILE=/opt/homebrew/etc/ca-certificates/cert.pem
