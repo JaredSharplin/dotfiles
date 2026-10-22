@@ -28,4 +28,11 @@ export DEV_CATCH_EMAIL=true
 # still trusts the roots behind the leaked intermediates. Homebrew's ca-certificates bundle has
 # them removed. Hardcoded path, not $(brew --prefix), since .zshenv runs for every shell.
 # Drop once Apple updates /etc/ssl/cert.pem (gist.github.com/camallen/6f52834eb738a3c642ae3f9bdde9ecf7).
-[[ -f /opt/homebrew/etc/ca-certificates/cert.pem ]] && export SSL_CERT_FILE=/opt/homebrew/etc/ca-certificates/cert.pem
+# Node and Bun (Claude Code) ship their own list: --use-openssl-ca empties it, NODE_EXTRA_CA_CERTS
+# refills it from brew's. All three or none — the flag alone leaves Node trusting nothing. Drop the
+# Node pair once Node/Bun ship nodejs/node#66871 / oven-sh/bun#46159; re-check after Node upgrades.
+if [[ -f /opt/homebrew/etc/ca-certificates/cert.pem ]]; then
+  export SSL_CERT_FILE=/opt/homebrew/etc/ca-certificates/cert.pem
+  export NODE_OPTIONS=--use-openssl-ca
+  export NODE_EXTRA_CA_CERTS=/opt/homebrew/etc/ca-certificates/cert.pem
+fi
