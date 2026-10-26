@@ -1,0 +1,10 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Reloads the sit/stand reminder whenever its launch agent changes.
+# plist hash: {{ include "private_Library/private_LaunchAgents/com.jaredsharplin.desk-posture.plist.tmpl" | sha256sum }}
+
+plist="$HOME/Library/LaunchAgents/com.jaredsharplin.desk-posture.plist"
+
+launchctl bootout "gui/$(id -u)" "$plist" 2>/dev/null
+launchctl bootstrap "gui/$(id -u)" "$plist"
+{{ end -}}
