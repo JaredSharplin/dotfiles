@@ -1,7 +1,9 @@
 #!/bin/bash
 # Sit/stand reminder, fired on the hour by the com.jaredsharplin.desk-posture launch agent.
 # Workdays run 8:30-17:30 sitting first, alternating hourly, with lunch at 12 unprompted.
-# System Events owns the alert so it takes keyboard focus: Return dismisses it.
+# System Events owns the alert so it takes keyboard focus: Return dismisses it. An unanswered
+# alert closes itself before the next hour's, and the wait outlasts it, since a timed-out
+# AppleEvent leaves the alert on screen to stack under the next one.
 
 (($(date +%u) <= 5)) || exit 0
 
@@ -11,7 +13,9 @@ case $(date +%-H) in
 *) exit 0 ;;
 esac
 
-osascript -e "tell application \"System Events\"
-  activate
-  display alert \"$posture\" message \"Take a short walk first.\" buttons {\"OK\"} default button \"OK\"
-end tell" >/dev/null
+osascript -e "with timeout of 3600 seconds
+  tell application \"System Events\"
+    activate
+    display alert \"$posture\" message \"Take a short walk first.\" buttons {\"OK\"} default button \"OK\" giving up after 3300
+  end tell
+end timeout" >/dev/null
