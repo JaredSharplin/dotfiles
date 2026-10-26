@@ -1,7 +1,7 @@
-# Versions track payaus (.ruby-version, .nvmrc, mise.toml). Exact, not major-only: payaus's
-# node.pp greps `mise list node` for the literal .nvmrc string.
+# Versions track payaus (.ruby-version, mise.toml). Node follows the LTS major, like payaus's
+# mise.toml, so `mise upgrade` picks up security patches.
 [tools]
-node = "24.16.0"
+node = "24"
 ruby = "3.4.9"
 yarn = "4.16.0"
 
