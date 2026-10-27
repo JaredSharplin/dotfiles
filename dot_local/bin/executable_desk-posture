@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sit/stand reminder, fired on the hour by the com.jaredsharplin.desk-posture launch agent.
-# Workdays run 8:30-17:30 sitting first, alternating hourly, with lunch at 12 unprompted.
+# Workdays run 8:30-17:30 sitting first, alternating hourly.
 # System Events owns the alert so it takes keyboard focus: Return dismisses it. An unanswered
 # alert closes itself before the next hour's, and the wait outlasts it, since a timed-out
 # AppleEvent leaves the alert on screen to stack under the next one.
@@ -9,7 +9,7 @@
 
 case $(date +%-H) in
 9 | 11 | 13 | 15 | 17) posture="Stand up" ;;
-10 | 14 | 16) posture="Sit down" ;;
+10 | 12 | 14 | 16) posture="Sit down" ;;
 *) exit 0 ;;
 esac
 
