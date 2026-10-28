@@ -1,6 +1,8 @@
 #!/bin/bash
 # Sit/stand reminder, fired on the hour by the com.jaredsharplin.desk-posture launch agent.
 # Workdays run 8:30-17:30 sitting first, alternating hourly.
+# While the screen is locked (away, or a dark wake replaying a missed hour) the alert waits for
+# the unlock, giving up at :55. An alert shown while locked never appears and blocks the next run.
 # System Events owns the alert so it takes keyboard focus: Return dismisses it. An unanswered
 # alert closes itself before the next hour's, and the wait outlasts it, since a timed-out
 # AppleEvent leaves the alert on screen to stack under the next one.
@@ -13,9 +15,16 @@ case $(date +%-H) in
 *) exit 0 ;;
 esac
 
+while ioreg -n Root -d1 | grep -q CGSSessionScreenIsLocked; do
+  (($(date +%-M) < 55)) || exit 0
+  sleep 60
+done
+
+seconds_until_next_hour=$(((59 - $(date +%-M)) * 60))
+
 osascript -e "with timeout of 3600 seconds
   tell application \"System Events\"
     activate
-    display alert \"$posture\" message \"Take a short walk first.\" buttons {\"OK\"} default button \"OK\" giving up after 3300
+    display alert \"$posture\" message \"Take a short walk first.\" buttons {\"OK\"} default button \"OK\" giving up after $seconds_until_next_hour
   end tell
 end timeout" >/dev/null
