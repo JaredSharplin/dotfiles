@@ -34,7 +34,7 @@ Look for prefactoring first — make the change easy, then make the easy change.
 
 </vertical-slice-rules>
 
-Present the slices as a numbered list in build order, one line each on what it delivers end to end. Ask whether the granularity is right and whether any slice should merge or split. End the turn and iterate until the user approves.
+Present the slices as a numbered list in build order, one line each on what it delivers end to end. Give each slice the slices it depends on ("Nothing" when it stands alone), so `/implement-spec` can run independent slices in parallel. Ask whether the granularity is right and whether any slice should merge or split. End the turn and iterate until the user approves.
 
 ### 4. Write `spec.md`
 

@@ -1,6 +1,6 @@
 export const meta = {
   name: 'implement-spec-slice',
-  description: 'Take one spec slice to a verified draft PR: build, review, browser-QA gate, PR screenshots, CI fix loop',
+  description: 'Take one spec slice to a verified draft PR: build, review, browser-QA gate, PR screenshots; CI fix loop only with start_at ci',
   whenToUse: 'Launched by the implement-spec skill, one run per slice',
   phases: [
     { title: 'Preflight', detail: 'Native dev, local DB and git town ready' },
@@ -8,7 +8,7 @@ export const meta = {
     { title: 'Review', detail: 'Independent review and fixes' },
     { title: 'QA', detail: 'manual-verifier gate, fix and re-verify' },
     { title: 'PR', detail: 'Screenshots and QA boxes on the PR' },
-    { title: 'CI', detail: 'Watch draft CI and fix failures' },
+    { title: 'CI', detail: 'Fix red CI (start_at: ci only)' },
   ],
 }
 
@@ -257,8 +257,11 @@ ${JSON.stringify(gate.qa, null, 2)}
 ${RULES}`, { label: 'pr-screenshots', phase: 'PR', schema: RESULT }))
 }
 
-let checks = await ciAndRecheck('first')
-if (!checks.ok) return stop(checks.stage, checks.detail)
+if (args.start_at === 'ci') {
+  const checks = await ciAndRecheck('requested')
+  if (!checks.ok) return stop(checks.stage, checks.detail)
+  return { status: 'done', ...slice, reviews, exhale_left: exhaleLeft, ci: checks.ci.summary, known_issues: knownIssues }
+}
 
 const reviewedHead = reviews.length ? reviews[reviews.length - 1].head_sha : null
 const finalScope = reviewedHead
@@ -266,9 +269,5 @@ const finalScope = reviewedHead
   : `the full diff, read only through \`gh pr diff ${slice.pr_number}\` (no earlier review ran in this run)`
 const final = await reviewRound('final', finalScope)
 if (!final.ok) return stop(final.stage, final.detail)
-if (final.changed) {
-  checks = await ciAndRecheck('after final review')
-  if (!checks.ok) return stop(checks.stage, checks.detail)
-}
 
-return { status: 'done', ...slice, reviews, exhale_left: exhaleLeft, ci: checks.ci.summary, known_issues: knownIssues }
+return { status: 'done', ...slice, reviews, exhale_left: exhaleLeft, ci: 'not watched here: the coordinator watches CI in the background', known_issues: knownIssues }
