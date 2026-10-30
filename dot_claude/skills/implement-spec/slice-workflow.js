@@ -163,7 +163,7 @@ Find the root cause and return one outcome:
 - checklist_wrong: the branch is right and the checklist sent QA to the wrong place, expected the wrong thing, or needed a state change without a \`bin/rails runner\` command for it. Return corrected_checklist in full, with every state change as a runner command plus its restore command.
 - not_caused_by_branch: the symptom appears the same way on comparable pages the branch never touched. Prove it from the code (read originals with \`git show origin/master:<path>\`) and return known_issue: one line naming the symptom, the pages, and the cause.
 - blocked: none of the above, or it needs a decision.
-${RULES}`, { label: `qa-fix#${attempt}`, phase: 'QA', schema: QA_FIX }))
+${RULES}`, { label: `qa-fix#${attempt}`, phase: 'QA', effort: 'medium', schema: QA_FIX }))
     if (!fix || fix.outcome === 'blocked') return { ok: false, reason: 'QA fix blocked', qa, fix }
     if (fix.outcome === 'checklist_wrong' && fix.corrected_checklist) slice.qa_checklist = fix.corrected_checklist
     if (fix.outcome === 'not_caused_by_branch' && fix.known_issue) knownIssues.push(fix.known_issue)
@@ -176,7 +176,7 @@ const preflight = await agent(`Preflight for building slice ${args.slice} of ${S
 - \`bin/rails db:migrate\` completes against the local native dev DB (run pending migrations; a failing migration, or anything needing db:reset or db:drop, is blocked — name the exact command for the user);
 - \`git config git-town.main-branch\` is set in ~/notes and in the repo (set it to the branch origin tracks if missing);
 - \`gh auth status\` is logged in.
-Return blocked with the single action the user must take if any check cannot be fixed safely.`, { label: 'preflight', phase: 'Preflight', schema: RESULT })
+Return blocked with the single action the user must take if any check cannot be fixed safely.`, { label: 'preflight', phase: 'Preflight', model: 'sonnet', effort: 'low', schema: RESULT })
 if (!preflight || preflight.status !== 'ok') return stop('Preflight', preflight)
 
 if (startIndex <= 0) {
@@ -208,7 +208,7 @@ async function reviewRound(round, scope) {
 ${JSON.stringify(actionable, null, 2)}
 
 Check each against the code and apply the genuine ones (test-first for behaviour), listing each in applied. A finding you judge wrong stays unapplied: list it in declined with the reason — the developer decides those. Run affected tests and lints, commit, push. Return head_sha as \`git -C ${slice.worktree_path} rev-parse HEAD\` after pushing. ${PREP(slice.worktree_path)}
-${RULES}`, { label: `review-fix-${round}`, phase: 'Review', schema: REVIEW_FIX }))
+${RULES}`, { label: `review-fix-${round}`, phase: 'Review', effort: 'medium', schema: REVIEW_FIX }))
   if (!fix || fix.status !== 'ok') return { ok: false, stage: `Review (${round})`, detail: fix }
   Object.assign(record, { applied: fix.applied, declined: fix.declined, head_sha: fix.head_sha })
   if (fix.declined.length) return { ok: false, stage: `Review declined (${round})`, detail: record }
@@ -217,7 +217,7 @@ ${RULES}`, { label: `review-fix-${round}`, phase: 'Review', schema: REVIEW_FIX }
 
 async function ciAndRecheck(round) {
   const ci = track(await agent(`Get draft PR #${slice.pr_number}'s CI green (branch ${slice.branch}, worktree ${slice.worktree_path}). Drafts run the GitHub checks (Abide and others), not Buildkite. Up to 3 rounds: \`gh pr checks ${slice.pr_number} --watch\`; on a failure read \`gh run view <id> --log-failed\`, fix the cause (for Abide: .claude/ABIDE.md, the rule in .abide/rubric.json, and bin/abide_check.rb locally when feasible), run affected tests and lints, commit, push, watch again. A red check is this branch's to fix forward. Set ui_changed when a fix changes what renders. ${PREP(slice.worktree_path)}
-${RULES}`, { label: `ci-${round}`, phase: 'CI', schema: CI }))
+${RULES}`, { label: `ci-${round}`, phase: 'CI', effort: 'medium', schema: CI }))
   if (!ci || ci.status !== 'green') return { ok: false, stage: `CI (${round})`, detail: ci }
   if (browserQa && ci.ui_changed) {
     const recheck = await qaGate()
@@ -254,7 +254,7 @@ if (browserQa && startIndex <= 2) {
   if (!gate.ok) return stop('QA', gate)
   track(await agent(`Update draft PR #${slice.pr_number}'s body (worktree ${slice.worktree_path}): use the /git-town skill's screenshot workflow and follow its Screenshots rule — upload the screenshots QA marked \`lead\` prominently under their placeholders, and every \`supplemental\` one (other states, setup pages, Lookbook previews) in the collapsed More screenshots block — and tick each Manual Browser QA box this QA verified (QA passed, so that is every box). Edit those sections surgically and keep the rest of the body as it is.
 ${JSON.stringify(gate.qa, null, 2)}
-${RULES}`, { label: 'pr-screenshots', phase: 'PR', schema: RESULT }))
+${RULES}`, { label: 'pr-screenshots', phase: 'PR', model: 'sonnet', effort: 'low', schema: RESULT }))
 }
 
 if (args.start_at === 'ci') {

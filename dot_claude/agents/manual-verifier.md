@@ -1,7 +1,8 @@
 ---
 name: manual-verifier
 description: Browser-based feature verifier using Chrome DevTools MCP. Runs in an isolated subagent so the parent session's context stays clean — DOM snapshots, screenshots, navigation logs stay in the subagent and only PASS/FAIL with concrete observations comes back. Dispatch via the Agent tool when you need to verify a UI change works end-to-end without polluting the main conversation. Used by address-review-comments and any time the parent says "verify this manually" / "check it in the browser" / "confirm the UI works".
-model: opus
+model: sonnet
+effort: medium
 permissionMode: acceptEdits
 ---
 
