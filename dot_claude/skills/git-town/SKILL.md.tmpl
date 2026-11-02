@@ -28,6 +28,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Take over someone's branch | `git town feature <branch>` | Full ownership: sync with parent + push |
 | Make changes on someone's active branch | `git town feature <branch>` + `git town set-parent <base>` | Never `contribute` — see "Working on Someone Else's Branch" |
 | Watch someone's branch (read-only) | `git town observe <branch>` | Pull only, don't push |
+| Continue a stack after its parent PR merged | `git town sync -s` from the child | The parent must not be checked out elsewhere — see "After a parent PR merges" |
 
 ## Pushing (off by default)
 
@@ -94,6 +95,20 @@ Every branch up the chain needs one too. If you set `my-branch`'s parent to `fea
 - `git town sync --stack` (or `-s`) - Syncs entire stack. **Use this whenever there's more than one branch in the stack** (current branch has a parent other than master, or has children). Plain `sync` on a stacked branch leaves siblings/descendants stale and produces phantom merge conflicts.
 - `git town sync` - Syncs current branch only. Use only for a lone branch off master with no children.
 **Warning:** Don't use `--stack` on master - it will sync all branches
+
+### After a parent PR merges
+
+Sync handles a merged parent itself. It treats a branch as shipped when its remote branch is gone after sync's own `git fetch --prune`. In that one run it deletes the local parent, makes the child a child of master, merges master in, and auto-resolves every conflict where master's copy of the file matches the shipped parent's. So don't check PR bases, lineage config or `git ls-remote` by hand first. Two things decide whether that single run works:
+
+- **The merged parent must not be checked out in another worktree.** Sync skips any branch checked out elsewhere, without a message, even with `-s`. It never sees that branch's remote is gone, merges the stale local parent into the child, and the PR diff grows by the parent's squashed files. A worktree holds a branch only while someone works in it (`/implement-spec` agents finish with `git checkout --detach`), so the parent is usually free already. When one still holds it, free it with `git -C <that worktree> checkout --detach`. The branch is merged, so detaching loses nothing, but ask first if a session is live in that worktree.
+- **Sync from the child, not from the parent's worktree.** Syncing in the parent's worktree also deletes the parent and reparents the child. But the child's next sync then starts with master as its parent. Auto-resolve only works while the shipped parent is the child's recorded parent when the run starts. Without it, the squash merge comes back as add/add and content conflicts to resolve by hand.
+
+```bash
+git -C <worktree holding the merged parent> checkout --detach   # only if a worktree still holds it
+git town sync -s                                               # from the child; add --push to update the PRs
+```
+
+`-s` carries the change down to the child's descendants too, as long as no other worktree holds them.
 
 ## ⛔ Suspended Command State — STOP, Don't Blind-Answer
 
@@ -395,12 +410,11 @@ the rendering logic into a shared presenter.
 - Extracted `values_table` partial to share markup with the show page
 ```
 
-**Right** — problem first, then what the PR does, plain English, no code names:
+**Right** — what the PR does, plain English, no code names:
 
 ```markdown
 ### Background
-The data stream edit page shows nothing a stream produces, so checking one means
-leaving the page. This PR adds a chart and a values table to the edit page. It's the
+This PR adds a chart and a values table to the data stream edit page. It's the
 fourth slice of the Manage Data Streams reshape — the previous slice left a slot for it.
 
 <br/>
@@ -418,8 +432,8 @@ fourth slice of the Manage Data Streams reshape — the previous slice left a sl
 
 ### Background
 
-- **Problem, then solution.** Open with the problem in plain terms — the fault someone hit (fix), the need the system doesn't meet yet (feature), or the cost the code carries (internal) — then how the PR solves it, and where it sits in a larger effort if it does.
-- **2–4 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the outcome and the motivation.
+- **Lead with what the PR does.** Open with "This PR adds / fixes / moves <thing>." Add the problem only when a reviewer couldn't guess why the change is wanted; never invent one to fill the slot. Then where it sits in a larger effort, if it does.
+- **1–3 sentences, one tight paragraph.** If you're describing how the code works, you've gone too far — cut back to the outcome and the motivation.
 - Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
 - **Link the fault.** A `(fix)` names where the failure was seen, on its own line after the prose: `**Sentry:** [PAYAUS-RAILS-15NF](https://tandahq.sentry.io/issues/PAYAUS-RAILS-15NF)`, or `**Setup log:**` with the counts and window when the fault raised no error. A reviewer opens the evidence rather than taking the Background's word for it.
 - Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
