@@ -29,8 +29,8 @@ Parallel development runs through Claude Code's **agent view** (`claude agents`)
 session auto-isolates into its own git worktree, so multiple tasks run concurrently without a
 persistent slot setup. Worktrees land beside the checkout, under `~/programming/tanda/worktrees/<name>/` — payaus's
 `bin/manage-worktrees` derives that as a sibling. The main repo at `~/programming/tanda/payaus`
-keeps `master` checked out as a clean baseline (and is where shared-dev-DB
-rails console and exploratory sessions run).
+sits on `master-duplicate` as a clean baseline, leaving `master` free for git town (and is where
+shared-dev-DB rails console and exploratory sessions run).
 
 ### PR Workflow
 

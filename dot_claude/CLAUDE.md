@@ -353,6 +353,15 @@ Use git town for branch management. Invoke the `/git-town` skill for detailed st
 - `git town sync` instead of `git push`
 - `git town propose` to open a PR (syncs and opens in one step)
 
+## Master stays free
+
+No worktree holds `master` — the main checkout sits on `master-duplicate` for exactly this reason. Git lets a branch be checked out in one worktree at a time, and git town updates master on every `hack` and `sync`, so one worktree on master breaks git town in all the others. Work with master by ref instead:
+
+- **Start a branch:** `git town hack <name>` from wherever you are — it branches off master without checking it out.
+- **Read master:** `git show origin/master:<path>`, `git log origin/master`.
+- **A clean master tree:** `git fetch && git checkout --detach origin/master`.
+- **Finished with a branch:** `git checkout --detach`.
+
 ## Commit and push cadence
 
 - **Commit** when a logical unit of work is complete — not after every file edit
