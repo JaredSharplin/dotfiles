@@ -359,7 +359,7 @@ No worktree holds `master` — the main checkout sits on `master-duplicate` for 
 
 - **Start a branch:** `git town hack <name>` from wherever you are — it branches off master without checking it out.
 - **Read master:** `git show origin/master:<path>`, `git log origin/master`.
-- **A clean master tree:** `git fetch && git checkout --detach origin/master`.
+- **Comparing against master:** commit first so the tree is clean, then `git fetch && git checkout --detach origin/master`, run the comparison, and `git checkout <branch>` to return. Needing both trees at once is the one case for a second worktree: `git worktree add --detach <path> origin/master`.
 - **Finished with a branch:** `git checkout --detach`.
 
 ## Commit and push cadence
