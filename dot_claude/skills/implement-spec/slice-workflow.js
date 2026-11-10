@@ -5,7 +5,7 @@ export const meta = {
   phases: [
     { title: 'Preflight', detail: 'Native dev, local DB and git town ready' },
     { title: 'Build', detail: 'TDD build of the slice to a draft PR' },
-    { title: 'Review', detail: 'Independent review and fixes' },
+    { title: 'Review', detail: "The team's code-review workflow plus a spec check, posted to the PR, then fixes" },
     { title: 'QA', detail: 'manual-verifier gate, fix and re-verify' },
     { title: 'PR', detail: 'Screenshots and QA boxes on the PR' },
     { title: 'CI', detail: 'Fix red CI (start_at: ci only)' },
@@ -58,6 +58,18 @@ const REVIEW = {
     head_sha: { type: 'string' },
   },
   required: ['findings', 'head_sha'],
+}
+const REPO = 'TandaHQ/payaus'
+const RUN_MODEL = args.model || 'claude-opus-5-5'
+const RUN_STAMP = {
+  type: 'object',
+  properties: { started_at: { type: 'string' }, started_epoch: { type: 'number' }, claude_code_version: { type: 'string' } },
+  required: ['started_at', 'started_epoch', 'claude_code_version'],
+}
+const POSTED = {
+  type: 'object',
+  properties: { posted: { type: 'boolean' }, message: { type: 'string' }, results_file: { type: 'string' } },
+  required: ['posted', 'message', 'results_file'],
 }
 const REVIEW_FIX = {
   type: 'object',
@@ -143,7 +155,7 @@ Coverage, on top of the checklist:
 
 Pass rule: PASS means every checklist step, every PR QA box and every changed component's previews were checked and held. FAIL on a defect this branch introduced — something the checklist expects that is missing or wrong, a broken interaction, or a console error from code the branch changed — and FAIL on any step you could not check (a feature flag, data or permission missing), naming what was missing so it can be set up. A console error that also appears on comparable pages the branch never touched is noise: record it in noted_noise and keep going.${known}
 
-Save one PNG screenshot per checklist page, PR box and preview state under ${slice.worktree_path}/tmp/qa-slice-${slice.slice}/ and return the paths. Mark each page's prominence: \`lead\` for the few that show this slice's main change (the ones a reviewer would miss if hidden, usually one to three), \`supplemental\` for the rest.`, { label: `qa#${attempt}`, phase: 'QA', agentType: 'manual-verifier', schema: QA })
+Save one PNG screenshot per checklist page, PR box and preview state under ${slice.worktree_path}/tmp/qa-slice-${slice.slice}/ and return the paths. Mark each page's prominence: \`lead\` for the few that show this slice's main change (the ones a reviewer would miss if hidden, usually one to three), \`supplemental\` for the rest.`, { label: `qa#${attempt}`, phase: 'QA', agentType: 'manual-verifier', model: 'haiku', schema: QA })
 }
 
 async function qaGate() {
@@ -176,12 +188,12 @@ const preflight = await agent(`Preflight for building slice ${args.slice} of ${S
 - \`bin/rails db:migrate\` completes against the local native dev DB (run pending migrations; a failing migration, or anything needing db:reset or db:drop, is blocked — name the exact command for the user);
 - \`git config git-town.main-branch\` is set in ~/notes and in the repo (set it to the branch origin tracks if missing);
 - \`gh auth status\` is logged in.
-Return blocked with the single action the user must take if any check cannot be fixed safely.`, { label: 'preflight', phase: 'Preflight', model: 'sonnet', effort: 'low', schema: RESULT })
+Return blocked with the single action the user must take if any check cannot be fixed safely.`, { label: 'preflight', phase: 'Preflight', model: 'haiku', effort: 'low', schema: RESULT })
 if (!preflight || preflight.status !== 'ok') return stop('Preflight', preflight)
 
 if (startIndex <= 0) {
   const base = args.parent
-    ? `Stack on ${args.parent.branch} (PR #${args.parent.pr_number}): \`git fetch origin\`, \`git checkout -b <branch> origin/${args.parent.branch}\`, record the parent with \`git town set-parent ${args.parent.branch}\` (or \`git config git-town-branch.<branch>.parent ${args.parent.branch}\` if that wants a TTY), and open the PR with \`--base ${args.parent.branch}\`.`
+    ? `Stack on ${args.parent.branch} (PR #${args.parent.pr_number}): \`git fetch origin\`, \`git checkout --no-track -b <branch> origin/${args.parent.branch}\`, record the parent with \`git town set-parent ${args.parent.branch}\` (or \`git config git-town-branch.<branch>.parent ${args.parent.branch}\` if that wants a TTY), and open the PR with \`--base ${args.parent.branch}\`.`
     : 'Branch off master with `git town hack <branch>`.'
   const built = track(await agent(`Build SLICE ${args.slice} of ${SPEC} to a DRAFT PR. Read the whole spec, then load the \`spec\` skill and follow "Picking up a slice". You are in a fresh worktree; return its absolute path as worktree_path and https://<worktree dirname>.test as app_url.
 ${args.notes || ''}
@@ -197,11 +209,33 @@ ${RULES}`, { label: 'build', phase: 'Build', isolation: 'worktree', schema: BUIL
   log(`Slice ${args.slice}: draft PR #${slice.pr_number}`)
 }
 
+async function teamReview(round) {
+  const stamp = await agent(`Run \`date -u +"%Y-%m-%dT%H:%M:%SZ %s"\` and \`claude --version\`. Return started_at (the ISO time), started_epoch (the seconds, as a number) and claude_code_version (the version number before " (Claude Code)"). Do nothing else.`, { label: `review-stamp-${round}`, phase: 'Review', model: 'haiku', effort: 'low', schema: RUN_STAMP })
+  if (!stamp) return { error: 'could not read the start time and Claude Code version' }
+  let reviewed
+  try {
+    reviewed = await workflow('code-review', { pr: `https://github.com/${REPO}/pull/${slice.pr_number}`, base_branch: '', run: { started_at: stamp.started_at, model: RUN_MODEL, claude_code_version: stamp.claude_code_version } })
+  } catch (error) {
+    return { error: `code-review workflow failed: ${error}` }
+  }
+  if (!reviewed?.results) return { skipped: reviewed?.report || 'the code-review workflow returned no results', findings: [] }
+  const posted = await agent(`Save a finished code review of PR #${slice.pr_number} as a results file for the coordinator to post. Run \`mktemp -d\` and \`date +%s\`. Set results.run.duration_ms to (the seconds now minus ${stamp.started_epoch}) times 1000. Write the results below, with that field set, as JSON to <the new directory>/ai-review-results.json with the Write tool. That is your whole task: return posted false, message "saved for the coordinator to post", and results_file (the absolute path of the file you wrote).
+${JSON.stringify(reviewed.results)}`, { label: `review-save-${round}`, phase: 'Review', model: 'haiku', effort: 'low', schema: POSTED })
+  const findings = reviewed.results.findings.map(f => ({ file: f.path, line: f.line, severity: 'should_fix', summary: f.title, evidence: f.body, source: `team review (${f.check})` }))
+  return { findings, head_sha: reviewed.results.head_sha, report: reviewed.report, posted: posted?.posted === true, post_message: posted?.message || 'the poster step did not run', results_file: posted?.results_file || null }
+}
+
 async function reviewRound(round, scope) {
-  const found = await agent(`Review draft PR #${slice.pr_number}, slice ${slice.slice} of ${SPEC} (read the slice and the Implementation Decisions). Load the \`code-review\` skill and follow it. Review ${scope}; the code at ${slice.worktree_path} is context, read-only. Serious issues only: correctness, fidelity to the spec and scope creep, Sorbet strictness, design-system and ViewComponent conventions, test quality, rules in .abide/rubric.json. Evidence for every finding. Return head_sha as \`git -C ${slice.worktree_path} rev-parse HEAD\`.`, { label: `review-${round}`, phase: 'Review', schema: REVIEW })
-  const findings = found?.findings || []
+  const [team, spec] = await parallel([
+    () => teamReview(round),
+    () => agent(`Check draft PR #${slice.pr_number}, slice ${slice.slice} of ${SPEC}, for fidelity to the spec only — the team's code review runs separately, so don't repeat a general code review. Read the slice, the Implementation Decisions and any rules the spec sets for this kind of PR (for a harvest PR, its 'Types-only harvest' rules), then review ${scope}; the code at ${slice.worktree_path} is context, read-only. Report only where the PR departs from what the spec says: scope creep, files or changes the spec's rules exclude or say to hold back, a typing technique the spec rules out, a PR body that misstates what the PR does. Evidence for every finding. Return head_sha as \`git -C ${slice.worktree_path} rev-parse HEAD\`.`, { label: `spec-check-${round}`, phase: 'Review', model: 'haiku', schema: REVIEW }),
+  ])
+  if (!team || team.error) return { ok: false, stage: `Review (${round})`, detail: team?.error || 'the team code review did not finish' }
+  if (team.results_file) log(`Review ${round}: results for PR #${slice.pr_number} saved to ${team.results_file} for the coordinator to post`)
+  const findings = [...team.findings, ...(spec?.findings || []).map(f => ({ ...f, source: 'spec check' }))]
   const actionable = findings.filter(f => f.severity !== 'nit')
-  const record = { round, findings, applied: [], declined: [], head_sha: found?.head_sha }
+  const reviewedSha = team.head_sha || spec?.head_sha
+  const record = { round, findings, applied: [], declined: [], reviewed_sha: reviewedSha, head_sha: reviewedSha, team_review: team.skipped || team.report, posted: team.posted, post_message: team.post_message, results_file: team.results_file }
   reviews.push(record)
   if (!actionable.length) return { ok: true, changed: false }
   const fix = track(await agent(`Apply review findings to draft PR #${slice.pr_number} (branch ${slice.branch}, worktree ${slice.worktree_path}):
@@ -254,7 +288,7 @@ if (browserQa && startIndex <= 2) {
   if (!gate.ok) return stop('QA', gate)
   track(await agent(`Update draft PR #${slice.pr_number}'s body (worktree ${slice.worktree_path}): use the /git-town skill's screenshot workflow and follow its Screenshots rule — upload the screenshots QA marked \`lead\` prominently under their placeholders, and every \`supplemental\` one (other states, setup pages, Lookbook previews) in the collapsed More screenshots block — and tick each Manual Browser QA box this QA verified (QA passed, so that is every box). Edit those sections surgically and keep the rest of the body as it is.
 ${JSON.stringify(gate.qa, null, 2)}
-${RULES}`, { label: 'pr-screenshots', phase: 'PR', model: 'sonnet', effort: 'low', schema: RESULT }))
+${RULES}`, { label: 'pr-screenshots', phase: 'PR', model: 'haiku', effort: 'low', schema: RESULT }))
 }
 
 if (args.start_at === 'ci') {
@@ -263,11 +297,20 @@ if (args.start_at === 'ci') {
   return { status: 'done', ...slice, reviews, exhale_left: exhaleLeft, ci: checks.ci.summary, known_issues: knownIssues }
 }
 
+const nothingChangedSinceReview = reviews.length > 0 && !browserQa && reviews.every(r => r.applied.length === 0)
+if (nothingChangedSinceReview) return { status: 'done', ...slice, reviews, exhale_left: exhaleLeft, ci: 'not watched here: the coordinator watches CI in the background', known_issues: knownIssues }
+
 const reviewedHead = reviews.length ? reviews[reviews.length - 1].head_sha : null
 const finalScope = reviewedHead
   ? `only the commits added since the first review: \`git -C ${slice.worktree_path} diff ${reviewedHead}..HEAD\` (empty means nothing to review — return no findings)`
   : `the full diff, read only through \`gh pr diff ${slice.pr_number}\` (no earlier review ran in this run)`
 const final = await reviewRound('final', finalScope)
 if (!final.ok) return stop(final.stage, final.detail)
+if (final.changed) {
+  const fixedHead = reviews[reviews.length - 1].head_sha
+  const afterFix = await reviewRound('after-fix', `only the commits the final round's fixes added: \`git -C ${slice.worktree_path} diff ${reviews[reviews.length - 1].reviewed_sha}..${fixedHead}\` (empty means nothing to review — return no findings)`)
+  if (!afterFix.ok) return stop(afterFix.stage, afterFix.detail)
+  if (afterFix.changed) return stop('Review after fix', reviews[reviews.length - 1])
+}
 
 return { status: 'done', ...slice, reviews, exhale_left: exhaleLeft, ci: 'not watched here: the coordinator watches CI in the background', known_issues: knownIssues }

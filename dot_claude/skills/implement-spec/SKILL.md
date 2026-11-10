@@ -15,6 +15,8 @@ The coordinator reads state (workflow results and journals, `gh pr checks`, the 
 
 Read `spec.md`. A slice that depends on another (the spec's "Depends on" column, or shared code) launches only once that one returns `done` — reviews clean, QA gate passed — so it builds on a proven-working state. Independent slices run in parallel, one workflow each, in batches of about 5. Run the first slice of a new kind of work alone first: a problem its review finds is then fixed once in the notes, not in every parallel PR. Stacking is only for slices that touch the same code; a shared config line that git merges cleanly is no reason to stack. CI runs in the background (step 3) and doesn't hold the next slice: a parent that goes red is fixed on the parent, and git town carries the fix down. Where each slice branches from is a separate, git-only choice: **stack** on an earlier slice's branch when they touch the same code, otherwise branch off master.
 
+Settle the PR shape — how a slice splits into PRs, what stacks on what, which PR edits shared config — before the first slice opens a PR. A later change to it applies to slices not yet built; reworking PRs already open is a separate decision for the user, stated with how many PRs it touches.
+
 Done when the spec's Build section records the order, each slice's base, and a slice / branch / PR table.
 
 ### 2. Run the next slice
@@ -31,12 +33,21 @@ Workflow({
     start_at: "build",                            // build | revise | review | qa | ci
     revision: null,                               // with start_at "revise": the user's change, in their words
     known_issues: [],                             // carried forward from the previous result
-    qa: true                                      // false when the slice changes nothing user-visible (test-only, tooling)
+    qa: true,                                     // false when the slice changes nothing user-visible (test-only, tooling)
+    model: "claude-opus-5-5"                      // the model ID you are running as, recorded in the review's run details
   }
 })
 ```
 
+Each review round runs the repo's own `code-review` workflow from inside the slice workflow, saves its results to a `results_file`, and runs a spec-fidelity check beside it. The coordinator posts: after a slice returns, take the last round's `results_file`, confirm its `head_sha` is the PR's head commit, and post it from the main session with the `code-review` skill's posting step (workflow agents' attempts to post are denied). The posted review is the PR's record of review, so it must be of the head commit: the last round runs after the last push, and any later push, a master merge included, needs a fresh round before the PR is called ready. Review an open PR outside a slice run through the `code-review` skill in the main session, since only the main session can start its workflow and post.
+
 A slice that already has a PR passes `existing` and the stage to restart from. When the user changes what an open PR should do, update the spec first, then relaunch it with `start_at: "revise"` and their instruction as `revision`: an agent syncs the branch with its parent, makes the change, rewrites the PR's description and QA boxes, and the slice runs review → QA again. The result carries everything the next launch needs: branch, PR, worktree, checklist and `known_issues`.
+
+Every change to an open slice PR — review fixes, splits, retargets, conflict merges that change the PR's own code, body edits — goes through this workflow: `existing` plus `start_at: "revise"` with the change as `revision`, or `"review"` / `"ci"`. Its `RULES` and per-step models then apply. Never hand the change to a one-off Agent briefed by the coordinator.
+
+Merging master is the exception when the PR's own changes come through it unchanged: a clean merge, or a conflict resolved by keeping master's code and re-applying the PR's lines as they were. The workflow's revise and two review rounds turn a few minutes into twenty for no review value. Do it directly in the slice's worktree: `git town sync`, resolve, `srb tc`, the tests for the conflicted files, `git town sync --push`. If master's change means the PR's code has to change too (a rewrite no longer fits, a sig no longer matches a new caller), that part is a real change: send it through the workflow.
+
+One branch per worktree. When a slice opens a second PR (a split), that branch gets its own worktree; agents never check out another branch inside a slice's worktree.
 
 Done when the workflow's completion notification arrives.
 
@@ -44,7 +55,7 @@ Done when the workflow's completion notification arrives.
 
 Record the slice's branch and PR in the Build table, then commit and push `~/notes` (see `/spec`, "Ending a session"). Relay the result's `reviews` (each round's findings and what was applied) and `exhale_left` (smells an agent kept, with reasons) to the user. A `done` slice sends the coordinator back to step 2 for the next slice, or the next batch once every slice in this one has returned. Anything else is a **stop**: tell the user its stage and blockers in plain terms (table below), get the decision, and relaunch that slice with `existing` and `start_at`.
 
-After a `done` result, watch CI without blocking: start `gh pr checks <n> --watch --fail-fast` with Bash `run_in_background` — never an agent, a workflow stage or a foreground wait. Holding a run open for CI burns tokens and makes a finished slice look stuck. When the command exits: non-zero means a check is red, so tell the user which one and relaunch the slice with `existing` and `start_at: "ci"`, the fix loop; zero gets one line, "CI green on #<n>".
+After a `done` result, watch CI without blocking: start `gh pr checks <n> --watch --fail-fast` with Bash `run_in_background` — never an agent, a workflow stage or a foreground wait. Holding a run open for CI burns tokens and makes a finished slice look stuck. When the command exits: non-zero means a check is red, so tell the user which one and relaunch the slice with `existing` and `start_at: "ci"`, the fix loop; zero gets one line, "CI green on #<n>". A draft runs only GitHub's checks, not Buildkite: for a draft say "GitHub checks pass on #<n>", and call CI green only once Buildkite has passed on a PR marked ready.
 
 Done when every slice is `done` — a draft PR with QA screenshots and green CI — or the user holds the one decision that unblocks the next run.
 
@@ -55,6 +66,7 @@ Done when every slice is `done` — a draft PR with QA screenshots and green CI 
 | Preflight | Local dev isn't ready (a failing migration, git town or `gh` setup). The result names the one command for the user. |
 | Build / Review | The spec looks wrong for the slice, or a fix agent couldn't apply a review finding. |
 | Review declined | A fix agent judged a review finding wrong. The user accepts the decline, or relaunches from `review` with their instruction. Both review rounds — the first, and the final one over commits added after it — stop this way. |
+| Review after fix | The final round applied a fix, the extra round that reviews that fix found more and fixed it too, so the head is again unreviewed. The user decides whether to review once more or hand the PR over. |
 | QA | The fix agent returned `blocked`, or three QA rounds still failed. |
 | CI | A check stayed red after three fix rounds. |
 
