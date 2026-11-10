@@ -6,8 +6,8 @@
 # System Events owns the alert so it takes keyboard focus: Return dismisses it. An unanswered
 # alert closes itself before the next hour's, and the wait outlasts it, since a timed-out
 # AppleEvent leaves the alert on screen to stack under the next one.
-# Each run logs to ~/.local/state/desk-posture.log; a dismissal within a second or two of
-# showing was likely a stray Return.
+# A dismissal within 2 seconds of showing is taken as a stray Return or click while typing, so the
+# alert shows again. Each run logs to ~/.local/state/desk-posture.log.
 
 (($(date +%u) <= 5)) || exit 0
 
@@ -31,20 +31,31 @@ while ioreg -n Root -d1 | grep -q CGSSessionScreenIsLocked; do
   sleep 60
 done
 
-seconds_until_next_hour=$(((59 - $(date +%-M)) * 60))
+while :; do
+  seconds_until_next_hour=$(((59 - $(date +%-M)) * 60))
 
-log "shown"
-shown_at=$SECONDS
+  log "shown"
+  shown_at=$SECONDS
 
-result=$(osascript -e "with timeout of 3600 seconds
-  tell application \"System Events\"
-    activate
-    display alert \"$posture\" message \"Take a short walk first.\" buttons {\"OK\"} default button \"OK\" giving up after $seconds_until_next_hour
-  end tell
-end timeout" 2>&1)
+  result=$(osascript -e "with timeout of 3600 seconds
+    tell application \"System Events\"
+      activate
+      display alert \"$posture\" message \"Take a short walk first.\" buttons {\"OK\"} default button \"OK\" giving up after $seconds_until_next_hour
+    end tell
+  end timeout" 2>&1)
 
-case $result in
-*"gave up:true"*) log "unanswered, closed itself" ;;
-*"button returned:OK"*) log "dismissed after $((SECONDS - shown_at))s" ;;
-*) log "alert failed: $result" ;;
-esac
+  seconds_shown=$((SECONDS - shown_at))
+
+  case $result in
+  *"gave up:true"*) log "unanswered, closed itself" ;;
+  *"button returned:OK"*)
+    if ((seconds_shown < 2)); then
+      log "dismissed after ${seconds_shown}s, reshowing"
+      continue
+    fi
+    log "dismissed after ${seconds_shown}s"
+    ;;
+  *) log "alert failed: $result" ;;
+  esac
+  break
+done
