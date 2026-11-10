@@ -209,11 +209,11 @@ parent=$(git config "git-town-branch.$(git branch --show-current).parent")
 echo "$parent"                                  # empty? STOP — see "Branches Git Town Didn't Create"
 git town sync                                   # integrate parent locally; does NOT push
 gh pr create --draft --base "$parent" \
-  --title "..." --body "..." \
+  --title "..." --body-file <scratchpad>/pr-body.md \
   --assignee @me --label <type-label> --label built-in-australia
 ```
 
-`git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` is the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
+Draft the body in `<scratchpad>/pr-body.md` and humanize it first (see *Humanize every body before it goes out* under *PR Style Guide*). `git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` is the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
 
 **Don't default an empty `parent` to `master`.** Empty means no parent was recorded, not that the parent is master — on a stacked branch that guess opens the PR against the wrong base and the diff shows the parent's commits as yours. Record the real parent with `git town set-parent`, then create the PR.
 
@@ -345,6 +345,8 @@ On top of that, for PR bodies specifically:
 - **No floating time words.** The body is read after merge, when "today", "currently", "now", "at the moment" and "at present" describe the wrong code. When the old behaviour needs stating, anchor it to the PR: "Before this PR, the review confirmed each report on its own." The fault template above does the same job in the past tense.
 
 If the body reads like a changelog of code edits, rewrite it as a couple of plain sentences about what changed for the user or the system.
+
+**Humanize every body before it goes out.** Whenever you write a new body or change the prose of an existing one, load `/ste80-humanizer` and run the body through it in embedded mode, at the default Humanize level. It rewrites prose only: headings, `<br/>` spacers, tables, code, links, identifiers and screenshots stay as they are. Then run `python3 ~/.claude/skills/ste80-humanizer/scripts/ste_check.py <body file>` and fix each real finding. The checker is a heuristic and flags some false positives, such as "are unchanged" as passive voice.
 
 ### Title Format
 
@@ -611,7 +613,7 @@ gh pr view <number> --json body -q .body > <scratchpad>/pr-<number>-body.md
 ```
 
 1. **Read the whole file** — the full body, not a grep or a slice.
-2. **Edit** it, one Edit call per change. It fails loudly on a no-match or an ambiguous match, so a stale assumption aborts instead of silently doing nothing.
+2. **Edit** it, one Edit call per change. It fails loudly on a no-match or an ambiguous match, so a stale assumption aborts instead of silently doing nothing. If an edit changes prose, humanize the changed sections (see *Humanize every body before it goes out* under *PR Style Guide*).
 3. **Read the file again** before pushing. A body can be textually correct and still render wrong — a `NOTE:` jammed against a list item, a heading with no blank line above it, a stray `<br/>`. A text diff can't show a rendering defect; only reading the assembled body can. Check the blank lines on both sides of every insertion point.
 4. Push:
 
