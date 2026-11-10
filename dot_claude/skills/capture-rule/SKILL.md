@@ -3,7 +3,7 @@ name: capture-rule
 description: >
   Route a correction back into the Claude harness so the mistake doesn't repeat.
   Given something Claude got wrong in this session, decide where the rule should
-  live (global CLAUDE.md, project CLAUDE.md, write-rules.yml, a new hook, a personal
+  live (global AGENTS.md, project AGENTS.md, write-rules.yml, a new hook, a personal
   rubocop cop, a skill trigger), draft the wording, and write it after the user
   confirms. Use when the user invokes /capture-rule or says "codify this", "make this
   a rule", "remember this so Claude stops doing it", "add a guard for this".
@@ -30,8 +30,8 @@ Anchor on:
 
 | Scope | Destination |
 |---|---|
-| Cross-project, language-agnostic (e.g. "quote paths with spaces") | Global `~/.claude/CLAUDE.md` — chezmoi source `~/.local/share/chezmoi/dot_claude/CLAUDE.md` |
-| Cross-project, language/tool-specific (e.g. all Ruby work) | Global `CLAUDE.md` section, or a new global skill if it's a workflow |
+| Cross-project, language-agnostic (e.g. "quote paths with spaces") | Global `~/.config/agents/AGENTS.md` — chezmoi source `~/.local/share/chezmoi/dot_config/agents/AGENTS.md`. `~/.claude/CLAUDE.md` only imports it; never write rules there |
+| Cross-project, language/tool-specific (e.g. all Ruby work) | Global `AGENTS.md` section, or a new global skill if it's a workflow |
 | Project-specific to payaus | `~/programming/tanda/payaus/.claude/` artifacts |
 | Project-specific to another repo | That repo's `.claude/` or `CLAUDE.md` |
 
