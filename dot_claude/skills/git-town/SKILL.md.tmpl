@@ -227,7 +227,7 @@ Choose the type label by the nature of the change. If unsure, ask before creatin
 
 Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
 
-**Every PR is a draft, and the developer alone flips it ready.** `gh pr ready` is **off the table for Claude** — no exceptions, not on request, not as the obvious last step of a finished task. The ready-flip is the developer's review gate and stays in their hands; when a PR looks ready, say so and leave the command to them.
+**Every PR is a draft, and the developer decides when it's ready.** Don't run `gh pr ready` on your own initiative — not as the obvious last step of a finished task, not because a PR looks done. When a PR looks ready, say so. When the developer explicitly asks you to mark specific PRs ready, run `gh pr ready` for exactly those PRs.
 
 The draft still gets full browser QA from Claude before handoff: screenshots filled (see *Screenshots* below) and the Manual Browser QA boxes checked for every task Claude verified (see *Checking the boxes after QA*). "Draft" means the developer hasn't reviewed, not that QA was skipped; leaving Screenshots placeholders unfilled on a user-visible change is an incomplete PR, not a handoff.
 
