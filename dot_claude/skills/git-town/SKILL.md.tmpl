@@ -39,7 +39,7 @@ Pushing is **off by default** (`push-branches = false` in global git config). Th
 - `gh pr create --draft` pushes the branch as part of opening the PR — that's a new branch's first push. Because the PR opens as a draft, no CI runs.
 - `observe` branches never push regardless (they're read-only).
 
-Rule of thumb: sync freely to stay up to date; push only when you actually want the remote / PR updated. Pushing a *draft* runs no CI unless the PR carries the `run-bk` label — deciding whether it should is Claude's call, see *Running CI on a draft*.
+Rule of thumb: sync freely to stay up to date; push draft branches whenever a logical unit lands, and ask before pushing a PR the developer has marked ready for review. Pushing a *draft* runs no CI unless the PR carries the `run-bk` label — deciding whether it should is Claude's call, see *Running CI on a draft*.
 
 ## When to Use Git Town vs Standard Git
 
