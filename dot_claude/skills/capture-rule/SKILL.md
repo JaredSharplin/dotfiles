@@ -90,7 +90,7 @@ After writing, summarize: file path, what was added, and whether deployment ran.
 
 ## Don't
 
-- **Don't auto-commit.** Per global CLAUDE.md, commits happen when a logical unit of work is complete, not after every edit.
+- **Don't auto-commit.** Per global AGENTS.md, commits happen when a logical unit of work is complete, not after every edit.
 - **Don't write rules without the user confirming via AskUserQuestion.** Even if the correction is clear-cut, the routing decision still needs sign-off.
 - **Don't add a hook or skill when a CLAUDE.md line would do.** Start with prose; promote to a structural enforcement mechanism only when the rule needs that level of guard.
 - **Don't restate context from the conversation in the rule.** The rule should stand on its own — "we don't do X here because Y", not "earlier you mentioned X".

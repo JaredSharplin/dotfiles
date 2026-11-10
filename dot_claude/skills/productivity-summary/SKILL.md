@@ -136,7 +136,7 @@ they're in the history rather than missing by accident.
 ### The brief for each subagent
 
 Read `gh pr view <number> --json title,body,additions,deletions` and then the diff, following the
-size rules in the global CLAUDE.md (`--name-only` first when it's large). Write
+size rules in the global AGENTS.md (`--name-only` first when it's large). Write
 `~/.local/share/productivity/study/<number>.json`:
 
 ```json

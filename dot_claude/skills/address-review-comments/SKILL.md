@@ -115,7 +115,7 @@ One commit per logical group of related fixes. Commit messages should reference 
 - `Fix race in PayRun#finalize per @reviewer comment`
 - `Defer: tracked in <link> — clarify with reply`
 
-Don't co-author with Claude (per global CLAUDE.md). Don't amend prior commits — create new ones.
+Don't co-author with Claude (per global AGENTS.md). Don't amend prior commits — create new ones.
 
 ## Step 7: Push
 
@@ -163,7 +163,7 @@ Summarise to the user:
 - **One commit per logical group, not per thread.** Reviewers reading the diff want to see the net change, not a thread-by-thread audit trail.
 - **Don't expand scope.** Address only what was raised. Adjacent cleanup goes in a follow-up.
 - **A reply is `Thanks, fixed in <sha>` and nothing else.** No approach summary, no context, no offers. Anything beyond the SHA is speaking for the user — for a deferred or disputed thread, hand them the wording instead of posting it.
-- **Don't push hooks-skip flags.** Per global CLAUDE.md, `--no-verify` is off the table; let pre-commit hooks run.
+- **Don't push hooks-skip flags.** Per global AGENTS.md, `--no-verify` is off the table; let pre-commit hooks run.
 - **Don't auto-iterate on verification failures.** If manual-verifier returns FAIL, surface and stop. The user decides whether to retry.
 
 ## When to refuse

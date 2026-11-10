@@ -39,7 +39,7 @@ Relay a `has no .env` line too — the box's copy goes with that sync and compos
 
 - `gh pr view --json number,title,body,url` (from the worktree — infers the PR from the branch).
 - Extract the section under a `## QA`, `## Testing`, or `## How to test` heading (payaus has no PR template; `## QA` is the common convention).
-- No such section → derive concrete QA steps from the diff (follow the PR-diff-size workflow in the global CLAUDE.md § "Analyzing PR changes"). Say the checklist is derived, not authored.
+- No such section → derive concrete QA steps from the diff (follow the PR-diff-size workflow in the global AGENTS.md § "Analyzing PR changes"). Say the checklist is derived, not authored.
 - No PR for the branch → say so and derive steps from `git log`/diff against master.
 
 ### 5. Wait for readiness
