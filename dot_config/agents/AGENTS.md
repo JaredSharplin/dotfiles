@@ -400,7 +400,9 @@ After the re-run, if it's still red it's your code: `git diff master -- <file>` 
 
 ## GitHub comments
 
-Don't leave comments on GitHub — PR comments, review-thread replies, issue comments — unless I specifically ask. When I do ask, the reply is `Thanks, fixed in <sha>` and nothing else. Don't speak for me.
+Don't post comments on GitHub in my name — PR comments, review-thread replies, issue comments made through my `gh` login — unless I specifically ask. When I do ask, the reply is `Thanks, fixed in <sha>` and nothing else. Don't speak for me.
+
+This covers what appears under my account, not what a bot posts. A skill step that hands results to a bot poster (e.g. `/code-review` dispatching `ai_review_dispatch.rb`, posted by github-actions[bot]) is outside this rule — run it as printed.
 
 ## Analyzing PR changes
 
