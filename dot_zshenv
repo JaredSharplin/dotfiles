@@ -17,6 +17,8 @@ export PATH="$PATH:/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin"
 # whatever shell ran it — a script, a git hook, an agent.
 export PATH="$PATH:/opt/homebrew/opt/postgresql@17/bin"
 shims_and_wrappers_first
+# The shadowing above is deliberate, so silence brew's hint warning about it on every upgrade.
+export HOMEBREW_NO_PATH_SHADOW_CHECK=1
 
 # payaus native dev. In .zshenv (not .zshrc) so non-interactive shells — scripts, git hooks, agents —
 # see it, not just interactive terminals. config/boot.rb loads .env.local when set (skipped in tests);
