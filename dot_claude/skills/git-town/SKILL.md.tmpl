@@ -543,16 +543,23 @@ Don't use any repo's `tmp/` directory as an intermediate — it leaves stray fil
 
 #### Uploading to the PR
 
-Upload the captured screenshots with the `gh image` extension — it prints paste-ready markdown, one line per file:
+gh uploads the screenshots as part of the body push, using `--attach`. There is no separate upload step.
 
-```bash
-gh image ~/Desktop/<branch-slug>-screenshots/*.png
-# → ![edit-this-week-daily.png](https://github.com/user-attachments/assets/<uuid>)
-```
+1. In the surgical body edit (see *⛔ Editing PR Bodies* below), put an image ref with the screenshot's **absolute** local path under each lead placeholder. Put the rest in the More screenshots block (see *Screenshots*):
 
-Put the lead lines under their placeholders and the rest in the More screenshots block (see *Screenshots*), via the surgical body edit in *⛔ Editing PR Bodies* below.
+   ```markdown
+   ![Edit this week, daily view](/Users/<you>/Desktop/<branch-slug>-screenshots/edit-this-week-daily.png)
+   ```
 
-`gh image` authenticates from your browser's `github.com` session (no PAT). If it reports being logged out, sign into GitHub in the browser and retry.
+2. Push the body and attach every file it references, using the same absolute paths:
+
+   ```bash
+   gh pr edit <number> --body-file <scratchpad>/pr-<number>-body.md \
+     --attach "$DEST/edit-this-week-daily.png" \
+     --attach "$DEST/edit-this-week-weekly.png"
+   ```
+
+gh uploads each file and rewrites the matching local path to its `user-attachments` URL. If the body doesn't reference an attached file, gh adds that file to the end of the body, so attach only files the body references. Use absolute paths: gh resolves relative paths against the body file's directory, which is the scratchpad.
 
 #### Handing the PR over
 

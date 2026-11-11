@@ -6,15 +6,14 @@
 # which installs gh itself on a fresh machine.
 #
 # Installing an extension only downloads the public release binary — no auth
-# needed here. (gh-image authenticates at runtime via the browser session.)
+# needed here.
 
 set -e
 
 command -v gh >/dev/null 2>&1 || { echo "gh not installed — skipping extensions"; exit 0; }
 
 extensions=(
-  dlvhdr/gh-dash    # PR/issue dashboard TUI
-  drogers0/gh-image # upload images to user-attachments, print paste-ready markdown
+  dlvhdr/gh-dash # PR/issue dashboard TUI
 )
 
 echo "Installing gh extensions..."

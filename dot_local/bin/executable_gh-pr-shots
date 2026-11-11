@@ -119,7 +119,7 @@ def name_by_content(path)
   named
 end
 
-# Self-describing filenames, so the cache dir is browsable without this script. `gh image`
+# Self-describing filenames, so the cache dir is browsable without this script. `--attach`
 # uses the uploaded filename as the alt text, so drop a trailing extension before slugging
 # or every name reads "...-png.png".
 def slug(caption)
