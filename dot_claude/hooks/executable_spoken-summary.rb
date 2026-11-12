@@ -1,12 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Stop hook: asks Haiku for a one-sentence spoken summary of Claude's last
-# message and reads it aloud with macOS `say`.
-
 require "json"
 require "open3"
 
+# Stop hook: asks Haiku for a one-sentence spoken summary of Claude's last
+# message and reads it aloud with macOS `say`.
 module SpokenSummary
   VOICE = "Lee (Premium)"
   MESSAGE_CHARACTER_LIMIT = 4000
