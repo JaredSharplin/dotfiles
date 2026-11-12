@@ -238,7 +238,7 @@ Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -
 A registered stack behaves differently on GitHub:
 
 - **A parent merge rewrites the branches above it.** Seconds after the bottom PR merges, GitHub rebases every remaining branch in the stack and force-pushes it. Push every local commit on those branches before merging the parent, so the only copy of your work is not on a branch GitHub is about to rewrite.
-- **Merging a PR merges every PR below it in the stack.** Merge from the bottom.
+- **Merging a PR merges every PR below it in the stack.** Merging the top PR from its GitHub page lands the whole stack, bottom first, as one squash commit per PR, and deletes every branch. Branches carrying git town's merge commits need no rebase for this. `git town sync -s` from the top branch's worktree then removes the merged local branches.
 - **A stack only grows.** `gh stack link` adds PRs and never removes one. To change a stack's shape, dissolve it and register it again — see "Restacking an Open PR".
 
 **Every PR is a draft, and the developer decides when it's ready.** Don't run `gh pr ready` on your own initiative — not as the obvious last step of a finished task, not because a PR looks done. When a PR looks ready, say so. When the developer explicitly asks you to mark specific PRs ready, run `gh pr ready` for exactly those PRs.
