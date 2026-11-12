@@ -8,7 +8,7 @@ require "open3"
 # message and reads it aloud with macOS `say`.
 module SpokenSummary
   VOICE = "Lee (Premium)"
-  VOLUME = 0.6
+  VOLUME = 0.5
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
   PULL_REQUEST_NUMBER = /\b(?:the\s+)?(?:PR|pull request)\s*#?\d+/i
