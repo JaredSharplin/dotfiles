@@ -96,6 +96,27 @@ class SpeakableTest < Minitest::Test
   end
 end
 
+class ToggleMuteTest < Minitest::Test
+  def test_first_toggle_mutes
+    Dir.mktmpdir do |directory|
+      mute_file_path = File.join(directory, "spoken-summary", "muted")
+
+      assert_equal :muted, SpokenSummary.toggle_mute(mute_file_path:)
+      assert SpokenSummary.muted?(mute_file_path:)
+    end
+  end
+
+  def test_second_toggle_unmutes
+    Dir.mktmpdir do |directory|
+      mute_file_path = File.join(directory, "spoken-summary", "muted")
+      SpokenSummary.toggle_mute(mute_file_path:)
+
+      assert_equal :unmuted, SpokenSummary.toggle_mute(mute_file_path:)
+      refute SpokenSummary.muted?(mute_file_path:)
+    end
+  end
+end
+
 class OneSpeakerAtATimeTest < Minitest::Test
   def test_second_speaker_waits_for_the_first_to_finish
     Dir.mktmpdir do |directory|

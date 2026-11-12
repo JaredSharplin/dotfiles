@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "fileutils"
 require "json"
 require "net/http"
 require "open3"
@@ -16,6 +17,7 @@ module SpokenSummary
   FALLBACK_SAY_VOICE = "Lee (Premium)"
   VOLUME = 0.5
   SPEAKER_LOCK_PATH = File.join(Dir.tmpdir, "spoken-summary.lock")
+  MUTE_FILE_PATH = File.join(ENV.fetch("XDG_STATE_HOME", File.expand_path("~/.local/state")), "spoken-summary", "muted")
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
   DIGIT_WORDS = %w[zero one two three four five six seven eight nine].freeze
@@ -110,7 +112,22 @@ module SpokenSummary
     end
   end
 
+  def self.muted?(mute_file_path: MUTE_FILE_PATH) = File.exist?(mute_file_path)
+
+  def self.toggle_mute(mute_file_path: MUTE_FILE_PATH)
+    if muted?(mute_file_path:)
+      File.delete(mute_file_path)
+      :unmuted
+    else
+      FileUtils.mkdir_p(File.dirname(mute_file_path))
+      FileUtils.touch(mute_file_path)
+      :muted
+    end
+  end
+
   def self.call(hook_input:, environment:)
+    return if muted?
+
     message = message_to_summarise(hook_input:, environment:) or return
     summary = summarise(message:)&.then { speakable(it) }
     one_speaker_at_a_time { speak(summary) } unless summary.to_s.empty?
