@@ -64,9 +64,14 @@ class SpeakableTest < Minitest::Test
       SpokenSummary.speakable("Reverted 0123456789abcdef0123456789abcdef01234567.")
   end
 
-  def test_keeps_plain_numbers
-    assert_equal "Fixed 3 tests across 1234567 rows.",
-      SpokenSummary.speakable("Fixed 3 tests across 1234567 rows.")
+  def test_keeps_short_and_comma_grouped_numbers
+    assert_equal "Fixed 3 tests across 1234 rows and 12,000 shifts.",
+      SpokenSummary.speakable("Fixed 3 tests across 1234 rows and 12,000 shifts.")
+  end
+
+  def test_replaces_bare_pull_request_number_with_the_pr
+    assert_equal "The review of the PR is still running.",
+      SpokenSummary.speakable("The review of 65878 is still running.")
   end
 
   def test_replaces_pull_request_number_with_the_pr

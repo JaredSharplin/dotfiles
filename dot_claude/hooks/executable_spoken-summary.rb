@@ -13,6 +13,7 @@ module SpokenSummary
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
   PULL_REQUEST_NUMBER = /\b(?:the\s+)?(?:PR|pull request)\s*#?\d+/i
   ISSUE_NUMBER = /\s*#\d+\b/
+  BARE_PULL_REQUEST_NUMBER = /(?:\bthe\s+)?(?<![\w.,])\d{5,}\b/i
   COMMIT_HASH_WITH_PREPOSITION = /\s*(?:\b(?:as|in|at)\s+)?\b(?=\h*\d)(?=\h*[a-f])\h{7,40}\b/i
 
   def self.message_to_summarise(hook_input:, environment:)
@@ -60,6 +61,7 @@ module SpokenSummary
     summary
       .gsub(PULL_REQUEST_NUMBER, "the PR")
       .gsub(ISSUE_NUMBER, "")
+      .gsub(BARE_PULL_REQUEST_NUMBER, "the PR")
       .gsub(COMMIT_HASH_WITH_PREPOSITION, "")
       .squeeze(" ")
       .strip
