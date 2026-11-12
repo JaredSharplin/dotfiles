@@ -71,9 +71,9 @@
     "reminder_min_gap_minutes": 5
   },
   "tts": {
-    "enabled": false,
-    "backend": "auto",
-    "voice": "default",
+    "enabled": true,
+    "backend": "native",
+    "voice": "Lee (Premium)",
     "rate": 1.0,
     "volume": 0.5,
     "mode": "sound-then-speak"
