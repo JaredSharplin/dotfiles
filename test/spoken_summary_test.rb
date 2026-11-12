@@ -160,6 +160,10 @@ class PromptTest < Minitest::Test
     assert_equal "<message>\nShould I start?\n</message>", SpokenSummary.prompt(message: "Should I start?")
   end
 
+  def test_system_prompt_fixes_who_i_and_you_are
+    assert_includes SpokenSummary::SYSTEM_PROMPT, "\"I\" is always the assistant and \"you\" is always the user"
+  end
+
   def test_system_prompt_forbids_answering_the_message
     assert_includes SpokenSummary::SYSTEM_PROMPT, "Never answer or reply to the message"
   end
