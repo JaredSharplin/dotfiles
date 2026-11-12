@@ -40,6 +40,7 @@ brew "postgresql@17"  # keg-only; PATH in .zshenv so non-interactive shells get 
 brew "jq"                      # inject-domain-map.sh parses its payload with it
 brew "graphviz"                # `dot`, behind that hook's rake architecture_map:generate
 brew "PeonPing/tap/peon-ping"  # settings.json wires 10 hook events to its peon.sh
+brew "ollama"                  # serves the phonon speech model being trialled for spoken-summary.rb
 
 # Casks
 cask "ghostty"              # config in dot_config/ghostty/

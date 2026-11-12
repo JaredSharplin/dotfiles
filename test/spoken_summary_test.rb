@@ -95,6 +95,13 @@ class SpeakableTest < Minitest::Test
   end
 end
 
+class PhononRequestBodyTest < Minitest::Test
+  def test_asks_phonon_for_hugh_reading_the_summary
+    assert_equal({"model" => "phonon", "voice" => "Hugh", "input" => "Merged the PR."},
+      JSON.parse(SpokenSummary.phonon_request_body("Merged the PR.")))
+  end
+end
+
 class SpeechInputTest < Minitest::Test
   def test_prefixes_the_volume_command
     assert_equal "[[volm 0.5]] Merged the PR.", SpokenSummary.speech_input("Merged the PR.")

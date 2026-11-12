@@ -2,12 +2,17 @@
 # frozen_string_literal: true
 
 require "json"
+require "net/http"
 require "open3"
+require "tempfile"
 
 # Stop hook: asks Haiku for a one-sentence spoken summary of Claude's last
-# message and reads it aloud with macOS `say`.
+# message and reads it aloud with Ollama's Phonon speech model, falling back
+# to macOS `say` when Ollama isn't running.
 module SpokenSummary
-  VOICE = "Lee (Premium)"
+  PHONON_SPEECH_URL = URI("http://localhost:11434/v1/audio/speech")
+  PHONON_VOICE = "Hugh"
+  FALLBACK_SAY_VOICE = "Lee (Premium)"
   VOLUME = 0.5
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
@@ -69,10 +74,34 @@ module SpokenSummary
 
   def self.speech_input(summary) = "[[volm #{VOLUME}]] #{summary}"
 
+  def self.phonon_request_body(summary) = {model: "phonon", voice: PHONON_VOICE, input: summary}.to_json
+
+  def self.phonon_audio(summary)
+    response = Net::HTTP.post(PHONON_SPEECH_URL, phonon_request_body(summary), "Content-Type" => "application/json")
+    response.body if response.is_a?(Net::HTTPSuccess)
+  rescue SystemCallError, Net::OpenTimeout, Net::ReadTimeout
+    nil
+  end
+
+  def self.play(audio)
+    Tempfile.create(["spoken-summary", ".wav"], binmode: true) do |file|
+      file.write(audio)
+      file.flush
+      system("afplay", "-v", VOLUME.to_s, file.path)
+    end
+  end
+
+  def self.speak(summary)
+    audio = phonon_audio(summary)
+    return play(audio) if audio
+
+    Open3.capture2("say", "-v", FALLBACK_SAY_VOICE, "-f", "-", stdin_data: speech_input(summary))
+  end
+
   def self.call(hook_input:, environment:)
     message = message_to_summarise(hook_input:, environment:) or return
     summary = summarise(message:)&.then { speakable(it) }
-    Open3.capture2("say", "-v", VOICE, "-f", "-", stdin_data: speech_input(summary)) unless summary.to_s.empty?
+    speak(summary) unless summary.to_s.empty?
   end
 end
 
