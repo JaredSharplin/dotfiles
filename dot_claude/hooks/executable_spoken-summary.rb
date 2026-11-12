@@ -5,6 +5,7 @@ require "json"
 require "net/http"
 require "open3"
 require "tempfile"
+require "tmpdir"
 
 # Stop hook: asks Haiku for a one-sentence spoken summary of Claude's last
 # message and reads it aloud with Ollama's Phonon speech model, falling back
@@ -14,6 +15,7 @@ module SpokenSummary
   PHONON_VOICE = "Hugh"
   FALLBACK_SAY_VOICE = "Lee (Premium)"
   VOLUME = 0.5
+  SPEAKER_LOCK_PATH = File.join(Dir.tmpdir, "spoken-summary.lock")
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
   PULL_REQUEST_NUMBER = /\b(?:the\s+)?(?:PR|pull request)\s*#?\d+/i
@@ -98,10 +100,17 @@ module SpokenSummary
     Open3.capture2("say", "-v", FALLBACK_SAY_VOICE, "-f", "-", stdin_data: say_input(summary))
   end
 
+  def self.one_speaker_at_a_time(lock_path: SPEAKER_LOCK_PATH)
+    File.open(lock_path, File::RDWR | File::CREAT) do |lock|
+      lock.flock(File::LOCK_EX)
+      yield
+    end
+  end
+
   def self.call(hook_input:, environment:)
     message = message_to_summarise(hook_input:, environment:) or return
     summary = summarise(message:)&.then { speakable(it) }
-    speak(summary) unless summary.to_s.empty?
+    one_speaker_at_a_time { speak(summary) } unless summary.to_s.empty?
   end
 end
 

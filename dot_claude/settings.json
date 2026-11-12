@@ -102,7 +102,7 @@
           {
             "type": "command",
             "command": "/Users/jaredsharplin/.claude/hooks/spoken-summary.rb",
-            "timeout": 60,
+            "timeout": 180,
             "async": true
           }
         ]

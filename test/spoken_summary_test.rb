@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "tmpdir"
 
 load File.expand_path("../dot_claude/hooks/executable_spoken-summary.rb", __dir__)
 
@@ -92,6 +93,31 @@ class SpeakableTest < Minitest::Test
   def test_removes_bare_issue_number
     assert_equal "Closed it.",
       SpokenSummary.speakable("Closed it #42.")
+  end
+end
+
+class OneSpeakerAtATimeTest < Minitest::Test
+  def test_second_speaker_waits_for_the_first_to_finish
+    Dir.mktmpdir do |directory|
+      lock_path = File.join(directory, "speaker.lock")
+      events = Queue.new
+      first_speaking = Queue.new
+      first = Thread.new do
+        SpokenSummary.one_speaker_at_a_time(lock_path:) do
+          events << :first_started
+          first_speaking << true
+          sleep 0.2
+          events << :first_finished
+        end
+      end
+      first_speaking.pop(timeout: 2)
+      second = Thread.new do
+        SpokenSummary.one_speaker_at_a_time(lock_path:) { events << :second_started }
+      end
+      [first, second].each(&:join)
+
+      assert_equal %i[first_started first_finished second_started], Array.new(events.size) { events.pop }
+    end
   end
 end
 
