@@ -90,6 +90,12 @@ class SpeakableTest < Minitest::Test
   end
 end
 
+class SpeechInputTest < Minitest::Test
+  def test_prefixes_the_volume_command
+    assert_equal "[[volm 0.6]] Merged the PR.", SpokenSummary.speech_input("Merged the PR.")
+  end
+end
+
 class PromptTest < Minitest::Test
   def test_prompt_ends_with_the_message
     prompt = SpokenSummary.prompt(message: "Fixed the test.")

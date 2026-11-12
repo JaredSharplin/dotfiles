@@ -8,6 +8,7 @@ require "open3"
 # message and reads it aloud with macOS `say`.
 module SpokenSummary
   VOICE = "Lee (Premium)"
+  VOLUME = 0.6
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
   PULL_REQUEST_NUMBER = /\b(?:the\s+)?(?:PR|pull request)\s*#?\d+/i
@@ -55,10 +56,12 @@ module SpokenSummary
       .strip
   end
 
+  def self.speech_input(summary) = "[[volm #{VOLUME}]] #{summary}"
+
   def self.call(hook_input:, environment:)
     message = message_to_summarise(hook_input:, environment:) or return
     summary = summarise(message:)&.then { speakable(it) }
-    Open3.capture2("say", "-v", VOICE, "-f", "-", stdin_data: summary) unless summary.to_s.empty?
+    Open3.capture2("say", "-v", VOICE, "-f", "-", stdin_data: speech_input(summary)) unless summary.to_s.empty?
   end
 end
 
