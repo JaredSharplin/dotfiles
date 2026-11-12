@@ -70,6 +70,9 @@
     "reminder_interval_minutes": 20,
     "reminder_min_gap_minutes": 5
   },
+  "notification_templates": {
+    "stop": "{project}: {summary}"
+  },
   "tts": {
     "enabled": true,
     "backend": "native",
