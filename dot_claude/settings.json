@@ -98,6 +98,12 @@
             "command": "/Users/jaredsharplin/.claude/hooks/peon-ping/peon.sh",
             "timeout": 10,
             "async": true
+          },
+          {
+            "type": "command",
+            "command": "/Users/jaredsharplin/.claude/hooks/spoken-summary.rb",
+            "timeout": 60,
+            "async": true
           }
         ]
       }
