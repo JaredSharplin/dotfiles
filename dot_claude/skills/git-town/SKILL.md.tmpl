@@ -613,10 +613,12 @@ git town set-parent <new-parent>
 git town sync -s --push
 ```
 
-When the branch's old stack is registered with GitHub, dissolve that stack and register the new shape. The stack number is the `number` field of `gh api "repos/{owner}/{repo}/stacks?pull_request=<pr>"`. GitHub keeps merged PRs in a stack, so a stack with a merged PR cannot be fully dissolved.
+When the branch's stack is registered with GitHub, dissolve the stack **first**: GitHub refuses a base change on a PR that is in a stack, so `set-parent` and the sync fail until it is unstacked. This covers every change of shape, including a new branch going underneath the stack. Dissolving changes no PR's base or branch. The stack number is the `number` field of `gh api "repos/{owner}/{repo}/stacks?pull_request=<pr>"`. GitHub keeps merged PRs in a stack, so a stack with a merged PR cannot be fully dissolved.
 
 ```bash
 gh stack unstack <stack-number>
+git town set-parent <new-parent>
+git town sync -s --push
 link-github-stack              # from a branch of each stack that still has two or more open PRs
 ```
 
