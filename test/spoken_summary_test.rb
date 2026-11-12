@@ -97,9 +97,11 @@ class SpeechInputTest < Minitest::Test
 end
 
 class PromptTest < Minitest::Test
-  def test_prompt_ends_with_the_message
-    prompt = SpokenSummary.prompt(message: "Fixed the test.")
+  def test_prompt_wraps_the_message_in_tags
+    assert_equal "<message>\nShould I start?\n</message>", SpokenSummary.prompt(message: "Should I start?")
+  end
 
-    assert prompt.end_with?("\n\nFixed the test.")
+  def test_system_prompt_forbids_answering_the_message
+    assert_includes SpokenSummary::SYSTEM_PROMPT, "Never answer or reply to the message"
   end
 end
