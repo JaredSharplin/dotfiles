@@ -19,6 +19,7 @@ Use appropriate prefixes for branches, like `feature/`, `hotfix/`, `refactor/` e
 | Add a child branch to current branch | `git town append <name>` | Build stack downward |
 | Insert a parent branch above current | `git town prepend <name>` | Build stack upward |
 | Create PR for current branch | `git town sync` then `gh pr create --draft --base <parent> ...` | Opens as a draft, assignee + labels inline — see "Creating a PR" |
+| Register a stack with GitHub's native stacked PRs | `link-github-stack` | Run after every `gh pr create` — see "Registering the stack with GitHub" |
 | Push branch/stack to remote | `git town sync --push` | Pushing is off by default — see "Pushing (off by default)" |
 | Switch to parent branch | `git town up` | Moves toward the trunk |
 | Switch to child branch | `git town down` | Moves away from the trunk |
@@ -109,6 +110,8 @@ git town sync -s                                               # from the child;
 ```
 
 `-s` carries the change down to the child's descendants too, as long as no other worktree holds them.
+
+On a stack registered with GitHub, the child's remote branch has been rebased and force-pushed by the time you sync — see "Registering the stack with GitHub". How `sync -s` handles that rewritten remote is not yet observed: when the sync reports conflicts or the PR diff shows duplicated commits, stop and report to the developer.
 
 ## ⛔ Suspended Command State — STOP, Don't Blind-Answer
 
@@ -211,6 +214,7 @@ git town sync                                   # integrate parent locally; does
 gh pr create --draft --base "$parent" \
   --title "..." --body-file <scratchpad>/pr-body.md \
   --assignee @me --label <type-label> --label built-in-australia
+link-github-stack                               # registers the stack with GitHub; does nothing on an unstacked branch
 ```
 
 Draft the body in `<scratchpad>/pr-body.md` and humanize it first (see *Humanize every body before it goes out* under *PR Style Guide*). `git town sync` integrates the parent locally (no push); `gh pr create --draft` then pushes the branch and opens the PR **as a draft** in one step, assignee and labels inline. Opening as a draft keeps CI quiet from the start (Buildkite skips drafts — payaus #56255). `--base` is the branch's git-town parent (`master` for an ordinary branch). (Git Town 23 can't open drafts, so `gh` handles creation.)
@@ -226,6 +230,16 @@ Every PR needs (inline on `gh pr create`, or via `gh pr edit` later):
 Choose the type label by the nature of the change. If unsure, ask before creating the PR.
 
 Stack navigation links (`<!-- branch-stack-start -->` / `<!-- branch-stack-end -->`) are written by `git town sync`, so a `gh`-created PR gets them on the next sync of the stack. **Do NOT manually add "Depends on #123" or stack information to PR bodies** — git town manages this automatically. (Verify the links appear on your first stacked PR created this way.)
+
+### Registering the stack with GitHub
+
+`link-github-stack` registers the current branch's stack as a GitHub native stack. It reads the lineage from git town's recorded parents and passes the open PRs' numbers, bottom to top, to `gh stack link`. It pushes nothing and creates no PR. Run it from any branch of the stack after every `gh pr create`; `--dry-run` prints the command it would run. It follows a single line of branches, so where a branch has two children it stops at that branch.
+
+A registered stack behaves differently on GitHub:
+
+- **A parent merge rewrites the branches above it.** Seconds after the bottom PR merges, GitHub rebases every remaining branch in the stack and force-pushes it. Push every local commit on those branches before merging the parent, so the only copy of your work is not on a branch GitHub is about to rewrite.
+- **Merging a PR merges every PR below it in the stack.** Merge from the bottom.
+- **A stack only grows.** `gh stack link` adds PRs and never removes one. To change a stack's shape, dissolve it and register it again — see "Restacking an Open PR".
 
 **Every PR is a draft, and the developer decides when it's ready.** Don't run `gh pr ready` on your own initiative — not as the obvious last step of a finished task, not because a PR looks done. When a PR looks ready, say so. When the developer explicitly asks you to mark specific PRs ready, run `gh pr ready` for exactly those PRs.
 
@@ -599,6 +613,13 @@ git town set-parent <new-parent>
 git town sync -s --push
 ```
 
+When the branch's old stack is registered with GitHub, dissolve that stack and register the new shape. The stack number is the `number` field of `gh api "repos/{owner}/{repo}/stacks?pull_request=<pr>"`. GitHub keeps merged PRs in a stack, so a stack with a merged PR cannot be fully dissolved.
+
+```bash
+gh stack unstack <stack-number>
+link-github-stack              # from a branch of each stack that still has two or more open PRs
+```
+
 Where a PR needs pointing by hand, both ends are editable: the base with `gh pr edit --base`, the head from the PR's **Edit** control in the GitHub UI. `gh pr edit` offering only `--base` is a limit of the CLI, not of GitHub — a missing `gh` flag is never grounds to conclude a PR must be replaced.
 
 **Closing a PR and opening a replacement is FORBIDDEN** — same severity as `git push --force`. It discards the PR's number, review history, comments and CI record. Restack the branch; the PR follows.
@@ -751,6 +772,8 @@ gh pr create --draft --base "$(git config git-town-branch.migration/foundation.p
 git checkout feature/implementation
 gh pr create --draft --base "$(git config git-town-branch.feature/implementation.parent)" \
   --title "..." --body "..." --assignee @me --label <type-label> --label built-in-australia
+
+link-github-stack   # once, after the last PR exists
 ```
 
 ## ⛔ NEVER Manually Stash (With One Exception)
