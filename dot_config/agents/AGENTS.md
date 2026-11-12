@@ -365,7 +365,12 @@ No worktree holds `master` — the main checkout sits on `master-duplicate` for 
 ## Commit and push cadence
 
 - **Commit** when a logical unit of work is complete — not after every file edit
-- **Push** (`git town sync --push`) draft branches freely — after a logical unit lands, so the remote and PR match the local work. Drafts run no CI, and a bad push is fixed forward with a new commit. Ask first before pushing a PR I've marked ready for review (each push runs a Buildkite build and reaches reviewers), or a branch that goes live with no review, like the dotfiles repo's `main`. Plain `git town sync` is local-only (see *CI builds and pushing*), so sync the stack as often as the work needs.
+- **Push** (`git town sync --push`) when the remote should match the local work. It's your call, based on what a push costs:
+  - **Draft PR:** nothing. No CI runs unless the PR carries `run-bk`.
+  - **Ready-for-review PR:** one full Buildkite build per push, and reviewers see the new commits. Push once when a set of changes is finished, not per commit.
+  - **Dotfiles `main`:** no CI and no review, so the push is the publish step. Push when the change is committed and applied clean.
+
+  A bad push is fixed forward with a new commit. Plain `git town sync` is local-only (see *CI builds and pushing*), so sync the stack as often as the work needs.
 
 ## Commit messages
 

@@ -4,7 +4,7 @@ This is a [chezmoi](https://www.chezmoi.io/)-managed dotfiles repository. Source
 
 ## Committing to this repo
 
-Commit dotfiles changes straight to `main`. Commit when a logical unit is done; push only when asked.
+Commit dotfiles changes straight to `main`. Commit when a logical unit is done. Pushing is your call: there is no CI and no review, so push once the change is committed and `chezmoi apply` runs clean.
 
 ## Linting Ruby
 
