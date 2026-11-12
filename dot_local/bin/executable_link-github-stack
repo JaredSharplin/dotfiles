@@ -79,8 +79,7 @@ module LinkGithubStack
     command = ["gh", "stack", "link", *numbers.map(&:to_s)]
     return puts(command.join(" ")) if dry_run
 
-    puts run(*command)
-    puts "linked pull requests #{numbers.join(" → ")}"
+    system(*command, exception: true)
   end
 end
 
