@@ -72,7 +72,7 @@ module SpokenSummary
       .strip
   end
 
-  def self.speech_input(summary) = "[[volm #{VOLUME}]] #{summary}"
+  def self.say_input(summary) = "[[volm #{VOLUME}]] #{summary}"
 
   def self.phonon_request_body(summary) = {model: "phonon", voice: PHONON_VOICE, input: summary}.to_json
 
@@ -95,7 +95,7 @@ module SpokenSummary
     audio = phonon_audio(summary)
     return play(audio) if audio
 
-    Open3.capture2("say", "-v", FALLBACK_SAY_VOICE, "-f", "-", stdin_data: speech_input(summary))
+    Open3.capture2("say", "-v", FALLBACK_SAY_VOICE, "-f", "-", stdin_data: say_input(summary))
   end
 
   def self.call(hook_input:, environment:)
