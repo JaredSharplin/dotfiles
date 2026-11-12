@@ -74,7 +74,7 @@
     "stop": "{project}: {summary}"
   },
   "tts": {
-    "enabled": true,
+    "enabled": false,
     "backend": "native",
     "voice": "Lee (Premium)",
     "rate": 1.0,
