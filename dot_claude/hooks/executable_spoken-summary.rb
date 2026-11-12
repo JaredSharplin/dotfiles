@@ -18,9 +18,10 @@ module SpokenSummary
   SPEAKER_LOCK_PATH = File.join(Dir.tmpdir, "spoken-summary.lock")
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
-  PULL_REQUEST_NUMBER = /\b(?:the\s+)?(?:PR|pull request)\s*#?\d+/i
-  ISSUE_NUMBER = /\s*#\d+\b/
-  BARE_PULL_REQUEST_NUMBER = /(?:\bthe\s+)?(?<![\w.,])\d{5,}\b/i
+  DIGIT_WORDS = %w[zero one two three four five six seven eight nine].freeze
+  PULL_REQUEST_NUMBER = /\b(?:PR|pull request)\s*#?(?<number>\d+)/i
+  HASH_NUMBER = /#(?<number>\d+)\b/
+  BARE_LONG_NUMBER = /(?<![\w.,])(?<number>\d{5,})\b/
   COMMIT_HASH_WITH_PREPOSITION = /\s*(?:\b(?:as|in|at)\s+)?\b(?=\h*\d)(?=\h*[a-f])\h{7,40}\b/i
 
   def self.message_to_summarise(hook_input:, environment:)
@@ -64,12 +65,14 @@ module SpokenSummary
     summary.strip if status.success?
   end
 
+  def self.digit_by_digit(number) = number.chars.map { DIGIT_WORDS[it.to_i] }.join(" ")
+
   def self.speakable(summary)
     summary
-      .gsub(PULL_REQUEST_NUMBER, "the PR")
-      .gsub(ISSUE_NUMBER, "")
-      .gsub(BARE_PULL_REQUEST_NUMBER, "the PR")
       .gsub(COMMIT_HASH_WITH_PREPOSITION, "")
+      .gsub(PULL_REQUEST_NUMBER) { "PR #{digit_by_digit($~[:number])}" }
+      .gsub(HASH_NUMBER) { digit_by_digit($~[:number]) }
+      .gsub(BARE_LONG_NUMBER) { digit_by_digit($~[:number]) }
       .squeeze(" ")
       .strip
   end

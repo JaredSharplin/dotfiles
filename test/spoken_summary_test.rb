@@ -70,29 +70,29 @@ class SpeakableTest < Minitest::Test
       SpokenSummary.speakable("Fixed 3 tests across 1234 rows and 12,000 shifts.")
   end
 
-  def test_replaces_bare_pull_request_number_with_the_pr
-    assert_equal "The review of the PR is still running.",
+  def test_reads_bare_long_number_digit_by_digit
+    assert_equal "The review of six five eight seven eight is still running.",
       SpokenSummary.speakable("The review of 65878 is still running.")
   end
 
-  def test_replaces_pull_request_number_with_the_pr
-    assert_equal "Opened the PR which adds spoken summaries.",
-      SpokenSummary.speakable("Opened PR #56255 which adds spoken summaries.")
+  def test_reads_pull_request_number_digit_by_digit
+    assert_equal "Opened PR six five six six eight which adds spoken summaries.",
+      SpokenSummary.speakable("Opened PR #65668 which adds spoken summaries.")
   end
 
-  def test_replaces_spelled_out_pull_request_number
-    assert_equal "Updated the PR.",
+  def test_shortens_pull_request_to_pr
+    assert_equal "Updated PR one two three.",
       SpokenSummary.speakable("Updated pull request 123.")
   end
 
-  def test_does_not_double_the_article
-    assert_equal "Merged the PR.",
+  def test_keeps_the_article
+    assert_equal "Merged the PR four two.",
       SpokenSummary.speakable("Merged the PR #42.")
   end
 
-  def test_removes_bare_issue_number
-    assert_equal "Closed it.",
-      SpokenSummary.speakable("Closed it #42.")
+  def test_reads_hash_number_digit_by_digit
+    assert_equal "Closed issue four two.",
+      SpokenSummary.speakable("Closed issue #42.")
   end
 end
 
