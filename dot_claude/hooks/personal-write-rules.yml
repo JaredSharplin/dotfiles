@@ -37,6 +37,17 @@ controller_view_helper_reach:
     name-matched helper (FooController -> FooHelper) is auto-included, so wire shared
     helpers through that, never through the `helper` macro.
 
+no_verify_flag:
+  type: block
+  bash_pattern: '\bgit\b[^|;&\n]*\s--no-verify\b|\bgit\b[^|;&\n]*\scommit\b[^|;&\n]*\s-[A-Za-z]*n[A-Za-z]*(?=\s|$)'
+  context: >
+    --no-verify (and git commit -n) skips the commit and push hooks:
+    the linters, the expired feature flag check, the master guard.
+    It is off the table in every repo, throwaway commits included.
+    When a hook rejects a commit, fix what it found. For a deliberately
+    broken test commit, plant a problem the linters accept, or ask
+    Jared before going on.
+
 branch_was_it_asked_for:
   type: warn
   bash_pattern: 'git\s+(?:town\s+(?:hack|append|prepend)|checkout\s+-b|switch\s+-c)\b'
