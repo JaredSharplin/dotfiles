@@ -53,6 +53,43 @@ class MessageToSummariseTest < Minitest::Test
   end
 end
 
+class SpeakableTest < Minitest::Test
+  def test_removes_commit_hash_and_its_preposition
+    assert_equal "Muted peon-ping and committed it.",
+      SpokenSummary.speakable("Muted peon-ping and committed it as 7bfe64d.")
+  end
+
+  def test_removes_full_length_commit_hash
+    assert_equal "Reverted.",
+      SpokenSummary.speakable("Reverted 0123456789abcdef0123456789abcdef01234567.")
+  end
+
+  def test_keeps_plain_numbers
+    assert_equal "Fixed 3 tests across 1234567 rows.",
+      SpokenSummary.speakable("Fixed 3 tests across 1234567 rows.")
+  end
+
+  def test_replaces_pull_request_number_with_the_pr
+    assert_equal "Opened the PR which adds spoken summaries.",
+      SpokenSummary.speakable("Opened PR #56255 which adds spoken summaries.")
+  end
+
+  def test_replaces_spelled_out_pull_request_number
+    assert_equal "Updated the PR.",
+      SpokenSummary.speakable("Updated pull request 123.")
+  end
+
+  def test_does_not_double_the_article
+    assert_equal "Merged the PR.",
+      SpokenSummary.speakable("Merged the PR #42.")
+  end
+
+  def test_removes_bare_issue_number
+    assert_equal "Closed it.",
+      SpokenSummary.speakable("Closed it #42.")
+  end
+end
+
 class PromptTest < Minitest::Test
   def test_prompt_ends_with_the_message
     prompt = SpokenSummary.prompt(message: "Fixed the test.")

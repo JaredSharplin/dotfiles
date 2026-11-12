@@ -10,6 +10,9 @@ module SpokenSummary
   VOICE = "Lee (Premium)"
   MESSAGE_CHARACTER_LIMIT = 4000
   CHILD_SESSION_VARIABLE = "SPOKEN_SUMMARY_CHILD"
+  PULL_REQUEST_NUMBER = /\b(?:the\s+)?(?:PR|pull request)\s*#?\d+/i
+  ISSUE_NUMBER = /\s*#\d+\b/
+  COMMIT_HASH_WITH_PREPOSITION = /\s*(?:\b(?:as|in|at)\s+)?\b(?=\h*\d)(?=\h*[a-f])\h{7,40}\b/i
 
   def self.message_to_summarise(hook_input:, environment:)
     return if environment.key?(CHILD_SESSION_VARIABLE)
@@ -24,6 +27,9 @@ module SpokenSummary
       Below is the final message an AI coding assistant just sent its user.
       Summarise it in one short sentence that will be spoken aloud.
       Plain text only: no markdown, code, file paths, commit hashes or quotes.
+      Never say a pull request or issue number; describe what it is about instead.
+      Example: "Committed as 7bfe64d and opened PR #56255" becomes
+      "Committed it and opened the PR that adds spoken summaries."
       Reply with the sentence and nothing else.
 
       #{message}
@@ -40,9 +46,18 @@ module SpokenSummary
     summary.strip if status.success?
   end
 
+  def self.speakable(summary)
+    summary
+      .gsub(PULL_REQUEST_NUMBER, "the PR")
+      .gsub(ISSUE_NUMBER, "")
+      .gsub(COMMIT_HASH_WITH_PREPOSITION, "")
+      .squeeze(" ")
+      .strip
+  end
+
   def self.call(hook_input:, environment:)
     message = message_to_summarise(hook_input:, environment:) or return
-    summary = summarise(message:)
+    summary = summarise(message:)&.then { speakable(it) }
     Open3.capture2("say", "-v", VOICE, "-f", "-", stdin_data: summary) unless summary.to_s.empty?
   end
 end
