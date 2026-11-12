@@ -43,6 +43,7 @@ brew "PeonPing/tap/peon-ping"  # settings.json wires 10 hook events to its peon.
 
 # Casks
 cask "ghostty"              # config in dot_config/ghostty/
+cask "font-jetbrains-mono"  # zellij terminal's font; ghostty bundles its own copy
 cask "google-chrome"        # browser QA target; qa-handoff opens tabs in it
 cask "karabiner-elements"   # config in dot_config/private_karabiner/
 cask "rectangle"            # window management

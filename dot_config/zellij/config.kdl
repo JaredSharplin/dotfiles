@@ -2,7 +2,7 @@
 // Base mode is locked; Ctrl+g unlocks into normal mode, then a single letter
 // switches sub-mode (p pane, t tab, r resize, s scroll, m move, o session).
 // esc or enter returns to locked from any mode.
-keybinds clear-defaults=true {
+keybinds clear-defaults=true preset="unlock-first" {
     locked {
         bind "Ctrl g" { SwitchToMode "normal"; }
     }
@@ -248,3 +248,34 @@ keybinds clear-defaults=true {
 
 default_mode "locked"
 theme "gruvbox-dark"
+
+// Ported from dot_config/ghostty/config
+terminal {
+    font "JetBrains Mono"
+    font_size 16
+    font_weight "medium"
+    macos_option_as_alt "both"
+
+    // gruvbox-material-medium-dark, as in dot_config/ghostty/themes/
+    theme {
+        foreground "#d4be98"
+        background "#282828"
+        cursor "#d4be98"
+        black "#1b1b1b"
+        red "#ea6962"
+        green "#a9b665"
+        yellow "#d8a657"
+        blue "#7daea3"
+        magenta "#d3869b"
+        cyan "#89b482"
+        white "#d4be98"
+        bright_black "#32302f"
+        bright_red "#ea6962"
+        bright_green "#a9b665"
+        bright_yellow "#d8a657"
+        bright_blue "#7daea3"
+        bright_magenta "#d3869b"
+        bright_cyan "#89b482"
+        bright_white "#d4be98"
+    }
+}
