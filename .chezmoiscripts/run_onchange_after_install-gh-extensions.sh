@@ -13,7 +13,8 @@ set -e
 command -v gh >/dev/null 2>&1 || { echo "gh not installed — skipping extensions"; exit 0; }
 
 extensions=(
-  dlvhdr/gh-dash # PR/issue dashboard TUI
+  dlvhdr/gh-dash  # PR/issue dashboard TUI
+  github/gh-stack # native stacked pull requests (link-github-stack calls it)
 )
 
 echo "Installing gh extensions..."
