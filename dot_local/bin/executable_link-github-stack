@@ -34,7 +34,7 @@ module LinkGithubStack
       .chunk_while { |lower, upper| [lower, upper].all? { open_pull_request_number_by_branch.key?(it) } }
       .find { it.include?(branch) }
       .filter_map { open_pull_request_number_by_branch[it] }
-      .then { it.one? ? [] : it }
+      .then { (it.size > 1) ? it : [] }
   end
 
   def self.run(*args)
