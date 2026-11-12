@@ -1,6 +1,6 @@
 {
   "default_pack": "sc_scv",
-  "volume": 0.5,
+  "volume": 0.25,
   "enabled": true,
   "desktop_notifications": false,
   "categories": {
