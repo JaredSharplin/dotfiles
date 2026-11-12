@@ -1,0 +1,99 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+require "optparse"
+
+# Registers the current branch's git-town stack with GitHub's native stacked
+# pull requests. The stack is read from git-town's recorded parents and handed
+# to `gh stack link` as pull request numbers, bottom to top, so nothing is
+# pushed and no pull request is created. On a branch that is not part of a
+# stack of open pull requests it does nothing.
+module LinkGithubStack
+  GIT_TOWN_PARENT = /\Agit-town-branch\.(?<branch>.+)\.parent=(?<parent>.+)\z/
+
+  def self.linear_stack_branches(branch:, parent_by_branch:, main_branch:)
+    children_by_parent = parent_by_branch.keys.group_by { parent_by_branch[it] }
+    ancestors_and_branch = Enumerator
+      .produce(branch) { parent_by_branch[it] }
+      .take_while { it && it != main_branch }
+      .reverse
+    descendants = Enumerator
+      .produce(branch) { only_child(children_by_parent.fetch(it, [])) }
+      .take_while(&:itself)
+      .drop(1)
+
+    ancestors_and_branch + descendants
+  end
+
+  def self.only_child(children) = children.one? ? children.first : nil
+
+  def self.stacked_pull_request_numbers(branches:, open_pull_request_number_by_branch:, branch:)
+    branches
+      .chunk_while { |lower, upper| [lower, upper].all? { open_pull_request_number_by_branch.key?(it) } }
+      .find { it.include?(branch) }
+      .filter_map { open_pull_request_number_by_branch[it] }
+      .then { it.one? ? [] : it }
+  end
+
+  def self.run(*args)
+    stdout, stderr, status = Open3.capture3(*args)
+    raise "#{args.join(" ")} failed: #{stderr.strip}" unless status.success?
+
+    stdout.strip
+  end
+
+  def self.current_branch
+    run("git", "branch", "--show-current").then { it.empty? ? abort("link-github-stack: not on a branch") : it }
+  end
+
+  def self.parent_by_branch
+    run("git", "config", "--list")
+      .lines(chomp: true)
+      .filter_map { GIT_TOWN_PARENT.match(it) }
+      .to_h { [it[:branch], it[:parent]] }
+  end
+
+  def self.open_pull_request_number_by_branch(branches)
+    branches
+      .to_h { [it, JSON.parse(run("gh", "pr", "list", "--head", it, "--state", "open", "--json", "number")).first] }
+      .compact
+      .transform_values { it.fetch("number") }
+  end
+
+  def self.pull_request_numbers_to_link
+    branch = current_branch
+    branches = linear_stack_branches(
+      branch:, parent_by_branch:, main_branch: run("git", "config", "git-town.main-branch")
+    )
+    stacked_pull_request_numbers(
+      branches:, open_pull_request_number_by_branch: open_pull_request_number_by_branch(branches), branch:
+    )
+  end
+
+  def self.call(dry_run:)
+    numbers = pull_request_numbers_to_link
+    return puts("link-github-stack: no stack of open pull requests here, nothing to link") if numbers.empty?
+
+    command = ["gh", "stack", "link", *numbers.map(&:to_s)]
+    return puts(command.join(" ")) if dry_run
+
+    puts run(*command)
+    puts "linked pull requests #{numbers.join(" → ")}"
+  end
+end
+
+if __FILE__ == $PROGRAM_NAME
+  options = {dry_run: false}
+  OptionParser.new do |parser|
+    parser.banner = "Usage: link-github-stack [--dry-run]"
+    parser.on("--dry-run", "Print the gh stack link command without running it") { options[:dry_run] = true }
+    parser.on("-h", "--help") do
+      puts parser
+      exit
+    end
+  end.parse!
+
+  LinkGithubStack.call(**options)
+end
