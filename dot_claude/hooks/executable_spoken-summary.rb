@@ -43,7 +43,7 @@ module SpokenSummary
   def self.call(hook_input:, environment:)
     message = message_to_summarise(hook_input:, environment:) or return
     summary = summarise(message:)
-    system("say", "-v", VOICE, summary) unless summary.to_s.empty?
+    Open3.capture2("say", "-v", VOICE, "-f", "-", stdin_data: summary) unless summary.to_s.empty?
   end
 end
 
