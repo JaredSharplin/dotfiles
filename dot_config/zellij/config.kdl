@@ -248,6 +248,8 @@ keybinds clear-defaults=true preset="unlock-first" {
 
 default_mode "locked"
 theme "gruvbox-dark"
+// The desktop app doesn't inherit EDITOR from .zshrc, so name it outright
+scrollback_editor "/opt/homebrew/bin/nvim"
 
 // Ported from dot_config/ghostty/config
 terminal {
