@@ -202,7 +202,7 @@ end
 
 class SayInputTest < Minitest::Test
   def test_prefixes_the_volume_command
-    assert_equal "[[volm 0.5]] Merged the PR.", SpokenSummary.say_input("Merged the PR.")
+    assert_equal "[[volm 0.4]] Merged the PR.", SpokenSummary.say_input("Merged the PR.")
   end
 end
 

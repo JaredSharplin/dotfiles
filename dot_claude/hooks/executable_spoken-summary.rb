@@ -15,7 +15,7 @@ module SpokenSummary
   PHONON_SPEECH_URL = URI("http://localhost:11434/v1/audio/speech")
   PHONON_VOICE = "Hugh"
   FALLBACK_SAY_VOICE = "Lee (Premium)"
-  VOLUME = 0.5
+  VOLUME = 0.4
   SPEAKER_LOCK_PATH = File.join(Dir.tmpdir, "spoken-summary.lock")
   MUTE_FILE_PATH = File.join(ENV.fetch("XDG_STATE_HOME", File.expand_path("~/.local/state")), "spoken-summary", "muted")
   MESSAGE_CHARACTER_LIMIT = 4000
