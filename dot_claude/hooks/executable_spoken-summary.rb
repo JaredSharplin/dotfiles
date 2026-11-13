@@ -151,7 +151,7 @@ module SpokenSummary
     nil
   end
 
-  def self.announcement(session_title:, summary:) = [session_title, summary].compact.join(". ")
+  def self.announcement(session_title:, summary:) = [session_title&.then { "Session named #{it}" }, summary].compact.join(". ")
 
   def self.call(hook_input:, environment:)
     return if muted?
