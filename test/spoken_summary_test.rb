@@ -96,6 +96,57 @@ class SpeakableTest < Minitest::Test
   end
 end
 
+class SessionTitleTest < Minitest::Test
+  def with_transcript(*entries)
+    Dir.mktmpdir do |directory|
+      transcript_path = File.join(directory, "session.jsonl")
+      File.write(transcript_path, entries.map(&:to_json).join("\n"))
+      yield transcript_path
+    end
+  end
+
+  def test_latest_custom_title_wins_over_ai_title
+    with_transcript(
+      {"type" => "custom-title", "customTitle" => "Old name"},
+      {"type" => "custom-title", "customTitle" => "AI Enablement: Code Review"},
+      {"type" => "ai-title", "aiTitle" => "ai code review handoff"}
+    ) do |transcript_path|
+      assert_equal "AI Enablement: Code Review", SpokenSummary.session_title(transcript_path:)
+    end
+  end
+
+  def test_falls_back_to_latest_ai_title
+    with_transcript(
+      {"type" => "ai-title", "aiTitle" => "first guess"},
+      {"type" => "user", "message" => {"content" => "hello"}},
+      {"type" => "ai-title", "aiTitle" => "Temporarily muting peon ping"}
+    ) do |transcript_path|
+      assert_equal "Temporarily muting peon ping", SpokenSummary.session_title(transcript_path:)
+    end
+  end
+
+  def test_nil_without_a_title
+    with_transcript({"type" => "user", "message" => {"content" => "hello"}}) do |transcript_path|
+      assert_nil SpokenSummary.session_title(transcript_path:)
+    end
+  end
+
+  def test_nil_when_transcript_is_missing
+    assert_nil SpokenSummary.session_title(transcript_path: "/nonexistent/session.jsonl")
+  end
+end
+
+class AnnouncementTest < Minitest::Test
+  def test_session_title_comes_first
+    assert_equal "AI Enablement: Code Review. I fixed the test.",
+      SpokenSummary.announcement(session_title: "AI Enablement: Code Review", summary: "I fixed the test.")
+  end
+
+  def test_summary_alone_without_a_session_title
+    assert_equal "I fixed the test.", SpokenSummary.announcement(session_title: nil, summary: "I fixed the test.")
+  end
+end
+
 class ToggleMuteTest < Minitest::Test
   def test_first_toggle_mutes
     Dir.mktmpdir do |directory|

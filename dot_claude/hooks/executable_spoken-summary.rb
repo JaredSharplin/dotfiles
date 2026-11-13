@@ -134,12 +134,34 @@ module SpokenSummary
     end
   end
 
+  def self.parsed_transcript_entry(line)
+    JSON.parse(line)
+  rescue JSON::ParserError
+    nil
+  end
+
+  def self.session_title(transcript_path:)
+    title_entries = File.foreach(transcript_path)
+      .grep(/"(?:custom|ai)-title"/)
+      .filter_map { parsed_transcript_entry(it) }
+    custom_title = title_entries.filter_map { it["customTitle"] if it["type"] == "custom-title" }.last
+    ai_title = title_entries.filter_map { it["aiTitle"] if it["type"] == "ai-title" }.last
+    custom_title || ai_title
+  rescue Errno::ENOENT
+    nil
+  end
+
+  def self.announcement(session_title:, summary:) = [session_title, summary].compact.join(". ")
+
   def self.call(hook_input:, environment:)
     return if muted?
 
     message = message_to_summarise(hook_input:, environment:) or return
-    summary = summarise(message:)&.then { speakable(it) }
-    one_speaker_at_a_time { speak(summary) } unless summary.to_s.empty?
+    summary = summarise(message:)
+    return if summary.to_s.empty?
+
+    title = session_title(transcript_path: hook_input["transcript_path"].to_s)
+    one_speaker_at_a_time { speak(speakable(announcement(session_title: title, summary:))) }
   end
 end
 
