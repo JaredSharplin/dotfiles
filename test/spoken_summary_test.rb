@@ -138,7 +138,7 @@ end
 
 class AnnouncementTest < Minitest::Test
   def test_session_title_comes_first
-    assert_equal "Session named AI Enablement: Code Review. I fixed the test.",
+    assert_equal "Session AI Enablement: Code Review. I fixed the test.",
       SpokenSummary.announcement(session_title: "AI Enablement: Code Review", summary: "I fixed the test.")
   end
 
