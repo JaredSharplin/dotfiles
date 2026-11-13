@@ -575,24 +575,6 @@ gh uploads the screenshots as part of the body push, using `--attach`. There is 
 
 gh uploads each file and rewrites the matching local path to its `user-attachments` URL. If the body doesn't reference an attached file, gh adds that file to the end of the body, so attach only files the body references. Use absolute paths: gh resolves relative paths against the body file's directory, which is the scratchpad.
 
-#### Handing the PR over
-
-The last step, once the screenshots are uploaded and the boxes are checked: leave the feature open in the developer's own Chrome, so their QA pass starts on the verified screen rather than a login form three clicks away.
-
-```bash
-qa-handoff <the QA_HANDOFF url the verifier returned>   # add -w <worktree> when running from elsewhere
-```
-
-It opens a background tab, signed in as Local Dev Cafe, on that page. One tab, for the primary user-visible change — a second or third only for genuinely distinct surfaces, three is the cap.
-
-**The gate: no unresolved FAIL, PARTIAL or BLOCKED.** QA of one feature often spans several verifier runs — the agent has an 80-call budget, background jobs split a run, and a big change has more surfaces than one dispatch covers — so the last run's PASS says nothing about the runs before it. Read the whole *Manual Browser QA Tasks* checklist, which is the record across every run:
-
-- A FAIL means fix the code and verify again.
-- A PARTIAL that stalled means re-dispatch that task.
-- A task removed *deliberately*, with the reason standing in place of the list — a path Claude can't reach locally, a step needing data it doesn't have — clears the gate. Those are the cases the developer most needs the tab for.
-
-"Nothing fell over" is the bar, not "every box ticked". The handoff is what a clean QA run earns, which is why it goes last.
-
 ### Tone
 
 - Conversational, first person: "I think", "I've found", "I'm happy with"

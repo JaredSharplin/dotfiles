@@ -45,7 +45,7 @@ brew "ollama"                  # serves the phonon speech model being trialled f
 # Casks
 cask "ghostty"              # config in dot_config/ghostty/
 cask "font-jetbrains-mono"  # zellij terminal's font; ghostty bundles its own copy
-cask "google-chrome"        # browser QA target; qa-handoff opens tabs in it
+cask "google-chrome"        # browser QA target
 cask "karabiner-elements"   # config in dot_config/private_karabiner/
 cask "rectangle"            # window management
 cask "alt-tab"              # Windows-like alt-tab
