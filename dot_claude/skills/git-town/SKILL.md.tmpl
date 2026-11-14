@@ -454,7 +454,7 @@ fourth slice of the Manage Data Streams reshape — the previous slice left a sl
 - Write for someone who hasn't read the ticket — summarise clearly, don't say "see ticket"
 - **Link the fault.** A `(fix)` names where the failure was seen, on its own line after the prose: `**Sentry:** [PAYAUS-RAILS-15NF](https://tandahq.sentry.io/issues/PAYAUS-RAILS-15NF)`, or `**Setup log:**` with the counts and window when the fault raised no error. A reviewer opens the evidence rather than taking the Background's word for it.
 - Domain model names are fine when needed for clarity (e.g. `WageComparison`), but don't describe code mechanics or implementation details
-- Prose, not bullet points
+- **Prose, except a sequence.** Write the Background as prose. When it explains how something happens, one event leading to the next, put a one-line setup, then the events as a numbered list. Number only a real sequence: the old problem, what happens when nothing is clicked, or a second fix stay as sentences. A numbered list of separate points reads as steps that don't exist.
 - Use `NOTE:` callouts inline for important constraints
 
 ### Features / Changes
