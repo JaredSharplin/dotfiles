@@ -37,6 +37,7 @@ Pushing is **off by default** (`push-branches = false` in global git config). Th
 
 - `git town sync` (and `sync -s`) update branches **locally only** — they do **not** push to the remote.
 - To push on purpose: **`git town sync --push`** (overrides the config for that run). Use `git town sync -s --push` to push the whole stack.
+- To push one branch of a stack whose lower PRs are marked ready, use **`git town sync --detached --push`**. Plain `sync --push` merges master into every branch below and pushes them, so each ready PR below starts a Buildkite build for no change of its own. With `--detached`, only branches with unpushed commits move. It skips master, so do a full sync before the stack merges. Drafts gain nothing, since they run no CI.
 - `gh pr create --draft` pushes the branch as part of opening the PR — that's a new branch's first push. Because the PR opens as a draft, no CI runs.
 - `observe` branches never push regardless (they're read-only).
 
